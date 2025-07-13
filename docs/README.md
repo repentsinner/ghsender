@@ -1,6 +1,6 @@
-# Documentation Index
+# ghSender Documentation Index
 
-This directory contains all project documentation organized by category.
+This directory contains all documentation for ghSender organized by category.
 
 ## 📋 **Project Planning**
 - [**DEVELOPMENT_PLAN.md**](DEVELOPMENT_PLAN.md) - Current development roadmap and progress

@@ -1,6 +1,8 @@
-# Product Brief: A Modern, Safe G-Code Sender
+# Product Brief: ghSender
 
-This document defines the product vision, target users, and success criteria for the new G-Code sender application.
+This document defines the product vision, target users, and success criteria for ghSender - a modern, safe CNC controller for grblHAL.
+
+**Project Heritage**: An homage to gSender, optimized specifically for grblHAL
 
 ## 1. The Problem
 

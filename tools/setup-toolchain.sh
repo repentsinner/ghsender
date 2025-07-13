@@ -15,7 +15,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Local Toolchain Setup ===${NC}"
-echo "Project: G-Code Sender"
+echo "Project: ghSender"
 echo "Toolchain Directory: $TOOLCHAIN_DIR"
 echo "Platform: $(uname -s) $(uname -m)"
 echo

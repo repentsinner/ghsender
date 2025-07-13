@@ -1,14 +1,18 @@
-# G-Code Sender
+# ghSender
 
 **A modern, safety-first CNC controller for grblHAL with adaptive learning**
+
+*An homage to gSender, optimized for grblHAL*
 
 [![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Cross-Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20iPad-blue)](docs/development/CROSS_PLATFORM_SETUP.md)
 [![Multi-Agent](https://img.shields.io/badge/AI-Claude%20%7C%20Gemini-green)](docs/development/AGENT_TOOLS.md)
 
-## What is G-Code Sender?
+## What is ghSender?
 
-G-Code Sender is a **next-generation CNC controller** designed to make CNC machining **safer, smarter, and more accessible**. Whether you're a complete beginner or an experienced machinist, our adaptive learning system grows with your skills.
+ghSender is a **next-generation CNC controller** designed to make CNC machining **safer, smarter, and more accessible**. Whether you're a complete beginner or an experienced machinist, our adaptive learning system grows with your skills.
+
+Built specifically for **grblHAL**, ghSender takes advantage of advanced features like tool changers, probes, and networked communication while maintaining the reliability and precision that CNC users demand.
 
 ### 🎯 **For Beginners**
 - **Step-by-step guidance** through every operation
