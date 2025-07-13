@@ -40,6 +40,8 @@ Our documentation strategy follows the **"Docs as Code"** philosophy to create a
 
 ### Primary Documentation Outputs
 
+**Note on 'context' folder**: The `context` folder contains external projects imported to provide additional reference and understanding for agents. Files within these sub-directories are considered external context and are not part of the project's official documentation. They should not be treated as project documentation or subject to the same documentation standards.
+
 #### 1. API Reference Documentation
 **Generated from**: Source code using framework-native documentation tools  
 **Target Audience**: Developers integrating with or extending the system  
@@ -79,6 +81,7 @@ Our documentation strategy follows the **"Docs as Code"** philosophy to create a
 - Contribution guidelines and standards
 - Testing strategy and quality gates
 - Deployment and release procedures
+- Observability strategy and instrumentation (`docs/analysis/OBSERVABILITY.md`)
 
 #### 4. Security Documentation
 **Generated from**: Specialized security templates  
