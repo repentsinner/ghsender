@@ -235,6 +235,25 @@ When evaluating new dependencies or architectural changes:
 4. **Testing Compatibility**: Ensure new technologies integrate with the existing testing strategy
 5. **Maintenance Burden**: Consider long-term maintenance implications and team expertise
 
+### 3.4. Third-Party Package and Dependency Strategy
+
+*   **Principle**: To accelerate development and leverage community expertise, we will prioritize the use of high-quality, well-maintained packages from `pub.dev` over building custom implementations from scratch. "Reinventing the wheel" will be actively discouraged.
+
+*   **Rationale**: This approach allows the development team to focus on the unique challenges and business logic of the G-Code sender, rather than solving problems that have already been solved effectively by the open-source community. It reduces development time, lowers the maintenance burden, and benefits from the continuous improvements of the package maintainers.
+
+*   **Criteria for High-Quality Packages**: A package is considered "high-quality" if it meets the majority of the following criteria:
+    *   **High Scores**: Strong "Likes," "Pub Points," and "Popularity" on `pub.dev`.
+    *   **Null Safety**: Full support for modern, null-safe Dart.
+    *   **Active Maintenance**: A responsive issue tracker and recent commit history.
+    *   **Excellent Documentation**: A clear `README`, comprehensive API documentation, and a functional `example/` implementation.
+    *   **Thorough Testing**: A comprehensive test suite included with the package.
+    *   **Minimal Dependencies**: The package should not introduce an excessive number of transitive dependencies.
+
+*   **Exceptions**: A custom implementation will be considered only when:
+    *   No high-quality package exists that meets the specific functional or performance requirements.
+    *   The required functionality is trivial and a custom implementation is less complex than adding a new dependency.
+    *   A package introduces a security risk or a significant performance bottleneck that cannot be mitigated.
+
 ## 4. Development Quality Gates
 
 ### 4.1. Performance Gates
