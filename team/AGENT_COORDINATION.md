@@ -175,7 +175,8 @@
 - **Local Only**: This file is intentionally untracked by Git (via `.gitignore`). Changes made to it will not be committed to the repository.
 - **Ephemeral Log**: It acts as a dynamic, session-based log for ongoing agent activities, status, and brief messages.
 - **Read First**: Agents should always read `SHARED_WORKSPACE.md` at the beginning of a session to understand recent activities and current context from other agents.
-- **Update Regularly**: Agents must update their status and log significant actions in `SHARED_WORKSPACE.md` after completing work, even if those actions are not committed to Git.
+- **Update Regularly**: Agents must update their status and log significant actions in `SHARED_WORKSPACE.md` after completing work, even if those actions are not committed to Git. Use the `tools/generate_log_entry.sh` script to ensure consistent formatting and system-generated timestamps. Example: `tools/generate_log_entry.sh "Gemini" "Updated AGENT_COORDINATION.md" "team/AGENT_COORDINATION.md" "Added instructions for using generate_log_entry.sh"`
+- **Time Synchronization**: When reading `SHARED_WORKSPACE.md`, agents should use a system tool (e.g., `date` command) to get the current time. This helps in understanding the relative age of log entries and their position within the timeline, compensating for any internal clock discrepancies.
 - **No Version Control**: Do not attempt to commit `SHARED_WORKSPACE.md` to the repository. Its purpose is to be a local, unversioned communication channel.
 
 ### Conflict Resolution
