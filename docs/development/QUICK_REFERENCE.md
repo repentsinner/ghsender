@@ -33,6 +33,21 @@ git push
 gh pr create --title "feat: Your feature" --body "Description"
 ```
 
+### After PR Merge
+```bash
+# Switch back to main
+git checkout main
+
+# Pull merged changes
+git pull origin main
+
+# Delete local feature branch
+git branch -d feature/your-feature-name
+
+# Delete remote branch (if not auto-deleted)
+git push origin --delete feature/your-feature-name
+```
+
 ## Branch Naming Cheat Sheet
 
 | Type | Format | Example |
