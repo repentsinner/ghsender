@@ -125,7 +125,7 @@ Before any development task or user story can be pulled into an active sprint or
     *   The initial `MachineState` data model (using `freezed`) will be defined with fields for `workPosition`, `machinePosition`, and `status` (e.g., 'Idle', 'Run').
 
 *   **grblHAL Protocol Research:**
-    *   The development team will need to read the grblHAL documentation to understand the exact TCP/IP command and status report format. This is a prerequisite for the `CncService` implementation.
+    *   The development team will need to understand the grblHAL communication protocol, including TCP/IP command and status report formats. Refer to [GRBLHAL_COMMUNICATION.md](GRBLHAL_COMMUNICATION.md) for details. This is a prerequisite for the `CncService` implementation.
 
 **Key Milestones:**
 
