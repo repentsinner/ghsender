@@ -167,6 +167,17 @@
 **Output Files**: [New or modified files]
 ```
 
+### Shared Agent Workspace Protocol
+
+**Purpose**: The `SHARED_WORKSPACE.md` file serves as the primary, local, and untracked log for asynchronous agent-to-agent communication and status updates. It is designed to facilitate real-time coordination without cluttering the Git history with transient operational details.
+
+**Usage Guidelines**:
+- **Local Only**: This file is intentionally untracked by Git (via `.gitignore`). Changes made to it will not be committed to the repository.
+- **Ephemeral Log**: It acts as a dynamic, session-based log for ongoing agent activities, status, and brief messages.
+- **Read First**: Agents should always read `SHARED_WORKSPACE.md` at the beginning of a session to understand recent activities and current context from other agents.
+- **Update Regularly**: Agents must update their status and log significant actions in `SHARED_WORKSPACE.md` after completing work, even if those actions are not committed to Git.
+- **No Version Control**: Do not attempt to commit `SHARED_WORKSPACE.md` to the repository. Its purpose is to be a local, unversioned communication channel.
+
 ### Conflict Resolution
 When agents disagree on approach:
 1. **Document both perspectives** in a comparison format
