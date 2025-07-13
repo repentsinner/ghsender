@@ -83,6 +83,7 @@ The `CncService` will be responsible for:
 
 ## References
 
--   [grblHAL GitHub Wiki](https://github.com/grblHAL/grblHAL/wiki) (for general grblHAL information)
--   [grbl v1.1 Interface Documentation](https://github.com/gnea/grbl/wiki/Grbl-v1.1-Interface) (for detailed grbl serial protocol commands and responses - grblHAL largely adheres to this)
+-   **grblHAL Core README**: `context/grblhal/core/README.md` (Provides an overview of grblHAL features and compatibility.)
+-   **grbl v1.1 Interface Documentation**: [https://github.com/gnea/grbl/wiki/Grbl-v1.1-Interface](https://github.com/gnea/grbl/wiki/Grbl-v1.1-Interface) (For detailed grbl serial protocol commands and responses, which grblHAL largely adheres to.)
+-   **grblHAL GitHub Wiki**: [https://github.com/grblHAL/grblHAL/wiki](https://github.com/grblHAL/grblHAL/wiki) (For general grblHAL information and extensions.)
 
