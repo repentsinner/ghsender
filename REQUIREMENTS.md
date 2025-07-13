@@ -4,6 +4,11 @@ This document outlines the requirements for a new G-Code sender application desi
 
 ## 1. Core Tenets
 
+### 1.8. Requirements Quality and Lifecycle
+
+All requirements are subject to a "Definition of Ready" (DoR) before development commences. This ensures clarity, completeness, and testability, minimizing ambiguity and rework. The DoR criteria are detailed in the [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) document.
+
+
 ### 1.1. Uncompromising Reliability and State Management
 
 The absolute highest priority is the safety and correctness of the system. The application must maintain a perfectly synchronized and accurate representation of the machine controller's state at all times. Discrepancies between the UI and the physical state of the machine can lead to catastrophic hardware damage and are unacceptable. The system architecture must be designed from the ground up to guarantee state integrity.

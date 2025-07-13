@@ -29,6 +29,40 @@
 
 ## Previously Accepted Decisions
 
+## ADR-012: Documentation Platform Strategy
+
+**Date**: 2025-07-13
+**Status**: Accepted
+**Decision**: Proceed with static documentation generation (e.g., MkDocs/ReadTheDocs) for immediate needs, while actively exploring semantic documentation platforms and knowledge graphs for future integration.
+
+**Context**:
+The project requires robust and accessible documentation. Static site generators are well-understood, integrate easily with "Docs as Code" principles, and meet current needs. However, the long-term vision includes advanced knowledge management capabilities like semantic search and AI-driven Q&A, which knowledge graphs can provide. There is a need to balance immediate delivery with future innovation.
+
+**Alternatives**:
+1. **Immediate Semantic Platform Adoption**:
+   - Pros: Early adoption of advanced capabilities.
+   - Cons: Higher initial complexity, steeper learning curve, potential for delays, less mature tooling for direct integration with existing Markdown.
+2. **Delay Documentation**:
+   - Pros: Focus solely on application development.
+   - Cons: Violates "Docs as Code" principle, increases technical debt, hinders agent-assisted development and onboarding.
+
+**Consequences**:
+- **Positive**:
+  - Rapid deployment of high-quality, version-controlled documentation.
+  - Leverages existing "Docs as Code" pipeline.
+  - Allows time for thorough research and evaluation of semantic platforms without blocking current development.
+  - Provides a clear path for future documentation enhancements.
+- **Negative**:
+  - Current documentation will lack advanced semantic search and knowledge graph capabilities.
+  - Potential for future migration effort if a semantic platform is adopted.
+- **Risks**:
+  - Underestimation of future migration complexity.
+  - Rapid evolution of semantic documentation tools might make early research obsolete.
+
+**Review Date**: 2026-01-01 (to re-evaluate semantic documentation options)
+
+
+
 - **TCP/IP Communication (ADR-003)**: Exclusive network-based communication
 - **grblHAL Support (ADR-004)**: Exclusive support for grblHAL controllers
 - **Workflow Management (ADR-005)**: Dedicated WorkflowService for operations

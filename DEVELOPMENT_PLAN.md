@@ -8,6 +8,19 @@ This document outlines the development phases and milestones for the G-Code Send
 *   **Expert User First:** The initial implementation will assume an expert user (the "Mark" persona) who is comfortable with CNC concepts and requires less guidance. The adaptive learning features will be scaffolded but not fully implemented.
 *   **Scaffold, Don't Build Out:** Features like the Visualizer and the Learning Service are important for the long-term vision but are considered "nice-to-haves" for the initial MVP. They will be scaffolded in place to ensure the architecture is sound, but their functionality will be minimal.
 
+## Definition of Ready (DoR)
+
+Before any development task or user story can be pulled into an active sprint or development phase, it must meet the following criteria. This ensures clarity, reduces rework, and maintains development velocity.
+
+1.  **Clear Acceptance Criteria**: The task has well-defined, testable acceptance criteria that specify what "done" looks like.
+2.  **Dependencies Identified**: All external and internal dependencies (e.g., API endpoints, UI designs, other tasks) are identified and addressed.
+3.  **Technical Approach Outlined**: A high-level technical approach or solution sketch is documented, including any significant architectural considerations.
+4.  **Effort Estimated**: The task has a reasonable effort estimate, agreed upon by the development team.
+5.  **UX/UI Mockups Approved (if applicable)**: For user-facing features, relevant UX/UI designs or wireframes are finalized and approved.
+6.  **Security Considerations Reviewed**: Potential security implications are briefly reviewed and noted.
+7.  **Observability Requirements Defined**: Logging, metrics, or error reporting needs for debugging are specified.
+8.  **No Ambiguities**: Any ambiguities or open questions are resolved.
+
 ---
 
 ## Phase 0: Technology Spike & De-risking (Deliverable 0)
