@@ -14,7 +14,7 @@ This means the communication involves two main layers:
 
 ## 1. Network Transport Layer (TCP/IP)
 
-grblHAL supports standard TCP/IP protocols for network communication, typically Telnet in "raw" mode or WebSockets. Our application will primarily use **Telnet (TCP port 23)** for its simplicity and directness in encapsulating serial-like communication.
+grblHAL supports standard TCP/IP protocols for network communication, including **Telnet** in "raw" mode and **WebSockets**. While Telnet (TCP port 23) is a common choice due to its simplicity, WebSockets are also fully supported and may be preferred for more modern implementations due to their persistent, full-duplex communication capabilities. Our application can utilize either, with a preference for WebSockets if implementation proves equally straightforward.
 
 -   **Protocol**: TCP/IP (Telnet)
 -   **Default Port**: 23
