@@ -1,1 +1,6 @@
 .claude
+
+# Local Toolchain Directory
+# Container-style development for desktop GUI software
+# Keep all project dependencies isolated from system
+toolchain/

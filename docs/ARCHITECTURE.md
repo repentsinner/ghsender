@@ -263,6 +263,33 @@ When evaluating new dependencies or architectural changes:
 - **Memory Usage**: <200MB total application memory footprint
 - **Startup Time**: <3 seconds on target devices (iPad, mid-range Android tablet)
 
+### 4.2. Development Platform Strategy
+
+**Cross-Platform Development Environment**
+- **Supported Development Platforms**: macOS and Windows 11
+- **Flutter Advantage**: Single codebase works across both development environments
+- **Team Flexibility**: Developers can use their preferred OS without project impact
+- **CI/CD Strategy**: Build and test on both platforms automatically
+
+**Phase 0-1: Desktop Development Focus**
+- **Primary Platforms**: macOS and Windows 11 desktop development
+- **Rationale**: Reduces complexity during technology validation and core development
+- **Benefits**: Faster iteration cycles, comprehensive debugging tools, no mobile platform constraints
+- **Validation Target**: Prove core technology assumptions before mobile deployment
+- **Cross-Platform Validation**: Ensure Flutter app works on both desktop platforms early
+
+**Phase 1+: Mobile and Production Validation**
+- **iPad Deployment**: Early validation of touch interface and performance characteristics
+- **Mobile Constraints**: Validate memory usage, touch responsiveness, and platform-specific limitations
+- **Production Target**: iPad-first experience with desktop compatibility
+- **Windows Testing**: Validate desktop experience for potential Windows tablet deployment
+
+**Platform-Specific Considerations:**
+- **macOS Development**: Native Xcode integration, iOS simulator access, Metal rendering
+- **Windows Development**: Visual Studio integration, Android emulator preferred, DirectX rendering
+- **Cross-Platform Shared**: Dart language, Flutter framework, git workflow, documentation
+- **Platform Differences**: Build tools, debugging environments, deployment pipelines
+
 ### 4.2. Safety Gates
 
 - **Validation Coverage**: 100% of G-Code operations must pass through `ValidationService`

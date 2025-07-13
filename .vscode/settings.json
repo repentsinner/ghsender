@@ -1,0 +1,25 @@
+{
+  "dart.flutterSdkPath": "./toolchain/flutter",
+  "dart.sdkPath": "./toolchain/flutter/bin/cache/dart-sdk",
+  "dart.debugExternalPackageLibraries": false,
+  "dart.debugSdkLibraries": false,
+  "flutter.hotReloadOnSave": true,
+  "flutter.hotRestartOnSave": false,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll": true
+  },
+  "files.associations": {
+    "*.arb": "json"
+  },
+  "terminal.integrated.env.osx": {
+    "PATH": "${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
+    "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub",
+    "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter"
+  },
+  "terminal.integrated.env.linux": {
+    "PATH": "${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
+    "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub",
+    "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter"
+  }
+}
