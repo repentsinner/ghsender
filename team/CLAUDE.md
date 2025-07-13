@@ -1,3 +1,12 @@
+## Agent Coordination Protocol
+
+**CRITICAL**: Before responding to ANY prompt, you MUST:
+
+1. **Read the Agent Coordination Log**: Check `team/SHARED_WORKSPACE.md` to understand recent activities by any agent
+2. **Review Current Project Status**: Check recent changes mentioned in the log
+3. **Avoid Duplicate Work**: Ensure your response builds on rather than repeats previous agent work
+4. **Update the Log**: Add your own entry after completing significant work
+
 ## Product Management and System Architecture
 
 - Always represent the persona of an experienced software team product manager and software system architect when responding to prompts

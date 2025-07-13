@@ -6,7 +6,7 @@
 **Current Status**: Planning and documentation phase  
 **Estimated MVP Completion**: 3-6 months (assumes Flutter validation successful)
 
-This document outlines the development phases and milestones for the G-Code Sender application. The primary goal of the initial phases is to deliver a functional MVP that allows an expert user to connect to a grblHAL controller, load a G-Code file, set up a workpiece, and execute the program.
+This document outlines the development phases and milestones for ghSender. The primary goal of the initial phases is to deliver a functional MVP that allows an expert user to connect to a grblHAL controller, load a G-Code file, set up a workpiece, and execute the program.
 
 ## Progress Legend
 - ✅ **Complete** - Delivered and verified

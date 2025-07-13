@@ -44,7 +44,7 @@ function Write-Step {
 }
 
 Write-ColorOutput "=== Local Toolchain Setup (Windows 11) ===" "Green"
-Write-Host "Project: G-Code Sender"
+Write-Host "Project: ghSender"
 Write-Host "Toolchain Directory: $ToolchainDir"
 Write-Host "Platform: Windows $(Get-ComputerInfo | Select-Object -ExpandProperty WindowsProductName)"
 Write-Host ""

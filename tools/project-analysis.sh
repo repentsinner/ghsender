@@ -4,7 +4,7 @@
 
 PROJECT_ROOT="/Users/ritchie/development/ghsender"
 
-echo "=== G-Code Sender Project Analysis ==="
+echo "=== ghSender Project Analysis ==="
 echo "Generated: $(date)"
 echo
 

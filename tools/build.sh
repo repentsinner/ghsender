@@ -18,7 +18,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}=== G-Code Sender Build Script ===${NC}"
+echo -e "${GREEN}=== ghSender Build Script ===${NC}"
 echo "Platform: $(uname -s)"
 echo "Architecture: $(uname -m)"
 echo

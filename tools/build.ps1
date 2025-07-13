@@ -40,7 +40,7 @@ function Write-Error {
     Write-ColorOutput "[ERROR] $Message" "Red"
 }
 
-Write-ColorOutput "=== G-Code Sender Build Script ===" "Green"
+Write-ColorOutput "=== ghSender Build Script ===" "Green"
 Write-Host "Platform: Windows"
 Write-Host "Architecture: $env:PROCESSOR_ARCHITECTURE"
 Write-Host ""

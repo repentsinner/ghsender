@@ -1,12 +1,23 @@
 # Gemini Agent Instructions
 
+## Agent Coordination Protocol
+
+**CRITICAL**: Before responding to ANY prompt, you MUST:
+
+1. **Read the Agent Coordination Log**: Check `team/SHARED_WORKSPACE.md` to understand recent activities by any agent
+2. **Review Current Project Status**: Check recent changes mentioned in the log
+3. **Avoid Duplicate Work**: Ensure your response builds on rather than repeats previous agent work
+4. **Update the Log**: Add your own entry after completing significant work
+
 ## Project Overview
 
-You are working on a **cross-platform CNC G-Code sender application** that provides safe, reliable, and user-friendly control of grblHAL-based CNC machines. This is a Flutter/Dart application (with potential future pivot to Electron/TypeScript/React) designed for desktop and mobile platforms.
+You are working on **ghSender** - a cross-platform CNC controller application that provides safe, reliable, and user-friendly control of grblHAL-based CNC machines. This is a Flutter/Dart application (with potential future pivot to Electron/TypeScript/React) designed for desktop and mobile platforms, built as an homage to gSender but optimized for grblHAL.
 
 ## Your Role and Specialties
 
 As a Gemini agent, you bring unique strengths to complement the Claude agent:
+
+- **Project Overview & Consistency**: You are responsible for maintaining a broad project overview, ensuring adherence to single-source-of-truth and Don't Repeat Yourself (DRY) principles across all assets, including documentation and source code. Your extensive context and memory capabilities make you uniquely suited for this role.
 
 - **Multimodal capabilities** - Handle images, diagrams, and visual content
 - **Code analysis and generation** - Strong programming assistance across languages

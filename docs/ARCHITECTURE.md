@@ -1,6 +1,6 @@
 # Application Architecture
 
-This document outlines the proposed high-level software architecture for the modern G-Code sender. The architecture is designed to meet the core tenets of reliability, low latency, and maintainability, leveraging the strengths of the Flutter/Dart ecosystem.
+This document outlines the proposed high-level software architecture for ghSender. The architecture is designed to meet the core tenets of reliability, low latency, and maintainability, leveraging the strengths of the Flutter/Dart ecosystem.
 
 ## 1. Layered Architecture
 

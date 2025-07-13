@@ -2,7 +2,7 @@
 # Development Environment Verification for Phase 0
 # Run this script after installing Flutter tooling
 
-echo "=== G-Code Sender Development Environment Check ==="
+echo "=== ghSender Development Environment Check ==="
 echo "Date: $(date)"
 echo
 
