@@ -1,8 +1,25 @@
-
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart'; // Required for SystemNavigator
+import 'dart:ui'; // For Color
+
+// Custom class to hold line segment data
+class LineSegmentData {
+  Offset start;
+  Offset end;
+  final Color color;
+  Offset targetStart;
+  Offset targetEnd;
+
+  LineSegmentData({
+    required this.start,
+    required this.end,
+    required this.color,
+    required this.targetStart,
+    required this.targetEnd,
+  });
+}
 
 void main() {
   runApp(const MyApp());
@@ -31,34 +48,49 @@ class GraphicsPerformanceScreen extends StatefulWidget {
 }
 
 class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
-  Offset _currentPosition = Offset.zero;
-  final List<List<Offset>> _lineSegments = [];
+  Offset _currentPosition = Offset.zero; // For the single moving circle
+  Offset _targetPosition = Offset.zero;
+  final List<LineSegmentData> _lineSegments = []; // Changed type
   final Random _random = Random();
   int _frameCount = 0;
   DateTime _lastFrameTime = DateTime.now();
   double _fps = 0.0;
   Ticker? _ticker;
 
-  static int _numberOfSegments = 36000; // Trying 36,000 2D line segments
+  static int _numberOfSegments = 10000; // Set to 10,000 2D line segments
   static const int _measurementDurationSeconds = 10; // Run for 10 seconds for measurement
   List<double> _fpsSamples = [];
   DateTime _startTime = DateTime.now();
+  static const double _moveSpeedCircle = 5.0; // Pixels per frame for smooth movement of circle
+  static const double _moveSpeedLine = 1.0; // Pixels per frame for smooth movement of lines
 
   @override
   void initState() {
     super.initState();
     _generateLineSegments();
     _startTime = DateTime.now();
+    _currentPosition = Offset(_random.nextDouble() * 800, _random.nextDouble() * 600);
+    _generateNewTargetPositionCircle();
+
+    // Log the intended renderer
+    print('--- Intended Renderer: Impeller (macOS) ---');
 
     _ticker = Ticker((_) {
       _frameCount++;
       final now = DateTime.now();
       final elapsed = now.difference(_lastFrameTime).inMilliseconds;
 
+      // Update position smoothly towards target for the circle
+      _updateSmoothPositionCircle();
+
+      // Update positions smoothly towards targets for all line segments
+      _updateSmoothPositionsLines();
+
+      setState(() {}); // Trigger rebuild to update UI on every tick
+
       if (elapsed >= 1000) {
         _fps = _frameCount * 1000 / elapsed;
         _fpsSamples.add(_fps);
-        setState(() {}); // Trigger rebuild to update FPS display
         _frameCount = 0;
         _lastFrameTime = now;
       }
@@ -78,13 +110,84 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   }
 
   void _generateLineSegments() {
-    _lineSegments.clear(); // Clear previous segments if hot-reloaded
+    _lineSegments.clear();
     for (int i = 0; i < _numberOfSegments; i++) {
       final startX = _random.nextDouble() * 800;
       final startY = _random.nextDouble() * 600;
       final endX = _random.nextDouble() * 800;
       final endY = _random.nextDouble() * 600;
-      _lineSegments.add([Offset(startX, startY), Offset(endX, endY)]);
+      final color = Color.fromARGB(
+        255,
+        _random.nextInt(256),
+        _random.nextInt(256),
+        _random.nextInt(256),
+      );
+      _lineSegments.add(LineSegmentData(
+        start: Offset(startX, startY),
+        end: Offset(endX, endY),
+        color: color,
+        targetStart: Offset(_random.nextDouble() * 800, _random.nextDouble() * 600),
+        targetEnd: Offset(_random.nextDouble() * 800, _random.nextDouble() * 600),
+      ));
+    }
+  }
+
+  void _generateNewTargetPositionCircle() {
+    _targetPosition = Offset(
+      _random.nextDouble() * 800,
+      _random.nextDouble() * 600,
+    );
+  }
+
+  void _updateSmoothPositionCircle() {
+    final dx = _targetPosition.dx - _currentPosition.dx;
+    final dy = _targetPosition.dy - _currentPosition.dy;
+    final distance = sqrt(dx * dx + dy * dy);
+
+    if (distance < _moveSpeedCircle) {
+      _currentPosition = _targetPosition;
+      _generateNewTargetPositionCircle();
+    } else {
+      _currentPosition = Offset(
+        _currentPosition.dx + dx / distance * _moveSpeedCircle,
+        _currentPosition.dy + dy / distance * _moveSpeedCircle,
+      );
+    }
+  }
+
+  void _updateSmoothPositionsLines() {
+    for (int i = 0; i < _lineSegments.length; i++) {
+      final segment = _lineSegments[i];
+
+      // Update start point
+      var dxStart = segment.targetStart.dx - segment.start.dx;
+      var dyStart = segment.targetStart.dy - segment.start.dy;
+      var distanceStart = sqrt(dxStart * dxStart + dyStart * dyStart);
+
+      if (distanceStart < _moveSpeedLine) {
+        segment.start = segment.targetStart;
+        segment.targetStart = Offset(_random.nextDouble() * 800, _random.nextDouble() * 600);
+      } else {
+        segment.start = Offset(
+          segment.start.dx + dxStart / distanceStart * _moveSpeedLine,
+          segment.start.dy + dyStart / distanceStart * _moveSpeedLine,
+        );
+      }
+
+      // Update end point
+      var dxEnd = segment.targetEnd.dx - segment.end.dx;
+      var dyEnd = segment.targetEnd.dy - segment.end.dy;
+      var distanceEnd = sqrt(dxEnd * dxEnd + dyEnd * dyEnd);
+
+      if (distanceEnd < _moveSpeedLine) {
+        segment.end = segment.targetEnd;
+        segment.targetEnd = Offset(_random.nextDouble() * 800, _random.nextDouble() * 600);
+      } else {
+        segment.end = Offset(
+          segment.end.dx + dxEnd / distanceEnd * _moveSpeedLine,
+          segment.end.dy + dyEnd / distanceEnd * _moveSpeedLine,
+        );
+      }
     }
   }
 
@@ -99,16 +202,8 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     SystemNavigator.pop(); // Exit the application
   }
 
-  void _updateRandomPosition() {
-    // This button will now trigger a hot-reload with updated segments
-    // For automated testing, this method won't be directly used.
-    setState(() {
-      _currentPosition = Offset(
-        _random.nextDouble() * 800,
-        _random.nextDouble() * 600,
-      );
-    });
-  }
+  // The _updateRandomPosition method is no longer needed for manual testing.
+  void _updateRandomPosition() {}
 
   @override
   Widget build(BuildContext context) {
@@ -129,7 +224,8 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
             top: 16,
             left: 16,
             child: Text(
-              'FPS: ${_fps.toStringAsFixed(2)}',
+              '''FPS: ${_fps.toStringAsFixed(2)}
+Renderer: Impeller (intended)''',
               style: const TextStyle(color: Colors.black, fontSize: 24),
             ),
           ),
@@ -150,10 +246,9 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
 }
 
 class VisualizerPainter extends CustomPainter {
-  final List<List<Offset>> lineSegments;
+  final List<LineSegmentData> lineSegments; // Changed type
   final Offset currentPosition;
   final Paint _linePaint = Paint()
-    ..color = Colors.blue
     ..strokeWidth = 1.0
     ..style = PaintingStyle.stroke;
   final Paint _circlePaint = Paint()
@@ -167,9 +262,10 @@ class VisualizerPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw all line segments
-    for (final segment in lineSegments) {
-      canvas.drawLine(segment[0], segment[1], _linePaint);
+    // Draw all line segments with their individual colors
+    for (final segmentData in lineSegments) {
+      _linePaint.color = segmentData.color;
+      canvas.drawLine(segmentData.start, segmentData.end, _linePaint);
     }
 
     // Draw the current position circle
@@ -178,6 +274,10 @@ class VisualizerPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant VisualizerPainter oldDelegate) {
-    return oldDelegate.currentPosition != currentPosition;
+    // Repaint if the circle's position changes or any line segment's position changes
+    // For simplicity in this spike, we'll assume the list reference changes if any segment moves.
+    // In a real app, you'd need a more granular check or use ValueNotifier/ChangeNotifier.
+    return oldDelegate.currentPosition != currentPosition ||
+           oldDelegate.lineSegments != lineSegments; // This will always be true if lines move
   }
 }
