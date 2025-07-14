@@ -40,13 +40,83 @@ print_step() {
 # Load version configuration
 source "$PROJECT_ROOT/tools/versions.env"
 
-# Create toolchain directory structure
-setup_directories() {
-    print_step "Setting up toolchain directory structure..."
+
+
+# Install libyaml locally
+install_libyaml() {
+    print_step "Installing libyaml locally..."
+    local libyaml_dir="$TOOLCHAIN_DIR/libyaml"
+    local libyaml_version="0.2.5"
+    local libyaml_url="http://pyyaml.org/download/libyaml/yaml-${libyaml_version}.tar.gz"
+    local temp_dir=$(mktemp -d)
+    local filename=$(basename "$libyaml_url")
+    local extracted_dir="$temp_dir/yaml-${libyaml_version}"
+
+    mkdir -p "$libyaml_dir"
+
+    print_status "Downloading libyaml ${libyaml_version}..."
+    if ! curl -L -o "$temp_dir/$filename" "$libyaml_url"; then
+        print_error "Failed to download libyaml"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+
+    print_status "Extracting libyaml..."
+    if ! tar -xzf "$temp_dir/$filename" -C "$temp_dir"; then
+        print_error "Failed to extract libyaml"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+
+    print_status "Compiling and installing libyaml..."
+    (cd "$extracted_dir" && \
+        ./configure --prefix="$libyaml_dir" && \
+        make && \
+        make install)
+
+    if [[ $? -ne 0 ]]; then
+        print_error "Failed to compile or install libyaml"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+
+    rm -rf "$temp_dir"
+    print_status "libyaml ${libyaml_version} installed successfully to $libyaml_dir."
+}
+
+# Install rbenv and ruby-build
+
+install_rbenv() {
+    print_step "Installing rbenv and ruby-build..."
+    local rbenv_dir="$TOOLCHAIN_DIR/gems/rbenv"
+    local ruby_build_dir="$rbenv_dir/plugins/ruby-build"
+
+    mkdir -p "$rbenv_dir"
+    git clone https://github.com/rbenv/rbenv.git "$rbenv_dir"
+
+    mkdir -p "$ruby_build_dir"
+    git clone https://github.com/rbenv/ruby-build.git "$ruby_build_dir"
+
+    print_status "rbenv and ruby-build installed."
+}
+
+# Install Ruby using rbenv
+install_ruby() {
+    print_step "Installing Ruby $RUBY_VERSION using rbenv..."
     
-    mkdir -p "$TOOLCHAIN_DIR"/{flutter,scripts,cache,config}
-    
-    print_status "Created toolchain directories"
+    # Install Ruby
+    if ! rbenv install -s "$RUBY_VERSION" --with-yaml-dir="$TOOLCHAIN_DIR/libyaml"; then
+        print_error "Failed to install Ruby $RUBY_VERSION"
+        exit 1
+    fi
+
+    # Set global Ruby version
+    if ! rbenv global "$RUBY_VERSION"; then
+        print_error "Failed to set global Ruby version to $RUBY_VERSION"
+        exit 1
+    fi
+
+    print_status "Ruby $RUBY_VERSION installed and set as global."
 }
 
 # Download and install Flutter SDK locally
@@ -54,21 +124,7 @@ install_flutter() {
     print_step "Installing Flutter SDK locally..."
     
     local flutter_dir="$TOOLCHAIN_DIR/flutter"
-    
-    if [[ -d "$flutter_dir" && -x "$flutter_dir/bin/flutter" ]]; then
-        local current_version=$("$flutter_dir/bin/flutter" --version | head -n1 | awk '{print $2}')
-        if [[ "$current_version" == "$FLUTTER_VERSION" ]]; then
-            print_status "Flutter $FLUTTER_VERSION already installed"
-            return 0
-        else
-            print_warning "Found Flutter $current_version, but need $FLUTTER_VERSION"
-            rm -rf "$flutter_dir"
-        fi
-    elif [[ -d "$flutter_dir" ]]; then
-        print_warning "Found incomplete Flutter installation, removing..."
-        rm -rf "$flutter_dir"
-    fi
-    
+
     # Determine architecture and download URL
     local arch=$(uname -m)
     local os=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -103,35 +159,26 @@ install_flutter() {
     fi
     
     # Extract Flutter
-    print_status "Extracting Flutter to $flutter_dir..."
+    print_status "Extracting Flutter to $TOOLCHAIN_DIR..."
     
     case "$filename" in
         *.zip)
-            if ! unzip -q "$temp_dir/$filename" -d "$temp_dir"; then
+            if ! unzip -q "$temp_dir/$filename" -d "$TOOLCHAIN_DIR"; then
                 print_error "Failed to extract Flutter zip"
                 exit 1
             fi
             ;;
         *.tar.xz)
-            if ! tar -xJf "$temp_dir/$filename" -C "$temp_dir"; then
+            if ! tar -xJf "$temp_dir/$filename" -C "$TOOLCHAIN_DIR"; then
                 print_error "Failed to extract Flutter tar.xz"
                 exit 1
             fi
             ;;
     esac
     
-    # Debug: Check what was extracted
-    print_status "Contents of temp directory after extraction:"
-    ls -la "$temp_dir"
-    
-    # Move Flutter to toolchain directory  
-    if [[ -d "$temp_dir/flutter" ]]; then
-        mv "$temp_dir/flutter" "$flutter_dir"
-        print_status "Moved Flutter to $flutter_dir"
-    else
-        print_error "Flutter directory not found after extraction"
-        exit 1
-    fi
+    print_status "Contents of $flutter_dir after extraction:"
+    ls -laR "$flutter_dir"
+
     rm -rf "$temp_dir"
     
     # Verify installation
@@ -143,66 +190,7 @@ install_flutter() {
     fi
 }
 
-# Create environment activation script
-create_activation_script() {
-    print_step "Creating environment activation script..."
-    
-    local activation_script="$TOOLCHAIN_DIR/scripts/activate-env.sh"
-    
-    cat > "$activation_script" << 'EOF'
-#!/bin/bash
-# Activate local toolchain environment
-# Usage: source ./toolchain/scripts/activate-env.sh
 
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    echo "Error: This script must be sourced, not executed directly"
-    echo "Usage: source ./toolchain/scripts/activate-env.sh"
-    exit 1
-fi
-
-# Get project root (toolchain parent directory)
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TOOLCHAIN_DIR="$PROJECT_ROOT/toolchain"
-
-# Add Flutter to PATH
-export FLUTTER_HOME="$TOOLCHAIN_DIR/flutter"
-export PATH="$FLUTTER_HOME/bin:$PATH"
-
-# Set Flutter/Dart cache directories to local toolchain
-export PUB_CACHE="$TOOLCHAIN_DIR/cache/pub"
-export FLUTTER_ROOT="$FLUTTER_HOME"
-
-# Create cache directories if they don't exist
-mkdir -p "$PUB_CACHE"
-
-echo "✅ Activated local toolchain environment"
-echo "   Flutter: $(which flutter)"
-echo "   Dart: $(which dart)"
-echo "   Pub Cache: $PUB_CACHE"
-EOF
-    
-    chmod +x "$activation_script"
-    print_status "Created activation script: $activation_script"
-}
-
-# Create convenience activation script in tools/
-create_tools_activation_script() {
-    print_step "Creating tools/activate-env.sh convenience script..."
-    
-    local tools_script="$PROJECT_ROOT/tools/activate-env.sh"
-    
-    cat > "$tools_script" << 'EOF'
-#!/bin/bash
-# Convenience script to activate local toolchain
-# Usage: source ./tools/activate-env.sh
-
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$PROJECT_ROOT/toolchain/scripts/activate-env.sh"
-EOF
-    
-    chmod +x "$tools_script"
-    print_status "Created convenience script: $tools_script"
-}
 
 # Update build scripts to use local toolchain
 update_build_scripts() {
@@ -230,37 +218,7 @@ fi\
     fi
 }
 
-# Create version tracking file
-create_versions_file() {
-    print_step "Creating versions.env file..."
-    
-    local versions_file="$PROJECT_ROOT/tools/versions.env"
-    
-    if [[ ! -f "$versions_file" ]]; then
-        cat > "$versions_file" << EOF
-# Tool versions for local toolchain
-# Single source of truth for all development dependencies
 
-# Flutter/Dart versions
-FLUTTER_VERSION="3.24.5"
-DART_VERSION="3.5.4"
-
-# Platform tool minimum versions
-XCODE_MIN_VERSION="15.0"
-ANDROID_SDK_VERSION="34.0.0"
-COCOAPODS_MIN_VERSION="1.11.0"
-
-# Node.js (if needed for web builds)
-NODE_VERSION="20.10.0"
-
-# Build tool versions
-CMAKE_MIN_VERSION="3.18.0"
-EOF
-        print_status "Created versions.env file"
-    else
-        print_status "versions.env file already exists"
-    fi
-}
 
 # Run Flutter doctor to check system dependencies
 check_system_dependencies() {
@@ -306,12 +264,12 @@ create_vscode_config() {
     "*.arb": "json"
   },
   "terminal.integrated.env.osx": {
-    "PATH": "\${workspaceFolder}/toolchain/flutter/bin:\${env:PATH}",
+    "PATH": "\${workspaceFolder}/toolchain/flutter/bin:\${workspaceFolder}/toolchain/gems/rbenv/bin:\${env:PATH}",
     "PUB_CACHE": "\${workspaceFolder}/toolchain/cache/pub",
     "FLUTTER_ROOT": "\${workspaceFolder}/toolchain/flutter"
   },
   "terminal.integrated.env.linux": {
-    "PATH": "\${workspaceFolder}/toolchain/flutter/bin:\${env:PATH}",
+    "PATH": "\${workspaceFolder}/toolchain/flutter/bin:\${workspaceFolder}/toolchain/gems/rbenv/bin:\${env:PATH}",
     "PUB_CACHE": "\${workspaceFolder}/toolchain/cache/pub",
     "FLUTTER_ROOT": "\${workspaceFolder}/toolchain/flutter"
   }
@@ -329,11 +287,20 @@ main() {
     print_status "This will install all development tools in: $TOOLCHAIN_DIR"
     echo
     
-    create_versions_file
-    setup_directories
+    print_step "Cleaning up existing toolchain directory..."
+    rm -rf "$TOOLCHAIN_DIR"
+    print_status "Removed existing toolchain directory."
+
+    install_libyaml
+    install_rbenv
+
+    # Initialize rbenv for the current script execution
+    export RBENV_ROOT="$TOOLCHAIN_DIR/gems/rbenv"
+    export PATH="$RBENV_ROOT/bin:$PATH"
+    eval "$(rbenv init -)"
+
+    install_ruby
     install_flutter
-    create_activation_script
-    create_tools_activation_script
     update_build_scripts
     create_vscode_config
     
