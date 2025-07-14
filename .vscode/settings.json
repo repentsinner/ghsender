@@ -21,5 +21,9 @@
     "PATH": "${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
     "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub",
     "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter"
-  }
+  },
+  "dart.flutterRunAdditionalArgs": [
+    "-d",
+    "macos"
+  ]
 }

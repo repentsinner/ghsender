@@ -1,0 +1,20 @@
+# Fish environment setup for ghSender project
+# This file is automatically sourced when entering the project directory
+
+# Save original PATH if not already saved
+if not set -q __GHSENDER_ORIGINAL_PATH
+    set -g __GHSENDER_ORIGINAL_PATH $PATH
+end
+
+# Set Flutter environment
+set -gx FLUTTER_HOME "$PWD/toolchain/flutter"
+set -gx PUB_CACHE "$PWD/toolchain/cache/pub" 
+set -gx FLUTTER_ROOT "$FLUTTER_HOME"
+
+# Update PATH with Flutter tools
+set -gx PATH "$FLUTTER_HOME/bin" $__GHSENDER_ORIGINAL_PATH
+
+# Create cache directory if needed
+mkdir -p "$PUB_CACHE" 2>/dev/null
+
+echo "🐠 ghSender Flutter environment activated"
