@@ -105,7 +105,9 @@ install_ruby() {
     print_step "Installing Ruby $RUBY_VERSION using rbenv..."
     
     # Install Ruby
-    if ! rbenv install -s "$RUBY_VERSION" --with-yaml-dir="$TOOLCHAIN_DIR/libyaml"; then
+    if ! CPPFLAGS="-I$TOOLCHAIN_DIR/libyaml/include" \
+         LDFLAGS="-L$TOOLCHAIN_DIR/libyaml/lib" \
+         rbenv install -s "$RUBY_VERSION"; then
         print_error "Failed to install Ruby $RUBY_VERSION"
         exit 1
     fi
@@ -117,6 +119,29 @@ install_ruby() {
     fi
 
     print_status "Ruby $RUBY_VERSION installed and set as global."
+}
+
+# Install CocoaPods using the local Ruby
+install_cocoapods() {
+    print_step "Installing CocoaPods..."
+    
+    # Verify we're using the correct Ruby version
+    print_status "Using Ruby: $(rbenv which ruby)"
+    print_status "Ruby version: $(ruby --version)"
+    
+    # Install CocoaPods gem
+    if ! gem install cocoapods; then
+        print_error "Failed to install CocoaPods"
+        exit 1
+    fi
+
+    # Setup CocoaPods
+    if ! pod setup; then
+        print_error "Failed to setup CocoaPods"
+        exit 1
+    fi
+
+    print_status "CocoaPods installed and configured successfully."
 }
 
 # Download and install Flutter SDK locally
@@ -175,9 +200,6 @@ install_flutter() {
             fi
             ;;
     esac
-    
-    print_status "Contents of $flutter_dir after extraction:"
-    ls -laR "$flutter_dir"
 
     rm -rf "$temp_dir"
     
@@ -300,6 +322,7 @@ main() {
     eval "$(rbenv init -)"
 
     install_ruby
+    install_cocoapods
     install_flutter
     update_build_scripts
     create_vscode_config
