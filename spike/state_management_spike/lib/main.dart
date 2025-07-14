@@ -1,3 +1,5 @@
+
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -100,8 +102,10 @@ class _StateManagementScreenState extends State<StateManagementScreen> {
     _mockDataService.startStreaming(_eventFrequencyMs);
 
     // Timer to stop streaming and report results
-    Timer(const Duration(seconds: _measurementDurationSeconds), () {
+    Timer(const Duration(seconds: _measurementDurationSeconds), () async {
       _mockDataService.stopStreaming();
+      // Add a small delay to allow pending events to be processed
+      await Future.delayed(const Duration(milliseconds: 1000)); // Increased delay to 1 second
       _finalPosition = BlocProvider.of<MachineBloc>(context).state.position;
       _reportAndExit();
     });
