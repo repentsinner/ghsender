@@ -3,23 +3,13 @@
 # Handles all platform-specific build tasks via CLI tools
 
 set -e  # Exit on any error
-# Activate local toolchain environment
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [[ -f "$PROJECT_ROOT/toolchain/scripts/activate-env.sh" ]]; then
-    source "$PROJECT_ROOT/toolchain/scripts/activate-env.sh"
-fi
-# Activate local toolchain environment
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [[ -f "$PROJECT_ROOT/toolchain/scripts/activate-env.sh" ]]; then
-    source "$PROJECT_ROOT/toolchain/scripts/activate-env.sh"
-fi
+
 # Activate local toolchain environment
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ -f "$PROJECT_ROOT/toolchain/scripts/activate-env.sh" ]]; then
     source "$PROJECT_ROOT/toolchain/scripts/activate-env.sh"
 fi
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$PROJECT_ROOT"
 
 # Color output
