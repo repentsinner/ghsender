@@ -1,13 +1,18 @@
 # Architectural Decision Records (ADRs)
 
-## Current Proposed Decisions Requiring Resolution
+## Previously Accepted Decisions
 
-1. **Framework Selection (ADR-001)**
-   - Status: Proposed
-   - Options: Flutter/Dart vs Electron/TypeScript/React
-   - Blocking: Widget framework implementation, visualizer architecture
-   - Dependencies: Affects all UI components and runtime architecture
-   - Priority: HIGH - Critical path for development
+## ADR-001: Framework Selection
+
+**Date**: 2025-07-13
+**Status**: Accepted
+**Decision**: Proceed with Flutter + Dart + BLoC as the primary framework stack.
+
+**Context**: All Phase 0 technology spikes have been completed and evaluated against the criteria in `FRAMEWORK_VALIDATION_PLAN.md`. The conditions for triggering a framework re-evaluation, as defined in `ADR-011`, were not met.
+
+**Consequences**: This decision confirms the architectural foundation for the project, allowing progression to Phase 1 development.
+
+**Review Date**: 2025-10-01 (after initial implementation experience)
 
 2. **State Management Pattern (ADR-002)**
    - Status: Proposed (Dependent on ADR-001)
@@ -633,19 +638,12 @@ Traditional G-Code senders require users to learn historical implementation deta
 ## ADR-011: Framework Re-evaluation Triggers
 
 *   **Date**: 2025-07-13
-*   **Status**: Accepted
-*   **Decision**: A formal review of the Flutter/Dart framework choice will be triggered if the project fails to meet the success criteria of the technology spikes defined in **Phase 0** of the [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md).
+*   **Status**: Closed
+*   **Decision**: The Flutter/Dart framework choice is confirmed. No re-evaluation is triggered.
 
-*   **Context**: The choice of Flutter/Dart was made based on its perceived performance benefits and native cross-platform capabilities. However, the success of this project also depends on rapid development, AI agent synergy, and the potential for community contributions. We must have a "fail fast" mechanism to switch to the alternative Electron/TypeScript/React stack if the initial assumptions about Flutter prove incorrect in practice.
+*   **Context**: All Phase 0 technology spikes have been completed and evaluated against the criteria in `FRAMEWORK_VALIDATION_PLAN.md`. The conditions for triggering a framework re-evaluation, as defined in this ADR (two or more spikes failing acceptance criteria), were not met. The Real-time Communication spike had some unmet criteria, but the Graphics Performance and State Management Stress Test spikes were successful.
 
-*   **Triggers for Re-evaluation**: A formal review will be initiated if **two or more** of the technology spikes in the `FRAMEWORK_VALIDATION_PLAN.md` fail to meet their defined acceptance criteria.
-
-*   **Review Process**:
-    1.  If triggered, a one-day "Framework Review" will be held.
-    2.  The review will involve a direct, practical comparison of implementing a single, complex feature (e.g., the Tool Change workflow) in both the current Flutter codebase and a prototype Electron/React codebase.
-    3.  The decision to switch will be based on which stack demonstrates a clear advantage in meeting the project's core tenets of reliability, performance, and development velocity.
-
-*   **Consequences**: This ADR provides a clear, data-driven escape hatch from the initial framework decision. It prioritizes long-term project success over sticking with an initial choice that proves to be suboptimal. It forces an early, honest assessment of the chosen technology against the project's primary goals.
+*   **Consequences**: This ADR is now closed as its purpose (to evaluate the trigger) has been fulfilled. The project will proceed with the Flutter/Dart/BLoC stack as the confirmed framework. This decision confirms the architectural foundation for the project, allowing progression to Phase 1 development.
 
 ---
 
