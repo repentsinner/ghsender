@@ -1,18 +1,20 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart'; // Required for SystemNavigator
-import 'dart:ui'; // For Color
+import 'package:flutter/services.dart';
+import 'package:flutter_scene/scene.dart';
+import 'package:vector_math/vector_math.dart' as vm;
+import 'dart:ui';
 
-// Custom class to hold line segment data
-class LineSegmentData {
-  Offset start;
-  Offset end;
+// Custom class to hold 3D line segment data
+class LineSegmentData3D {
+  vm.Vector3 start;
+  vm.Vector3 end;
   final Color color;
-  Offset targetStart;
-  Offset targetEnd;
+  vm.Vector3 targetStart;
+  vm.Vector3 targetEnd;
 
-  LineSegmentData({
+  LineSegmentData3D({
     required this.start,
     required this.end,
     required this.color,
@@ -48,45 +50,52 @@ class GraphicsPerformanceScreen extends StatefulWidget {
 }
 
 class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
-  Offset _currentPosition = Offset.zero; // For the single moving circle
-  Offset _targetPosition = Offset.zero;
-  final List<LineSegmentData> _lineSegments = []; // Changed type
+  final List<LineSegmentData3D> _lineSegments = [];
   final Random _random = Random();
   int _frameCount = 0;
   DateTime _lastFrameTime = DateTime.now();
   double _fps = 0.0;
   Ticker? _ticker;
+  double _cameraAngle = 0.0;
+  Scene scene = Scene();
+  Camera camera = PerspectiveCamera();
+  final List<Node> _lineNodes = [];
+  bool _sceneInitialized = false;
 
-  static int _numberOfSegments = 10000; // Set to 10,000 2D line segments
-  static const int _measurementDurationSeconds = 10; // Run for 10 seconds for measurement
+  static int _numberOfSegments = 10000;
+  static int _numberOfAnimatedSegments = 100;
+  static const int _measurementDurationSeconds = 10;
   List<double> _fpsSamples = [];
   DateTime _startTime = DateTime.now();
-  static const double _moveSpeedCircle = 5.0; // Pixels per frame for smooth movement of circle
-  static const double _moveSpeedLine = 1.0; // Pixels per frame for smooth movement of lines
+  static const double _moveSpeedLine = 0.05;
+  static const double _cameraSpeed = 0.02;
+  static const double _sceneRadius = 100.0;
 
   @override
   void initState() {
     super.initState();
+    _initializeScene();
+  }
+
+  void _initializeScene() async {
+    // Initialize flutter_scene static resources
+    await Scene.initializeStaticResources();
+    
     _generateLineSegments();
     _startTime = DateTime.now();
-    _currentPosition = Offset(_random.nextDouble() * 800, _random.nextDouble() * 600);
-    _generateNewTargetPositionCircle();
+    _sceneInitialized = true;
 
-    // Log the intended renderer
-    print('--- Intended Renderer: Impeller (macOS) ---');
+    print('--- Intended Renderer: flutter_scene with Impeller (macOS) ---');
 
     _ticker = Ticker((_) {
       _frameCount++;
       final now = DateTime.now();
       final elapsed = now.difference(_lastFrameTime).inMilliseconds;
 
-      // Update position smoothly towards target for the circle
-      _updateSmoothPositionCircle();
-
-      // Update positions smoothly towards targets for all line segments
       _updateSmoothPositionsLines();
+      _updateCameraOrbit();
 
-      setState(() {}); // Trigger rebuild to update UI on every tick
+      setState(() {});
 
       if (elapsed >= 1000) {
         _fps = _frameCount * 1000 / elapsed;
@@ -109,84 +118,132 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     super.dispose();
   }
 
+
+  // Shared resources for performance
+  Mesh? _sharedCubeMesh;
+  
   void _generateLineSegments() {
     _lineSegments.clear();
+    _lineNodes.clear();
+    
+    // Create shared mesh and material once (optimization from flutter-scene-example)
+    if (_sharedCubeMesh == null) {
+      final geometry = CuboidGeometry(vm.Vector3(2, 2, 2));
+      final material = UnlitMaterial(); // Use UnlitMaterial for better performance
+      _sharedCubeMesh = Mesh(geometry, material);
+    }
+    
     for (int i = 0; i < _numberOfSegments; i++) {
-      final startX = _random.nextDouble() * 800;
-      final startY = _random.nextDouble() * 600;
-      final endX = _random.nextDouble() * 800;
-      final endY = _random.nextDouble() * 600;
+      // Generate 3D positions in a pile toward center
+      final radius = _random.nextDouble() * _sceneRadius;
+      final theta = _random.nextDouble() * 2 * pi;
+      final phi = _random.nextDouble() * pi;
+      
+      final startX = radius * sin(phi) * cos(theta);
+      final startY = radius * sin(phi) * sin(theta);
+      final startZ = radius * cos(phi);
+      
+      final endRadius = _random.nextDouble() * _sceneRadius;
+      final endTheta = _random.nextDouble() * 2 * pi;
+      final endPhi = _random.nextDouble() * pi;
+      
+      final endX = endRadius * sin(endPhi) * cos(endTheta);
+      final endY = endRadius * sin(endPhi) * sin(endTheta);
+      final endZ = endRadius * cos(endPhi);
+      
       final color = Color.fromARGB(
         255,
         _random.nextInt(256),
         _random.nextInt(256),
         _random.nextInt(256),
       );
-      _lineSegments.add(LineSegmentData(
-        start: Offset(startX, startY),
-        end: Offset(endX, endY),
+      
+      final lineData = LineSegmentData3D(
+        start: vm.Vector3(startX, startY, startZ),
+        end: vm.Vector3(endX, endY, endZ),
         color: color,
-        targetStart: Offset(_random.nextDouble() * 800, _random.nextDouble() * 600),
-        targetEnd: Offset(_random.nextDouble() * 800, _random.nextDouble() * 600),
-      ));
+        targetStart: _generateRandomPosition(),
+        targetEnd: _generateRandomPosition(),
+      );
+      
+      _lineSegments.add(lineData);
+      
+      // Create a Node for each line segment - share mesh for performance
+      final lineNode = Node();
+      lineNode.localTransform = vm.Matrix4.translation(lineData.start);
+      
+      // Share the same mesh across all nodes (major optimization)
+      lineNode.mesh = _sharedCubeMesh;
+      
+      _lineNodes.add(lineNode);
+      scene.add(lineNode);
     }
   }
 
-  void _generateNewTargetPositionCircle() {
-    _targetPosition = Offset(
-      _random.nextDouble() * 800,
-      _random.nextDouble() * 600,
+  vm.Vector3 _generateRandomPosition() {
+    final radius = _random.nextDouble() * _sceneRadius;
+    final theta = _random.nextDouble() * 2 * pi;
+    final phi = _random.nextDouble() * pi;
+    
+    return vm.Vector3(
+      radius * sin(phi) * cos(theta),
+      radius * sin(phi) * sin(theta),
+      radius * cos(phi),
     );
   }
 
-  void _updateSmoothPositionCircle() {
-    final dx = _targetPosition.dx - _currentPosition.dx;
-    final dy = _targetPosition.dy - _currentPosition.dy;
-    final distance = sqrt(dx * dx + dy * dy);
-
-    if (distance < _moveSpeedCircle) {
-      _currentPosition = _targetPosition;
-      _generateNewTargetPositionCircle();
-    } else {
-      _currentPosition = Offset(
-        _currentPosition.dx + dx / distance * _moveSpeedCircle,
-        _currentPosition.dy + dy / distance * _moveSpeedCircle,
-      );
+  void _updateCameraOrbit() {
+    _cameraAngle += _cameraSpeed;
+    if (_cameraAngle > 2 * pi) {
+      _cameraAngle -= 2 * pi;
+    }
+    
+    // Update camera position for orbital motion
+    final cameraRadius = _sceneRadius * 2.5;
+    final cameraX = cameraRadius * cos(_cameraAngle);
+    final cameraZ = cameraRadius * sin(_cameraAngle);
+    final cameraY = _sceneRadius * 0.5;
+    
+    if (camera is PerspectiveCamera) {
+      final perspectiveCamera = camera as PerspectiveCamera;
+      perspectiveCamera.position = vm.Vector3(cameraX, cameraY, cameraZ);
+      perspectiveCamera.target = vm.Vector3(0, 0, 0);
     }
   }
 
+
   void _updateSmoothPositionsLines() {
-    for (int i = 0; i < _lineSegments.length; i++) {
+    // Only animate the first _numberOfAnimatedSegments cubes
+    final animationLimit = min(_numberOfAnimatedSegments, _lineSegments.length);
+    
+    for (int i = 0; i < animationLimit; i++) {
       final segment = _lineSegments[i];
 
       // Update start point
-      var dxStart = segment.targetStart.dx - segment.start.dx;
-      var dyStart = segment.targetStart.dy - segment.start.dy;
-      var distanceStart = sqrt(dxStart * dxStart + dyStart * dyStart);
+      final startDiff = segment.targetStart - segment.start;
+      final startDistance = startDiff.length;
 
-      if (distanceStart < _moveSpeedLine) {
+      if (startDistance < _moveSpeedLine) {
         segment.start = segment.targetStart;
-        segment.targetStart = Offset(_random.nextDouble() * 800, _random.nextDouble() * 600);
+        segment.targetStart = _generateRandomPosition();
       } else {
-        segment.start = Offset(
-          segment.start.dx + dxStart / distanceStart * _moveSpeedLine,
-          segment.start.dy + dyStart / distanceStart * _moveSpeedLine,
-        );
+        segment.start = segment.start + (startDiff.normalized() * _moveSpeedLine);
       }
 
       // Update end point
-      var dxEnd = segment.targetEnd.dx - segment.end.dx;
-      var dyEnd = segment.targetEnd.dy - segment.end.dy;
-      var distanceEnd = sqrt(dxEnd * dxEnd + dyEnd * dyEnd);
+      final endDiff = segment.targetEnd - segment.end;
+      final endDistance = endDiff.length;
 
-      if (distanceEnd < _moveSpeedLine) {
+      if (endDistance < _moveSpeedLine) {
         segment.end = segment.targetEnd;
-        segment.targetEnd = Offset(_random.nextDouble() * 800, _random.nextDouble() * 600);
+        segment.targetEnd = _generateRandomPosition();
       } else {
-        segment.end = Offset(
-          segment.end.dx + dxEnd / distanceEnd * _moveSpeedLine,
-          segment.end.dy + dyEnd / distanceEnd * _moveSpeedLine,
-        );
+        segment.end = segment.end + (endDiff.normalized() * _moveSpeedLine);
+      }
+      
+      // Update the 3D node position
+      if (i < _lineNodes.length) {
+        _lineNodes[i].localTransform = vm.Matrix4.translation(segment.start);
       }
     }
   }
@@ -202,35 +259,35 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     SystemNavigator.pop(); // Exit the application
   }
 
-  // The _updateRandomPosition method is no longer needed for manual testing.
-  void _updateRandomPosition() {}
+  void _updateRandomPosition() {
+    _generateLineSegments();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Graphics Performance Spike'),
+        title: const Text('Graphics Performance Spike - 3D flutter_scene'),
       ),
       body: Stack(
         children: [
-          CustomPaint(
-            painter: VisualizerPainter(
-              lineSegments: _lineSegments,
-              currentPosition: _currentPosition,
+          SizedBox.expand(
+            child: CustomPaint(
+              painter: ScenePainter(scene: scene, camera: camera, initialized: _sceneInitialized),
             ),
-            child: Container(),
           ),
           Positioned(
             top: 16,
             left: 16,
             child: Text(
               '''FPS: ${_fps.toStringAsFixed(2)}
-Renderer: Impeller (intended)''',
-              style: const TextStyle(color: Colors.black, fontSize: 24),
+Renderer: flutter_scene + Impeller
+Cubes: $_numberOfSegments (${_numberOfAnimatedSegments} animated)''',
+              style: const TextStyle(color: Colors.white, fontSize: 18, shadows: [
+                Shadow(offset: Offset(1, 1), blurRadius: 2, color: Colors.black),
+              ]),
             ),
           ),
-          // The refresh button is now primarily for manual testing/hot-reloads
-          // For automated runs, we'll modify _numberOfSegments directly.
           Positioned(
             bottom: 16,
             right: 16,
@@ -245,39 +302,27 @@ Renderer: Impeller (intended)''',
   }
 }
 
-class VisualizerPainter extends CustomPainter {
-  final List<LineSegmentData> lineSegments; // Changed type
-  final Offset currentPosition;
-  final Paint _linePaint = Paint()
-    ..strokeWidth = 1.0
-    ..style = PaintingStyle.stroke;
-  final Paint _circlePaint = Paint()
-    ..color = Colors.red
-    ..style = PaintingStyle.fill;
-
-  VisualizerPainter({
-    required this.lineSegments,
-    required this.currentPosition,
-  });
+class ScenePainter extends CustomPainter {
+  ScenePainter({required this.scene, required this.camera, required this.initialized});
+  final Scene scene;
+  final Camera camera;
+  final bool initialized;
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw all line segments with their individual colors
-    for (final segmentData in lineSegments) {
-      _linePaint.color = segmentData.color;
-      canvas.drawLine(segmentData.start, segmentData.end, _linePaint);
+    if (!initialized) {
+      // Draw black background while waiting for scene to initialize
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Paint()..color = Colors.black,
+      );
+      return;
     }
-
-    // Draw the current position circle
-    canvas.drawCircle(currentPosition, 10.0, _circlePaint);
+    
+    scene.render(camera, canvas, viewport: Offset.zero & size);
   }
 
   @override
-  bool shouldRepaint(covariant VisualizerPainter oldDelegate) {
-    // Repaint if the circle's position changes or any line segment's position changes
-    // For simplicity in this spike, we'll assume the list reference changes if any segment moves.
-    // In a real app, you'd need a more granular check or use ValueNotifier/ChangeNotifier.
-    return oldDelegate.currentPosition != currentPosition ||
-           oldDelegate.lineSegments != lineSegments; // This will always be true if lines move
-  }
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+

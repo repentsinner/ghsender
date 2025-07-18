@@ -80,6 +80,9 @@ lib/generated_plugin_registrant.dart
 **/macos/Flutter/GeneratedPluginRegistrant.swift
 **/macos/Flutter/ephemeral/
 
+# iOS ephemeral
+**/ios/Flutter/ephemeral/
+
 # Web build artifacts
 **/web/
 

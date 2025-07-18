@@ -44,7 +44,7 @@ source "$PROJECT_ROOT/tools/versions.env"
 setup_directories() {
     print_step "Setting up toolchain directory structure..."
     
-    mkdir -p "$TOOLCHAIN_DIR"/{flutter,scripts,cache,config}
+    mkdir -p "$TOOLCHAIN_DIR"/{flutter,cmake,scripts,cache,config}
     
     print_status "Created toolchain directories"
 }
@@ -143,6 +143,93 @@ install_flutter() {
     fi
 }
 
+# Download and install CMake locally
+install_cmake() {
+    print_step "Installing CMake locally..."
+    
+    local cmake_dir="$TOOLCHAIN_DIR/cmake"
+    
+    if [[ -d "$cmake_dir" && -x "$cmake_dir/CMake.app/Contents/bin/cmake" ]]; then
+        local current_version=$("$cmake_dir/CMake.app/Contents/bin/cmake" --version | head -n1 | awk '{print $3}')
+        if [[ "$current_version" == "$CMAKE_VERSION" ]]; then
+            print_status "CMake $CMAKE_VERSION already installed"
+            return 0
+        else
+            print_warning "Found CMake $current_version, but need $CMAKE_VERSION"
+            rm -rf "$cmake_dir"
+        fi
+    elif [[ -d "$cmake_dir" ]]; then
+        print_warning "Found incomplete CMake installation, removing..."
+        rm -rf "$cmake_dir"
+    fi
+    
+    # Determine architecture and download URL
+    local arch=$(uname -m)
+    local os=$(uname -s | tr '[:upper:]' '[:lower:]')
+    local cmake_url
+    
+    case "$os-$arch" in
+        "darwin-"*) # Both x86_64 and arm64 use universal binary
+            cmake_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-macos-universal.tar.gz"
+            ;;
+        "linux-x86_64")
+            cmake_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz"
+            ;;
+        *)
+            print_error "Unsupported platform for CMake: $os-$arch"
+            exit 1
+            ;;
+    esac
+    
+    print_status "Downloading CMake $CMAKE_VERSION for $os-$arch..."
+    
+    # Download CMake
+    local temp_dir=$(mktemp -d)
+    local filename=$(basename "$cmake_url")
+    
+    if ! curl -L -o "$temp_dir/$filename" "$cmake_url"; then
+        print_error "Failed to download CMake"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+    
+    # Extract CMake
+    print_status "Extracting CMake to $cmake_dir..."
+    
+    if ! tar -xzf "$temp_dir/$filename" -C "$temp_dir"; then
+        print_error "Failed to extract CMake"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+    
+    # Move CMake to toolchain directory
+    local extracted_dir="$temp_dir/cmake-${CMAKE_VERSION}-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
+    if [[ "$os" == "darwin" ]]; then
+        extracted_dir="$temp_dir/cmake-${CMAKE_VERSION}-macos-universal"
+    fi
+    
+    if [[ -d "$extracted_dir" ]]; then
+        mv "$extracted_dir" "$cmake_dir"
+        print_status "Moved CMake to $cmake_dir"
+    else
+        print_error "CMake directory not found after extraction"
+        print_status "Available directories:"
+        ls -la "$temp_dir"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+    
+    rm -rf "$temp_dir"
+    
+    # Verify installation
+    if [[ -x "$cmake_dir/CMake.app/Contents/bin/cmake" ]] || [[ -x "$cmake_dir/bin/cmake" ]]; then
+        print_status "CMake $CMAKE_VERSION installed successfully"
+    else
+        print_error "CMake installation failed - binary not found"
+        exit 1
+    fi
+}
+
 # Create environment activation script
 create_activation_script() {
     print_step "Creating environment activation script..."
@@ -168,6 +255,16 @@ TOOLCHAIN_DIR="$PROJECT_ROOT/toolchain"
 export FLUTTER_HOME="$TOOLCHAIN_DIR/flutter"
 export PATH="$FLUTTER_HOME/bin:$PATH"
 
+# Add CMake to PATH
+export CMAKE_HOME="$TOOLCHAIN_DIR/cmake"
+if [[ -d "$CMAKE_HOME/CMake.app/Contents/bin" ]]; then
+    # macOS CMake app bundle
+    export PATH="$CMAKE_HOME/CMake.app/Contents/bin:$PATH"
+elif [[ -d "$CMAKE_HOME/bin" ]]; then
+    # Linux CMake binary
+    export PATH="$CMAKE_HOME/bin:$PATH"
+fi
+
 # Set Flutter/Dart cache directories to local toolchain
 export PUB_CACHE="$TOOLCHAIN_DIR/cache/pub"
 export FLUTTER_ROOT="$FLUTTER_HOME"
@@ -178,6 +275,7 @@ mkdir -p "$PUB_CACHE"
 echo "✅ Activated local toolchain environment"
 echo "   Flutter: $(which flutter)"
 echo "   Dart: $(which dart)"
+echo "   CMake: $(which cmake)"
 echo "   Pub Cache: $PUB_CACHE"
 EOF
     
@@ -211,22 +309,9 @@ update_build_scripts() {
     # Update build.sh to activate environment first
     local build_script="$PROJECT_ROOT/tools/build.sh"
     
-    # Add environment activation to existing build script
+    # Skip updating build.sh - it already has toolchain activation
     if [[ -f "$build_script" ]]; then
-        # Create backup
-        cp "$build_script" "$build_script.backup"
-        
-        # Add environment activation at the top (after set -e)
-        sed -i.tmp '6i\
-# Activate local toolchain environment\
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"\
-if [[ -f "$PROJECT_ROOT/toolchain/scripts/activate-env.sh" ]]; then\
-    source "$PROJECT_ROOT/toolchain/scripts/activate-env.sh"\
-fi\
-' "$build_script"
-        
-        rm "$build_script.tmp"
-        print_status "Updated build.sh to use local toolchain"
+        print_status "build.sh already configured for local toolchain"
     fi
 }
 
@@ -254,6 +339,7 @@ COCOAPODS_MIN_VERSION="1.11.0"
 NODE_VERSION="20.10.0"
 
 # Build tool versions
+CMAKE_VERSION="3.28.1"
 CMAKE_MIN_VERSION="3.18.0"
 EOF
         print_status "Created versions.env file"
@@ -332,6 +418,7 @@ main() {
     create_versions_file
     setup_directories
     install_flutter
+    install_cmake
     create_activation_script
     create_tools_activation_script
     update_build_scripts
