@@ -44,9 +44,10 @@ Flutter graphics performance comparison spike comparing GPU batching vs individu
 - ✅ Uniforms: `getUniformSlot()` for shader binding
 - ✅ Pipeline creation: Simple `createRenderPipeline(vertex, fragment)` call
 
-### Current Build Issues
-- Build hook parameters need fixing for `buildShaderBundleJson()`
-- Some API methods may still need verification (experimental package)
+### Shader Development Workflow
+- **IMPORTANT**: Shader changes require `flutter clean` before `flutter run` to force recompilation
+- Flutter does not automatically detect shader source file changes
+- Always run `flutter clean && flutter run` after editing .vert/.frag files
 
 ## File Structure
 ```

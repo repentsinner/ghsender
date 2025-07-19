@@ -79,12 +79,12 @@ packages:
     source: sdk
     version: "0.0.0"
   flutter_gpu:
-    dependency: transitive
+    dependency: "direct main"
     description: flutter
     source: sdk
     version: "0.0.0"
   flutter_gpu_shaders:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: flutter_gpu_shaders
       sha256: "98ff2396cd4543883bd4b693a782f9fcbda27e9bf5b3b92475332d36be3bfec6"
@@ -95,10 +95,10 @@ packages:
     dependency: "direct dev"
     description:
       name: flutter_lints
-      sha256: "5398f14efa795ffb7a33e9b6a08798b26a180edac4ad7db3f231e40f82ce11e1"
+      sha256: "3105dc8492f6183fb076ccf1f351ac3d60564bff92e20bfc4af9cc1651f4e7e1"
       url: "https://pub.dev"
     source: hosted
-    version: "5.0.0"
+    version: "6.0.0"
   flutter_scene:
     dependency: "direct main"
     description:
@@ -108,7 +108,7 @@ packages:
     source: hosted
     version: "0.9.2-0"
   flutter_scene_importer:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: flutter_scene_importer
       sha256: "81c544627dcbfc7227625b41abeaf23054fec5c36c57d2d6cb61518b3bd8a6cd"
@@ -148,10 +148,10 @@ packages:
     dependency: transitive
     description:
       name: lints
-      sha256: c35bb79562d980e9a453fc715854e1ed39e24e7d0297a880ef54e17f9874a9d7
+      sha256: a5e2b223cb7c9c8efdc663ef484fdd95bb243bff242ef5b13e26883547fce9a0
       url: "https://pub.dev"
     source: hosted
-    version: "5.1.1"
+    version: "6.0.0"
   logging:
     dependency: transitive
     description:
@@ -281,10 +281,10 @@ packages:
     dependency: transitive
     description:
       name: vm_service
-      sha256: ddfa8d30d89985b96407efce8acbdd124701f96741f2d981ca860662f1c0dc02
+      sha256: "45caa6c5917fa127b5dbcfbd1fa60b14e583afdc08bfc96dda38886ca252eb60"
       url: "https://pub.dev"
     source: hosted
-    version: "15.0.0"
+    version: "15.0.2"
   yaml:
     dependency: transitive
     description:

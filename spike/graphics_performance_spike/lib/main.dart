@@ -1,27 +1,9 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_scene/scene.dart';
-import 'package:vector_math/vector_math.dart' as vm;
-import 'dart:ui';
+import 'renderers/gpu_batch_renderer.dart';
+import 'renderers/flutter_scene_batch_renderer.dart';
 
-// Custom class to hold 3D line segment data
-class LineSegmentData3D {
-  vm.Vector3 start;
-  vm.Vector3 end;
-  final Color color;
-  vm.Vector3 targetStart;
-  vm.Vector3 targetEnd;
-
-  LineSegmentData3D({
-    required this.start,
-    required this.end,
-    required this.color,
-    required this.targetStart,
-    required this.targetEnd,
-  });
-}
+enum RendererType { gpu, flutterScene }
 
 void main() {
   runApp(const MyApp());
@@ -42,6 +24,7 @@ class MyApp extends StatelessWidget {
   }
 }
 
+
 class GraphicsPerformanceScreen extends StatefulWidget {
   const GraphicsPerformanceScreen({super.key});
 
@@ -50,50 +33,60 @@ class GraphicsPerformanceScreen extends StatefulWidget {
 }
 
 class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
-  final List<LineSegmentData3D> _lineSegments = [];
-  final Random _random = Random();
   int _frameCount = 0;
   DateTime _lastFrameTime = DateTime.now();
   double _fps = 0.0;
   Ticker? _ticker;
-  double _cameraAngle = 0.0;
-  Scene scene = Scene();
-  Camera camera = PerspectiveCamera();
-  final List<Node> _lineNodes = [];
-  bool _sceneInitialized = false;
-
-  static int _numberOfSegments = 10000;
-  static int _numberOfAnimatedSegments = 100;
-  static const int _measurementDurationSeconds = 10;
+  bool _renderersInitialized = false;
+  
+  // Interactive rotation control
+  double _rotationX = 0.0;
+  double _rotationY = 0.0;
+  Offset? _lastPanPosition;
+  
+  // Current active renderer
+  RendererType _currentRenderer = RendererType.gpu;
+  
+  // Renderers for independent performance testing
+  late GpuBatchRenderer _gpuRenderer;
+  late FlutterSceneBatchRenderer _flutterSceneRenderer;
+  
+  static const int _targetDrawCalls = 10000;
+  static const int _targetPolygons = 120000;
   List<double> _fpsSamples = [];
-  DateTime _startTime = DateTime.now();
-  static const double _moveSpeedLine = 0.05;
-  static const double _cameraSpeed = 0.02;
-  static const double _sceneRadius = 100.0;
 
   @override
   void initState() {
     super.initState();
-    _initializeScene();
+    _initializeBothRenderers();
   }
 
-  void _initializeScene() async {
-    // Initialize flutter_scene static resources
-    await Scene.initializeStaticResources();
+  void _initializeBothRenderers() async {
+    print('=== INITIALIZING RENDERERS ===');
     
-    _generateLineSegments();
-    _startTime = DateTime.now();
-    _sceneInitialized = true;
-
-    print('--- Intended Renderer: flutter_scene with Impeller (macOS) ---');
+    // Initialize GPU renderer
+    _gpuRenderer = GpuBatchRenderer();
+    final gpuSuccess = await _gpuRenderer.initialize();
+    print('GPU renderer initialized: $gpuSuccess');
+    
+    // Initialize flutter_scene renderer
+    _flutterSceneRenderer = FlutterSceneBatchRenderer();
+    await _flutterSceneRenderer.initialize();
+    print('flutter_scene renderer initialized');
+    
+    _renderersInitialized = true;
+    print('=== RENDERERS READY - Starting with ${_currentRenderer.name.toUpperCase()} ===');
 
     _ticker = Ticker((_) {
       _frameCount++;
       final now = DateTime.now();
       final elapsed = now.difference(_lastFrameTime).inMilliseconds;
 
-      _updateSmoothPositionsLines();
-      _updateCameraOrbit();
+      // Update renderers with current rotation (no auto-rotation)
+      if (_currentRenderer == RendererType.flutterScene) {
+        _flutterSceneRenderer.updateRotation(_rotationX, _rotationY);
+      }
+      // GPU renderer gets rotation in render() method
 
       setState(() {});
 
@@ -103,11 +96,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
         _frameCount = 0;
         _lastFrameTime = now;
       }
-
-      if (now.difference(_startTime).inSeconds >= _measurementDurationSeconds) {
-        _ticker?.dispose();
-        _reportAndExit();
-      }
     });
     _ticker?.start();
   }
@@ -115,186 +103,126 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   @override
   void dispose() {
     _ticker?.dispose();
+    if (_renderersInitialized) {
+      _gpuRenderer.dispose();
+      _flutterSceneRenderer.dispose();
+    }
     super.dispose();
   }
 
-
-  // Shared resources for performance
-  Mesh? _sharedCubeMesh;
   
-  void _generateLineSegments() {
-    _lineSegments.clear();
-    _lineNodes.clear();
+  void _toggleRenderer() {
+    setState(() {
+      _currentRenderer = _currentRenderer == RendererType.gpu 
+          ? RendererType.flutterScene 
+          : RendererType.gpu;
+      
+      // Reset FPS samples when switching renderers
+      _fpsSamples.clear();
+      _frameCount = 0;
+      _lastFrameTime = DateTime.now();
+    });
     
-    // Create shared mesh and material once (optimization from flutter-scene-example)
-    if (_sharedCubeMesh == null) {
-      final geometry = CuboidGeometry(vm.Vector3(2, 2, 2));
-      final material = UnlitMaterial(); // Use UnlitMaterial for better performance
-      _sharedCubeMesh = Mesh(geometry, material);
-    }
-    
-    for (int i = 0; i < _numberOfSegments; i++) {
-      // Generate 3D positions in a pile toward center
-      final radius = _random.nextDouble() * _sceneRadius;
-      final theta = _random.nextDouble() * 2 * pi;
-      final phi = _random.nextDouble() * pi;
-      
-      final startX = radius * sin(phi) * cos(theta);
-      final startY = radius * sin(phi) * sin(theta);
-      final startZ = radius * cos(phi);
-      
-      final endRadius = _random.nextDouble() * _sceneRadius;
-      final endTheta = _random.nextDouble() * 2 * pi;
-      final endPhi = _random.nextDouble() * pi;
-      
-      final endX = endRadius * sin(endPhi) * cos(endTheta);
-      final endY = endRadius * sin(endPhi) * sin(endTheta);
-      final endZ = endRadius * cos(endPhi);
-      
-      final color = Color.fromARGB(
-        255,
-        _random.nextInt(256),
-        _random.nextInt(256),
-        _random.nextInt(256),
-      );
-      
-      final lineData = LineSegmentData3D(
-        start: vm.Vector3(startX, startY, startZ),
-        end: vm.Vector3(endX, endY, endZ),
-        color: color,
-        targetStart: _generateRandomPosition(),
-        targetEnd: _generateRandomPosition(),
-      );
-      
-      _lineSegments.add(lineData);
-      
-      // Create a Node for each line segment - share mesh for performance
-      final lineNode = Node();
-      lineNode.localTransform = vm.Matrix4.translation(lineData.start);
-      
-      // Share the same mesh across all nodes (major optimization)
-      lineNode.mesh = _sharedCubeMesh;
-      
-      _lineNodes.add(lineNode);
-      scene.add(lineNode);
-    }
-  }
-
-  vm.Vector3 _generateRandomPosition() {
-    final radius = _random.nextDouble() * _sceneRadius;
-    final theta = _random.nextDouble() * 2 * pi;
-    final phi = _random.nextDouble() * pi;
-    
-    return vm.Vector3(
-      radius * sin(phi) * cos(theta),
-      radius * sin(phi) * sin(theta),
-      radius * cos(phi),
-    );
-  }
-
-  void _updateCameraOrbit() {
-    _cameraAngle += _cameraSpeed;
-    if (_cameraAngle > 2 * pi) {
-      _cameraAngle -= 2 * pi;
-    }
-    
-    // Update camera position for orbital motion
-    final cameraRadius = _sceneRadius * 2.5;
-    final cameraX = cameraRadius * cos(_cameraAngle);
-    final cameraZ = cameraRadius * sin(_cameraAngle);
-    final cameraY = _sceneRadius * 0.5;
-    
-    if (camera is PerspectiveCamera) {
-      final perspectiveCamera = camera as PerspectiveCamera;
-      perspectiveCamera.position = vm.Vector3(cameraX, cameraY, cameraZ);
-      perspectiveCamera.target = vm.Vector3(0, 0, 0);
-    }
-  }
-
-
-  void _updateSmoothPositionsLines() {
-    // Only animate the first _numberOfAnimatedSegments cubes
-    final animationLimit = min(_numberOfAnimatedSegments, _lineSegments.length);
-    
-    for (int i = 0; i < animationLimit; i++) {
-      final segment = _lineSegments[i];
-
-      // Update start point
-      final startDiff = segment.targetStart - segment.start;
-      final startDistance = startDiff.length;
-
-      if (startDistance < _moveSpeedLine) {
-        segment.start = segment.targetStart;
-        segment.targetStart = _generateRandomPosition();
-      } else {
-        segment.start = segment.start + (startDiff.normalized() * _moveSpeedLine);
-      }
-
-      // Update end point
-      final endDiff = segment.targetEnd - segment.end;
-      final endDistance = endDiff.length;
-
-      if (endDistance < _moveSpeedLine) {
-        segment.end = segment.targetEnd;
-        segment.targetEnd = _generateRandomPosition();
-      } else {
-        segment.end = segment.end + (endDiff.normalized() * _moveSpeedLine);
-      }
-      
-      // Update the 3D node position
-      if (i < _lineNodes.length) {
-        _lineNodes[i].localTransform = vm.Matrix4.translation(segment.start);
-      }
-    }
-  }
-
-  void _reportAndExit() {
-    double averageFps = _fpsSamples.isEmpty
-        ? 0.0
-        : _fpsSamples.reduce((a, b) => a + b) / _fpsSamples.length;
-    print('--- Graphics Performance Spike Results ---');
-    print('Number of Segments: $_numberOfSegments');
-    print('Average FPS: ${averageFps.toStringAsFixed(2)}');
-    print('----------------------------------------');
-    SystemNavigator.pop(); // Exit the application
-  }
-
-  void _updateRandomPosition() {
-    _generateLineSegments();
+    print('Switched to ${_currentRenderer.name.toUpperCase()} renderer');
   }
 
   @override
   Widget build(BuildContext context) {
+    final isGpuActive = _currentRenderer == RendererType.gpu;
+    final drawCalls = _renderersInitialized 
+        ? (isGpuActive ? _gpuRenderer.actualDrawCalls : _flutterSceneRenderer.actualDrawCalls)
+        : 0;
+    final polygons = _renderersInitialized 
+        ? (isGpuActive ? _gpuRenderer.actualPolygons : _flutterSceneRenderer.actualPolygons)
+        : 0;
+    final rendererName = isGpuActive ? 'GPU RENDERER' : 'FLUTTER_SCENE RENDERER';
+    final rendererDetails = isGpuActive ? 'Custom batching' : 'MeshPrimitive batching';
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Graphics Performance Spike - 3D flutter_scene'),
+        title: Text('Graphics Performance Spike - $rendererName'),
       ),
       body: Stack(
         children: [
-          SizedBox.expand(
-            child: CustomPaint(
-              painter: ScenePainter(scene: scene, camera: camera, initialized: _sceneInitialized),
+          // Active Renderer with Pan Gesture
+          GestureDetector(
+            onPanStart: (details) {
+              _lastPanPosition = details.localPosition;
+            },
+            onPanUpdate: (details) {
+              if (_lastPanPosition != null) {
+                final delta = details.localPosition - _lastPanPosition!;
+                setState(() {
+                  _rotationY += delta.dx * 0.01; // Horizontal drag = Y rotation
+                  _rotationX += delta.dy * 0.01; // Vertical drag = X rotation
+                  _lastPanPosition = details.localPosition;
+                });
+              }
+            },
+            onPanEnd: (details) {
+              _lastPanPosition = null;
+            },
+            child: SizedBox.expand(
+              child: CustomPaint(
+                painter: isGpuActive
+                    ? GpuBatchPainter(
+                        renderer: _renderersInitialized ? _gpuRenderer : null,
+                        rotationX: _rotationX,
+                        rotationY: _rotationY,
+                      )
+                    : FlutterSceneBatchPainter(
+                        renderer: _renderersInitialized ? _flutterSceneRenderer : null,
+                      ),
+              ),
             ),
           ),
+          // Performance Info
           Positioned(
             top: 16,
             left: 16,
             child: Text(
-              '''FPS: ${_fps.toStringAsFixed(2)}
-Renderer: flutter_scene + Impeller
-Cubes: $_numberOfSegments (${_numberOfAnimatedSegments} animated)''',
-              style: const TextStyle(color: Colors.white, fontSize: 18, shadows: [
+              '''$rendererName
+FPS: ${_fps.toStringAsFixed(2)}
+Polygons: ${(polygons / 1000).toStringAsFixed(1)}k
+Draw Calls: $drawCalls
+$rendererDetails
+
+Use floating button to switch renderers
+Click and drag to rotate the scene${isGpuActive ? '\nTop button toggles wireframe mode' : ''}''',
+              style: const TextStyle(color: Colors.white, fontSize: 14, shadows: [
                 Shadow(offset: Offset(1, 1), blurRadius: 2, color: Colors.black),
               ]),
             ),
           ),
-          Positioned(
-            bottom: 16,
-            right: 16,
-            child: FloatingActionButton(
-              onPressed: _updateRandomPosition,
-              child: const Icon(Icons.refresh),
+        ],
+      ),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Wireframe toggle (only show for GPU renderer)
+          if (isGpuActive && _renderersInitialized) ...[
+            FloatingActionButton(
+              heroTag: "wireframe",
+              onPressed: () {
+                setState(() {
+                  _gpuRenderer.toggleWireframe();
+                });
+              },
+              tooltip: _renderersInitialized && _gpuRenderer.wireframeMode 
+                  ? 'Switch to Filled Mode' 
+                  : 'Switch to Wireframe Mode',
+              child: Icon(_renderersInitialized && _gpuRenderer.wireframeMode 
+                  ? Icons.crop_square 
+                  : Icons.grid_on),
             ),
+            const SizedBox(height: 16),
+          ],
+          // Renderer toggle
+          FloatingActionButton(
+            heroTag: "renderer",
+            onPressed: _toggleRenderer,
+            tooltip: 'Switch to ${isGpuActive ? "Flutter Scene" : "GPU"} Renderer',
+            child: Icon(isGpuActive ? Icons.swap_horiz : Icons.swap_horiz),
           ),
         ],
       ),
@@ -302,16 +230,21 @@ Cubes: $_numberOfSegments (${_numberOfAnimatedSegments} animated)''',
   }
 }
 
-class ScenePainter extends CustomPainter {
-  ScenePainter({required this.scene, required this.camera, required this.initialized});
-  final Scene scene;
-  final Camera camera;
-  final bool initialized;
+class GpuBatchPainter extends CustomPainter {
+  final GpuBatchRenderer? renderer;
+  final double rotationX;
+  final double rotationY;
+  
+  GpuBatchPainter({
+    required this.renderer, 
+    this.rotationX = 0.0, 
+    this.rotationY = 0.0
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (!initialized) {
-      // Draw black background while waiting for scene to initialize
+    if (renderer == null) {
+      // Draw black background while waiting for renderer to initialize
       canvas.drawRect(
         Rect.fromLTWH(0, 0, size.width, size.height),
         Paint()..color = Colors.black,
@@ -319,10 +252,34 @@ class ScenePainter extends CustomPainter {
       return;
     }
     
-    scene.render(camera, canvas, viewport: Offset.zero & size);
+    // Use custom GPU rendering with batching
+    renderer!.render(canvas, size, rotationX, rotationY);
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
+class FlutterSceneBatchPainter extends CustomPainter {
+  final FlutterSceneBatchRenderer? renderer;
+  
+  FlutterSceneBatchPainter({required this.renderer});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (renderer == null || !renderer!.initialized) {
+      // Draw black background while waiting for renderer to initialize
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, size.width, size.height),
+        Paint()..color = Colors.black,
+      );
+      return;
+    }
+    
+    // Use flutter_scene rendering with batched MeshPrimitives
+    renderer!.render(canvas, size);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}

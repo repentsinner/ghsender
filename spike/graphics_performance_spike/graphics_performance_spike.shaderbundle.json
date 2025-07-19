@@ -1,0 +1,18 @@
+{
+  "VertexColorVertex": {
+    "type": "vertex",
+    "file": "shaders/vertex_color.vert"
+  },
+  "VertexColorFragment": {
+    "type": "fragment", 
+    "file": "shaders/vertex_color.frag"
+  },
+  "WireframeVertex": {
+    "type": "vertex",
+    "file": "shaders/wireframe.vert"
+  },
+  "WireframeFragment": {
+    "type": "fragment",
+    "file": "shaders/wireframe.frag"
+  }
+}
