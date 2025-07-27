@@ -1,15 +1,27 @@
 #!/bin/bash
-# Cross-Platform Build Script for macOS/Linux
-# Handles all platform-specific build tasks via CLI tools
+# Cross-Platform Build Script for ghSender Monorepo
+# Handles all platform-specific build tasks for multiple Flutter projects
 
 set -e  # Exit on any error
 
 # Activate local toolchain environment
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [[ -f "$PROJECT_ROOT/toolchain/scripts/activate-env.sh" ]]; then
-    source "$PROJECT_ROOT/toolchain/scripts/activate-env.sh"
+if [[ -f "$PROJECT_ROOT/tools/activate-env.sh" ]]; then
+    source "$PROJECT_ROOT/tools/activate-env.sh"
+fi
+# Activate local toolchain environment
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "$PROJECT_ROOT/tools/activate-env.sh" ]]; then
+    source "$PROJECT_ROOT/tools/activate-env.sh"
 fi
 cd "$PROJECT_ROOT"
+
+# Define Flutter projects in the monorepo
+FLUTTER_PROJECTS=(
+    "spike/communication-spike"
+    "spike/graphics_performance_spike" 
+    "spike/state_management_spike"
+)
 
 # Color output
 RED='\033[0;31m'
@@ -101,20 +113,103 @@ build_platform() {
     esac
 }
 
+# Monorepo functions for handling multiple Flutter projects
+get_dependencies_all() {
+    print_status "Getting dependencies for all Flutter projects..."
+    for project in "${FLUTTER_PROJECTS[@]}"; do
+        if [[ -d "$project" && -f "$project/pubspec.yaml" ]]; then
+            print_status "Getting dependencies for $project..."
+            (cd "$project" && flutter pub get)
+        else
+            print_warning "Skipping $project - not a Flutter project"
+        fi
+    done
+    echo
+}
+
+run_tests_all() {
+    print_status "Running tests for all Flutter projects..."
+    local all_passed=true
+    
+    for project in "${FLUTTER_PROJECTS[@]}"; do
+        if [[ -d "$project" && -f "$project/pubspec.yaml" ]]; then
+            print_status "Testing $project..."
+            if ! (cd "$project" && flutter analyze && flutter test --timeout=60s); then
+                print_error "Tests failed for $project"
+                all_passed=false
+            else
+                print_status "Tests passed for $project"
+            fi
+        else
+            print_warning "Skipping $project - not a Flutter project"
+        fi
+    done
+    
+    if [[ "$all_passed" == true ]]; then
+        print_status "All tests passed!"
+    else
+        print_error "Some tests failed"
+        exit 1
+    fi
+    echo
+}
+
+build_platform_all() {
+    local platform=$1
+    print_status "Building all Flutter projects for $platform..."
+    
+    for project in "${FLUTTER_PROJECTS[@]}"; do
+        if [[ -d "$project" && -f "$project/pubspec.yaml" ]]; then
+            print_status "Building $project for $platform..."
+            (cd "$project" && build_platform "$platform")
+        else
+            print_warning "Skipping $project - not a Flutter project"
+        fi
+    done
+    echo
+}
+
+clean_all() {
+    print_status "Cleaning all Flutter projects..."
+    for project in "${FLUTTER_PROJECTS[@]}"; do
+        if [[ -d "$project" && -f "$project/pubspec.yaml" ]]; then
+            print_status "Cleaning $project..."
+            (cd "$project" && flutter clean && rm -rf build/)
+        else
+            print_warning "Skipping $project - not a Flutter project"
+        fi
+    done
+    echo
+}
+
 # Main execution
 main() {
     local command=${1:-"help"}
     
     case $command in
         "setup")
-            print_status "Setting up development environment..."
+            print_status "Setting up development environment for all projects..."
             check_flutter
-            get_dependencies
+            get_dependencies_all
             ;;
         "test")
             check_flutter
-            get_dependencies
-            run_tests
+            get_dependencies_all
+            run_tests_all
+            ;;
+        "test-single")
+            local project=${2:-""}
+            if [[ -z "$project" ]]; then
+                print_error "Please specify project: communication-spike, graphics_performance_spike, state_management_spike"
+                exit 1
+            fi
+            check_flutter
+            if [[ -d "spike/$project" ]]; then
+                (cd "spike/$project" && flutter pub get && flutter analyze && flutter test --timeout=60s)
+            else
+                print_error "Project spike/$project not found"
+                exit 1
+            fi
             ;;
         "build")
             local platform=${2:-""}
@@ -123,44 +218,76 @@ main() {
                 exit 1
             fi
             check_flutter
-            get_dependencies
-            run_tests
-            build_platform "$platform"
+            get_dependencies_all
+            run_tests_all
+            build_platform_all "$platform"
+            ;;
+        "build-single")
+            local project=${2:-""}
+            local platform=${3:-""}
+            if [[ -z "$project" || -z "$platform" ]]; then
+                print_error "Usage: $0 build-single <project> <platform>"
+                print_error "Projects: communication-spike, graphics_performance_spike, state_management_spike"
+                print_error "Platforms: macos, ios, android, linux"
+                exit 1
+            fi
+            check_flutter
+            if [[ -d "spike/$project" ]]; then
+                (cd "spike/$project" && flutter pub get && build_platform "$platform")
+            else
+                print_error "Project spike/$project not found"
+                exit 1
+            fi
             ;;
         "all")
             check_flutter
-            get_dependencies
-            run_tests
+            get_dependencies_all
+            run_tests_all
             
-            # Build all platforms available on current OS
+            # Build all platforms available on current OS for all projects
             if [[ "$OSTYPE" == "darwin"* ]]; then
-                build_platform "macos"
-                build_platform "ios"
+                build_platform_all "macos"
+                build_platform_all "ios"
             fi
-            build_platform "android"
+            build_platform_all "android"
             ;;
         "clean")
-            print_status "Cleaning build artifacts..."
-            flutter clean
-            rm -rf build/
+            print_status "Cleaning build artifacts for all projects..."
+            clean_all
             ;;
         "help"|*)
             echo "Usage: $0 <command> [options]"
             echo
-            echo "Commands:"
-            echo "  setup          - Setup development environment"
-            echo "  test           - Run tests and analysis"
-            echo "  build <platform> - Build for specific platform (macos, ios, android, linux)"
-            echo "  all            - Build for all available platforms"
-            echo "  clean          - Clean build artifacts"
-            echo "  help           - Show this help message"
+            echo "🏗️  Monorepo Commands (All Projects):"
+            echo "  setup                    - Setup development environment for all projects"
+            echo "  test                     - Run tests and analysis for all projects"
+            echo "  build <platform>         - Build all projects for platform (macos, ios, android, linux)"
+            echo "  all                      - Build all projects for all available platforms"
+            echo "  clean                    - Clean build artifacts for all projects"
+            echo
+            echo "🎯 Single Project Commands:"
+            echo "  test-single <project>              - Test specific project"
+            echo "  build-single <project> <platform>  - Build specific project for platform"
+            echo
+            echo "📁 Available Projects:"
+            echo "  • communication-spike      - WebSocket communication testing"
+            echo "  • graphics_performance_spike - Graphics and rendering performance"
+            echo "  • state_management_spike  - State management patterns"
+            echo
+            echo "🖥️  Available Platforms:"
+            echo "  • macos    - macOS desktop application"
+            echo "  • ios      - iOS mobile application (macOS only)"
+            echo "  • android  - Android mobile application"
+            echo "  • linux    - Linux desktop application (Linux only)"
             echo
             echo "Examples:"
-            echo "  $0 setup"
-            echo "  $0 test"
-            echo "  $0 build macos"
-            echo "  $0 build ios"
-            echo "  $0 all"
+            echo "  $0 setup                                    # Setup all projects"
+            echo "  $0 test                                     # Test all projects"
+            echo "  $0 test-single communication-spike         # Test communication spike only"
+            echo "  $0 build macos                             # Build all projects for macOS"
+            echo "  $0 build-single graphics_performance_spike macos  # Build graphics spike for macOS"
+            echo "  $0 all                                      # Build all projects for all platforms"
+            echo "  $0 clean                                    # Clean all projects"
             ;;
     esac
 }

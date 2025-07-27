@@ -1,28 +1,27 @@
 #!/bin/bash
 # Local Toolchain Setup - Container-style development for desktop GUI software
-# Installs all project dependencies in local toolchain/ directory
+# Orchestrates individual setup scripts for each component
 
 set -e  # Exit on any error
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Load shared utilities
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/setup-utils.sh"
+
+# Load configuration
+load_versions
+
+# Set up project paths
+PROJECT_ROOT="$(get_project_root)"
 TOOLCHAIN_DIR="$PROJECT_ROOT/toolchain"
 
-# Color output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
-echo -e "${GREEN}=== Local Toolchain Setup ===${NC}"
-echo "Project: ghSender"
-echo "Toolchain Directory: $TOOLCHAIN_DIR"
-echo "Platform: $(uname -s) $(uname -m)"
-echo
-
-# Function to print colored status
-print_status() {
-    echo -e "${GREEN}[INFO]${NC} $1"
+# Show header
+show_header() {
+    echo -e "${GREEN}=== Local Toolchain Setup ===${NC}"
+    echo "Project: ghSender"
+    echo "Toolchain Directory: $TOOLCHAIN_DIR"
+    echo "Platform: $(uname -s) $(uname -m)"
+    echo
 }
 
 print_warning() {
@@ -129,17 +128,7 @@ install_flutter() {
         mv "$temp_dir/flutter" "$flutter_dir"
         print_status "Moved Flutter to $flutter_dir"
     else
-        print_error "Flutter directory not found after extraction"
-        exit 1
-    fi
-    rm -rf "$temp_dir"
-    
-    # Verify installation
-    if [[ -x "$flutter_dir/bin/flutter" ]]; then
-        print_status "Flutter $FLUTTER_VERSION installed successfully"
-    else
-        print_error "Flutter installation failed - binary not found"
-        exit 1
+        print_warning "Ruby dependencies script not found, skipping..."
     fi
 }
 
@@ -283,23 +272,10 @@ EOF
     print_status "Created activation script: $activation_script"
 }
 
-# Create convenience activation script in tools/
-create_tools_activation_script() {
-    print_step "Creating tools/activate-env.sh convenience script..."
-    
-    local tools_script="$PROJECT_ROOT/tools/activate-env.sh"
-    
-    cat > "$tools_script" << 'EOF'
-#!/bin/bash
-# Convenience script to activate local toolchain
-# Usage: source ./tools/activate-env.sh
-
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "$PROJECT_ROOT/toolchain/scripts/activate-env.sh"
-EOF
-    
-    chmod +x "$tools_script"
-    print_status "Created convenience script: $tools_script"
+# Run Flutter setup
+setup_flutter() {
+    print_step "Setting up Flutter..."
+    "$SCRIPT_DIR/setup-flutter.sh"
 }
 
 # Update build scripts to use local toolchain
@@ -352,67 +328,68 @@ EOF
 check_system_dependencies() {
     print_step "Checking system dependencies with Flutter doctor..."
     
-    # Activate environment temporarily for this check
-    export PATH="$TOOLCHAIN_DIR/flutter/bin:$PATH"
+    # Activate full environment temporarily for this check
+    if [[ -f "$PROJECT_ROOT/tools/activate-env.sh" ]]; then
+        # Source environment in a subshell to avoid affecting current session
+        (
+            source "$PROJECT_ROOT/tools/activate-env.sh" > /dev/null 2>&1
+            echo
+            echo "=== Flutter Doctor Output ==="
+            flutter doctor
+            echo "=== End Flutter Doctor ==="
+        )
+    else
+        print_warning "Environment activation script not found, using basic PATH setup"
+        export PATH="$TOOLCHAIN_DIR/flutter/bin:$PATH"
+        
+        echo
+        echo "=== Flutter Doctor Output ==="
+        "$TOOLCHAIN_DIR/flutter/bin/flutter" doctor
+        echo "=== End Flutter Doctor ==="
+    fi
     
     echo
-    echo "=== Flutter Doctor Output ==="
-    "$TOOLCHAIN_DIR/flutter/bin/flutter" doctor
-    echo "=== End Flutter Doctor ==="
-    echo
-    
     print_warning "Review Flutter doctor output above for any missing system dependencies"
     print_status "Note: Some warnings are expected since we're using a local toolchain"
 }
 
-# Create VS Code configuration
-create_vscode_config() {
-    print_step "Creating VS Code configuration for local toolchain..."
-    
-    local vscode_dir="$PROJECT_ROOT/.vscode"
-    mkdir -p "$vscode_dir"
-    
-    # Settings for local toolchain
-    local settings_file="$vscode_dir/settings.json"
-    
-    if [[ ! -f "$settings_file" ]]; then
-        cat > "$settings_file" << EOF
-{
-  "dart.flutterSdkPath": "./toolchain/flutter",
-  "dart.sdkPath": "./toolchain/flutter/bin/cache/dart-sdk",
-  "dart.debugExternalPackageLibraries": false,
-  "dart.debugSdkLibraries": false,
-  "flutter.hotReloadOnSave": true,
-  "flutter.hotRestartOnSave": false,
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {
-    "source.fixAll": true
-  },
-  "files.associations": {
-    "*.arb": "json"
-  },
-  "terminal.integrated.env.osx": {
-    "PATH": "\${workspaceFolder}/toolchain/flutter/bin:\${env:PATH}",
-    "PUB_CACHE": "\${workspaceFolder}/toolchain/cache/pub",
-    "FLUTTER_ROOT": "\${workspaceFolder}/toolchain/flutter"
-  },
-  "terminal.integrated.env.linux": {
-    "PATH": "\${workspaceFolder}/toolchain/flutter/bin:\${env:PATH}",
-    "PUB_CACHE": "\${workspaceFolder}/toolchain/cache/pub",
-    "FLUTTER_ROOT": "\${workspaceFolder}/toolchain/flutter"
-  }
-}
-EOF
-        print_status "Created VS Code settings.json"
-    else
-        print_status "VS Code settings.json already exists"
-    fi
+
+# Show usage information
+show_usage() {
+    echo "Usage: $0 [COMPONENT]"
+    echo
+    echo "Install local development toolchain components."
+    echo
+    echo "Components:"
+    echo "  directories    Set up toolchain directory structure"
+    echo "  ruby-deps     Install Ruby build dependencies from source"
+    echo "  ruby          Install Ruby and CocoaPods via asdf"
+    echo "  flutter       Install Flutter SDK"
+    echo "  doctor        Run Flutter doctor to check dependencies"
+    echo
+    echo "If no component is specified, installs all components in correct order."
+    echo "Recommended dependency order: ruby-deps → ruby → flutter"
+    echo
+    echo "Examples:"
+    echo "  $0              # Install everything"
+    echo "  $0 ruby-deps    # Install only Ruby dependencies"
+    echo "  $0 ruby         # Install only Ruby and CocoaPods"
+    echo "  $0 flutter      # Install only Flutter"
 }
 
 # Main execution
 main() {
+    local component="$1"
+    
+    # Show usage if help requested
+    if [[ "$component" == "-h" || "$component" == "--help" || "$component" == "help" ]]; then
+        show_usage
+        exit 0
+    fi
+    
+    show_header
     print_status "Starting local toolchain setup..."
-    print_status "This will install all development tools in: $TOOLCHAIN_DIR"
+    print_status "Target directory: $TOOLCHAIN_DIR"
     echo
     
     create_versions_file
@@ -424,24 +401,13 @@ main() {
     update_build_scripts
     create_vscode_config
     
-    echo
-    print_status "✅ Local toolchain setup complete!"
-    echo
-    echo "Next steps:"
-    echo "1. Activate the environment:"
-    echo "   source ./tools/activate-env.sh"
-    echo
-    echo "2. Verify installation:"
-    echo "   flutter --version"
-    echo "   flutter doctor"
-    echo
-    echo "3. Start development:"
-    echo "   flutter create test_app"
-    echo "   cd test_app && flutter run"
-    echo
-    
-    # Run system dependency check
-    check_system_dependencies
+    if [[ -n "$component" && "$component" != "doctor" ]]; then
+        echo
+        print_status "✅ Component '$component' setup complete!"
+        echo
+        echo "To install all components: $0"
+        echo "To see available components: $0 --help"
+    fi
 }
 
 # Run main function

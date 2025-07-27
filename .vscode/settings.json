@@ -13,13 +13,27 @@
     "*.arb": "json"
   },
   "terminal.integrated.env.osx": {
-    "PATH": "${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
+    "PATH": "${workspaceFolder}/toolchain/asdf-data/shims:${workspaceFolder}/toolchain/asdf/bin:${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
     "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub",
-    "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter"
+    "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter",
+    "ASDF_DIR": "${workspaceFolder}/toolchain/asdf",
+    "ASDF_DATA_DIR": "${workspaceFolder}/toolchain/asdf-data"
   },
   "terminal.integrated.env.linux": {
-    "PATH": "${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
+    "PATH": "${workspaceFolder}/toolchain/asdf-data/shims:${workspaceFolder}/toolchain/asdf/bin:${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
     "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub",
-    "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter"
-  }
+    "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter",
+    "ASDF_DIR": "${workspaceFolder}/toolchain/asdf",
+    "ASDF_DATA_DIR": "${workspaceFolder}/toolchain/asdf-data"
+  },
+  "files.watcherExclude": {
+    "toolchain/**": true,
+    ".dart_tool/**": true,
+    "build/**": true
+  },
+  "dart.analysisExcludedFolders": [
+    "toolchain/",
+    ".dart_tool/",
+    "build/"
+  ]
 }

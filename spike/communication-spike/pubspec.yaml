@@ -1,0 +1,36 @@
+name: ghsender_communication_spike
+description: WebSocket and TCP communication spike for ghSender
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # Communication support
+  web_socket_channel: ^3.0.3
+  
+  # State management
+  flutter_bloc: ^9.1.1
+  
+  # Logging
+  logging: ^1.2.0
+  
+  # UI
+  cupertino_icons: ^1.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
