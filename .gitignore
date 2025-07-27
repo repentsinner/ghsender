@@ -1,6 +1,8 @@
-.claude/
+# manage agents
+.claude/*
 !.claude/agents/
 !.claude/agents/*
+
 
 # Local Toolchain Directory
 # Container-style development for desktop GUI software
