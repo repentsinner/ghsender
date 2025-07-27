@@ -13,17 +13,6 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ -f "$PROJECT_ROOT/tools/activate-env.sh" ]]; then
     source "$PROJECT_ROOT/tools/activate-env.sh"
 fi
-# Activate local toolchain environment
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [[ -f "$PROJECT_ROOT/toolchain/scripts/activate-env.sh" ]]; then
-    source "$PROJECT_ROOT/toolchain/scripts/activate-env.sh"
-fi
-
-# Activate local toolchain environment
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [[ -f "$PROJECT_ROOT/tools/activate-env.sh" ]]; then
-    source "$PROJECT_ROOT/tools/activate-env.sh"
-fi
 
 cd "$PROJECT_ROOT"
 

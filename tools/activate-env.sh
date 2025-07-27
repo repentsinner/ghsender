@@ -44,36 +44,27 @@ fi
 export PUB_CACHE="$TOOLCHAIN_DIR/cache/pub"
 mkdir -p "$PUB_CACHE"
 
-# Try to activate Nix Ruby environment if available
-if [[ -f "$TOOLCHAIN_DIR/ruby/activate-simple.sh" ]]; then
-    source "$TOOLCHAIN_DIR/ruby/activate-simple.sh"
-elif [[ -f "$TOOLCHAIN_DIR/ruby/activate-ruby.sh" ]]; then
-    print_status "Ruby environment available (interactive mode)"
-    print_status "Run: source $TOOLCHAIN_DIR/ruby/activate-ruby.sh"
+# Activate asdf Ruby environment if available
+ASDF_DIR="$TOOLCHAIN_DIR/asdf"
+ASDF_DATA_DIR="$TOOLCHAIN_DIR/asdf-data"
+
+if [[ -d "$ASDF_DIR" && -f "$ASDF_DIR/asdf.sh" ]]; then
+    # Set up asdf environment
+    export ASDF_DIR="$ASDF_DIR"
+    export ASDF_DATA_DIR="$ASDF_DATA_DIR"
+    
+    # Source asdf
+    source "$ASDF_DIR/asdf.sh"
+    
+    # Add asdf completions to bash if available (suppress errors)
+    if [[ -f "$ASDF_DIR/completions/asdf.bash" ]]; then
+        source "$ASDF_DIR/completions/asdf.bash" 2>/dev/null || true
+    fi
+    
+    print_status "Ruby/CocoaPods environment activated via asdf"
 else
     print_warning "Ruby/CocoaPods not available"
     print_warning "Run ./tools/setup-toolchain.sh to install"
-fi
-
-# Source local Nix if available
-if [[ -f "$TOOLCHAIN_DIR/nix/activate-nix.sh" ]]; then
-    source "$TOOLCHAIN_DIR/nix/activate-nix.sh"
-    if command -v nix >/dev/null 2>&1; then
-        print_status "Local Nix package manager available"
-    else
-        print_warning "Local Nix found but not working properly"
-    fi
-elif command -v nix >/dev/null 2>&1; then
-    print_status "System Nix package manager available (consider switching to local)"
-elif [[ -f "$HOME/.nix-profile/etc/profile.d/nix.sh" ]]; then
-    source "$HOME/.nix-profile/etc/profile.d/nix.sh"
-    print_status "System Nix environment loaded (consider switching to local)"
-elif [[ -f "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh" ]]; then
-    source "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"
-    print_status "System Nix daemon environment loaded (consider switching to local)"
-else
-    print_warning "Nix not available - Ruby/CocoaPods may not work"
-    print_warning "Run ./tools/setup-toolchain.sh to install local Nix"
 fi
 
 print_status "Local toolchain environment activated"
@@ -107,8 +98,3 @@ else
     echo "  ❌ CocoaPods: not available"
 fi
 
-if command -v nix >/dev/null 2>&1; then
-    echo "  ✅ Nix: $(nix --version 2>/dev/null | head -n1 || echo 'version check failed')"
-else
-    echo "  ❌ Nix: not available"
-fi
