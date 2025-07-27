@@ -31,8 +31,6 @@ class GrblStartJogTestEvent extends GrblCommunicationEvent {
 
 class GrblStopJogTestEvent extends GrblCommunicationEvent {}
 
-class _GrblJogTestCountdownEvent extends GrblCommunicationEvent {}
-
 // Internal event for handling isolate responses
 
 // States for grblHAL communication
@@ -59,14 +57,12 @@ class GrblCommunicationWithData extends GrblCommunicationState {
   final bool isConnected;
   final PerformanceData? performanceData;
   final bool jogTestRunning;
-  final int? jogTestRemainingSeconds;
   
   GrblCommunicationWithData(
     this.messages, 
     this.isConnected, 
     [this.performanceData,
-     this.jogTestRunning = false,
-     this.jogTestRemainingSeconds]
+     this.jogTestRunning = false]
   );
   
   GrblCommunicationWithData copyWith({
@@ -74,14 +70,12 @@ class GrblCommunicationWithData extends GrblCommunicationState {
     bool? isConnected,
     PerformanceData? performanceData,
     bool? jogTestRunning,
-    int? jogTestRemainingSeconds,
   }) {
     return GrblCommunicationWithData(
       messages ?? this.messages,
       isConnected ?? this.isConnected,
       performanceData ?? this.performanceData,
       jogTestRunning ?? this.jogTestRunning,
-      jogTestRemainingSeconds ?? this.jogTestRemainingSeconds,
     );
   }
 }
@@ -132,7 +126,6 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
   // Jog test timing
   DateTime? _jogTestStartTime;
   int _jogTestDurationSeconds = 0;
-  Timer? _jogTestCountdownTimer;
   
   // Communication tracking
   Timer? _heartbeatTimer;
@@ -162,7 +155,6 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
     on<GrblSendCommandEvent>(_onSendCommand);
     on<GrblStartJogTestEvent>(_onStartJogTest);
     on<GrblStopJogTestEvent>(_onStopJogTest);
-    on<_GrblJogTestCountdownEvent>(_onJogTestCountdown);
     
     _startUIPerformanceMonitoring();
   }
@@ -556,10 +548,7 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
     _messages.add('=== JOG TEST STARTED ===');
     _messages.add('Duration: ${event.durationSeconds}s, Distance: ${event.jogDistance}mm, Feed: ${event.feedRate}mm/min');
     
-    // Start countdown timer that updates UI every second
-    _startJogTestCountdown();
-    
-    // Use WebSocket-based jog test
+    // Start jog test
     _startJogTest(event.durationSeconds, event.jogDistance.toDouble(), event.feedRate);
     
     _emitCurrentState(emit);
@@ -568,8 +557,6 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
   void _onStopJogTest(GrblStopJogTestEvent event, Emitter<GrblCommunicationState> emit) {
     _logger.info('Stopping jog test');
     _jogTestRunning = false;
-    _jogTestCountdownTimer?.cancel();
-    _jogTestCountdownTimer = null;
     _messages.add('=== JOG TEST STOPPED ===');
     
     _stopJogTest();
@@ -578,40 +565,6 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
   }
   
   
-  void _startJogTestCountdown() {
-    _jogTestCountdownTimer = Timer.periodic(Duration(seconds: 1), (timer) {
-      if (!_jogTestRunning || _jogTestStartTime == null) {
-        timer.cancel();
-        return;
-      }
-      
-      final elapsed = DateTime.now().difference(_jogTestStartTime!).inSeconds;
-      final remaining = _jogTestDurationSeconds - elapsed;
-      
-      if (remaining <= 0) {
-        timer.cancel();
-        // Complete the jog test when countdown reaches 0
-        _stopJogTest();
-        return;
-      }
-      
-      // Trigger countdown event to update UI
-      add(_GrblJogTestCountdownEvent());
-    });
-  }
-  
-  void _onJogTestCountdown(_GrblJogTestCountdownEvent event, Emitter<GrblCommunicationState> emit) {
-    // Simply emit current state with updated countdown
-    _emitCurrentState(emit);
-  }
-  
-  int? _getJogTestRemainingSeconds() {
-    if (!_jogTestRunning || _jogTestStartTime == null) return null;
-    
-    final elapsed = DateTime.now().difference(_jogTestStartTime!).inSeconds;
-    final remaining = _jogTestDurationSeconds - elapsed;
-    return remaining > 0 ? remaining : 0;
-  }
   
   void _emitCurrentState(Emitter<GrblCommunicationState> emit) {
     emit(GrblCommunicationWithData(
@@ -619,17 +572,14 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
       _isConnected,
       _currentPerformanceData,
       _jogTestRunning,
-      _getJogTestRemainingSeconds(),
     ));
   }
   
   void _cleanup() {
-    _jogTestCountdownTimer?.cancel();
     _webSocketSubscription?.cancel();
     _heartbeatTimer?.cancel();
     _jogPollTimer?.cancel();
     
-    _jogTestCountdownTimer = null;
     _webSocketSubscription = null;
     _webSocketChannel = null;
     _heartbeatTimer = null;

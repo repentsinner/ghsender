@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
 import 'grbl_communication_bloc.dart';
+import 'framework_test_orchestrator.dart';
 import 'logger.dart';
 
 class FrameworkValidationScreen extends StatefulWidget {
@@ -12,20 +13,12 @@ class FrameworkValidationScreen extends StatefulWidget {
 class _FrameworkValidationScreenState extends State<FrameworkValidationScreen> {
   static final _logger = AppLogger.ui;
   
-  Timer? _testSequenceTimer;
   Timer? _uiMetricsTimer;
   Map<String, dynamic> _uiMetrics = {};
-  
-  // Test configuration
-  static const String DEFAULT_HOST = '192.168.77.87';
-  static const int DEFAULT_PORT = 80;
-  static const int TEST_DURATION_SECONDS = 5;
-  static const int TEST_INTERVAL_MS = 20;
+  FrameworkTestOrchestrator? _testOrchestrator;
   
   // Test state tracking
   TestPhase _currentPhase = TestPhase.initializing;
-  DateTime? _testStartTime;
-  List<String> _testResults = [];
   Map<String, dynamic> _finalMetrics = {};
   
   @override
@@ -33,16 +26,35 @@ class _FrameworkValidationScreenState extends State<FrameworkValidationScreen> {
     super.initState();
     _logger.info('FrameworkValidationScreen initialized - Starting automated validation');
     
+    // Initialize test orchestrator
+    _testOrchestrator = FrameworkTestOrchestrator(context.read<GrblCommunicationBloc>());
+    
+    // Listen to phase changes
+    _testOrchestrator!.phaseStream.listen((phase) {
+      setState(() {
+        _currentPhase = phase;
+      });
+    });
+    
+    // Listen to metrics updates
+    _testOrchestrator!.metricsStream.listen((metrics) {
+      setState(() {
+        _finalMetrics = metrics;
+      });
+    });
+    
     // Start UI performance monitoring
     _startUIMetricsMonitoring();
     
     // Start automated test sequence after a brief delay
-    Timer(Duration(seconds: 2), _startAutomatedTestSequence);
+    Timer(Duration(seconds: 2), () {
+      _testOrchestrator?.startAutomatedValidation();
+    });
   }
   
   @override
   void dispose() {
-    _testSequenceTimer?.cancel();
+    _testOrchestrator?.dispose();
     _uiMetricsTimer?.cancel();
     super.dispose();
   }
@@ -56,172 +68,10 @@ class _FrameworkValidationScreenState extends State<FrameworkValidationScreen> {
     });
   }
   
-  void _startAutomatedTestSequence() {
-    _logger.info('=== STARTING AUTOMATED FRAMEWORK VALIDATION ===');
-    _logger.info('Target: ws://$DEFAULT_HOST:$DEFAULT_PORT');
-    _logger.info('Jog responsiveness test: 10s duration, 2mm jogs @ 500mm/min');
-    
-    _updateTestPhase(TestPhase.connecting);
-    
-    // Step 1: Connect to simulator via WebSocket
-    final wsUrl = 'ws://$DEFAULT_HOST:$DEFAULT_PORT';
-    context.read<GrblCommunicationBloc>().add(
-      GrblConnectEvent(wsUrl)
-    );
-    
-    // Set up test sequence timer to monitor progress
-    _testSequenceTimer = Timer.periodic(Duration(seconds: 1), _checkTestProgress);
-  }
   
-  void _checkTestProgress(Timer timer) {
-    final bloc = context.read<GrblCommunicationBloc>();
-    final state = bloc.state;
-    
-    switch (_currentPhase) {
-      case TestPhase.connecting:
-        if (state is GrblCommunicationConnected || 
-            (state is GrblCommunicationWithData && state.isConnected)) {
-          _logger.info('✅ Connection established - starting baseline test');
-          _updateTestPhase(TestPhase.baseline);
-          _scheduleBaslineTest();
-        } else if (state is GrblCommunicationError) {
-          _logger.severe('❌ Connection failed: ${state.error}');
-          _updateTestPhase(TestPhase.failed);
-          timer.cancel();
-        }
-        break;
-        
-      case TestPhase.baseline:
-        // Baseline test runs for 5 seconds, will auto-transition
-        break;
-        
-      case TestPhase.highFrequency:
-        // Jog test runs for configured duration
-        if (state is GrblCommunicationWithData && !state.jogTestRunning) {
-          _logger.info('✅ Jog responsiveness test completed - analyzing results');
-          _updateTestPhase(TestPhase.analyzing);
-          _analyzeResults(state);
-          timer.cancel();
-        }
-        break;
-        
-      case TestPhase.analyzing:
-      case TestPhase.completed:
-      case TestPhase.failed:
-        timer.cancel();
-        break;
-        
-      case TestPhase.initializing:
-        // Still waiting for initialization
-        break;
-    }
-  }
   
-  void _scheduleBaslineTest() {
-    // Send a few manual commands to establish baseline
-    Timer(Duration(seconds: 1), () {
-      _logger.info('Sending baseline commands...');
-      final bloc = context.read<GrblCommunicationBloc>();
-      bloc.add(GrblSendCommandEvent('\$\$'));
-    });
-    
-    Timer(Duration(seconds: 2), () {
-      final bloc = context.read<GrblCommunicationBloc>();
-      bloc.add(GrblSendCommandEvent('?'));
-    });
-    
-    Timer(Duration(seconds: 3), () {
-      final bloc = context.read<GrblCommunicationBloc>();
-      bloc.add(GrblSendCommandEvent('\$I'));
-    });
-    
-    // Start jog test after baseline
-    Timer(Duration(seconds: 5), () {
-      _logger.info('✅ Baseline complete - starting jog responsiveness test');
-      _updateTestPhase(TestPhase.highFrequency);
-      _testStartTime = DateTime.now();
-      
-      // Test jog responsiveness: 10 seconds, 2mm jogs at 500mm/min
-      context.read<GrblCommunicationBloc>().add(
-        GrblStartJogTestEvent(10, 2.0, 500)
-      );
-    });
-  }
   
-  void _analyzeResults(GrblCommunicationWithData state) {
-    final testDuration = _testStartTime != null 
-      ? DateTime.now().difference(_testStartTime!).inMilliseconds / 1000.0
-      : 0.0;
-    
-    final perf = state.performanceData;
-    final uiMetrics = _uiMetrics;
-    
-    _logger.info('=== FRAMEWORK VALIDATION RESULTS ===');
-    
-    // Performance Analysis
-    if (perf != null) {
-      _logger.info('Communication Performance:');
-      _logger.info('  Messages/sec: ${perf.messagesPerSecond}');
-      _logger.info('  Avg Latency: ${perf.averageLatencyMs.toStringAsFixed(3)}ms');
-      _logger.info('  Max Latency: ${perf.maxLatencyMs.toStringAsFixed(3)}ms');
-      _logger.info('  Total Messages: ${perf.totalMessages}');
-      _logger.info('  Dropped Messages: ${perf.droppedMessages}');
-      _logger.info('  Latency Requirement (<20ms): ${perf.latencyStatus}');
-    }
-    
-    // UI Performance Analysis
-    _logger.info('UI Thread Performance:');
-    _logger.info('  Avg Frame Time: ${(uiMetrics['avgFrameTime'] ?? 0.0).toStringAsFixed(3)}ms');
-    _logger.info('  Max Frame Time: ${(uiMetrics['maxFrameTime'] ?? 0.0).toStringAsFixed(3)}ms');
-    _logger.info('  Framerate: ${(uiMetrics['framerate'] ?? 0.0).toStringAsFixed(1)} fps');
-    _logger.info('  Jank Frames: ${uiMetrics['jankFrames'] ?? 0}');
-    _logger.info('  UI Thread Status: ${(uiMetrics['uiThreadBlocked'] ?? false) ? "❌ BLOCKED" : "✅ RESPONSIVE"}');
-    
-    // Framework Validation Results
-    final latencyPass = perf?.meetsLatencyRequirement ?? false;
-    final uiResponsive = !(uiMetrics['uiThreadBlocked'] ?? true);
-    final framerate = uiMetrics['framerate'] ?? 0.0;
-    final frameratePass = framerate >= 55.0;
-    final noDrops = (perf?.droppedMessages ?? 1) == 0;
-    
-    _logger.info('=== SPIKE 1 VALIDATION RESULTS ===');
-    _logger.info('1. TCP in Dart Isolate: ✅ PASS (isolate communication working)');
-    _logger.info('2. <20ms Latency: ${latencyPass ? "✅ PASS" : "❌ FAIL"}');
-    _logger.info('3. UI Thread Responsive: ${uiResponsive ? "✅ PASS" : "❌ FAIL"}');
-    _logger.info('4. 60fps Performance: ${frameratePass ? "✅ PASS" : "❌ FAIL"}');
-    _logger.info('5. No Message Drops: ${noDrops ? "✅ PASS" : "❌ FAIL"}');
-    
-    final overallPass = latencyPass && uiResponsive && frameratePass && noDrops;
-    _logger.info('=== OVERALL RESULT ===');
-    _logger.info('Framework Validation: ${overallPass ? "✅ PASS" : "❌ FAIL"}');
-    
-    if (!overallPass) {
-      _logger.warning('RECOMMENDATION: Consider triggering ADR-011 framework re-evaluation');
-    } else {
-      _logger.info('RECOMMENDATION: Flutter/Dart/Isolate architecture validated for production');
-    }
-    
-    _finalMetrics = {
-      'latencyPass': latencyPass,
-      'uiResponsive': uiResponsive,
-      'frameratePass': frameratePass,
-      'noDrops': noDrops,
-      'overallPass': overallPass,
-      'avgLatency': perf?.averageLatencyMs ?? 0.0,
-      'maxLatency': perf?.maxLatencyMs ?? 0.0,
-      'framerate': framerate,
-      'jankFrames': uiMetrics['jankFrames'] ?? 0,
-    };
-    
-    _updateTestPhase(TestPhase.completed);
-  }
   
-  void _updateTestPhase(TestPhase phase) {
-    setState(() {
-      _currentPhase = phase;
-    });
-    _logger.info('Test Phase: ${phase.name.toUpperCase()}');
-  }
   
   @override
   Widget build(BuildContext context) {
@@ -296,11 +146,11 @@ class _FrameworkValidationScreenState extends State<FrameworkValidationScreen> {
                 if (state is GrblCommunicationWithData) {
                   List<Widget> metrics = [];
                   
-                  // Add jog test countdown if running
-                  if (state.jogTestRunning && state.jogTestRemainingSeconds != null) {
-                    metrics.add(_buildMetricRow('Jog Test Countdown', 
-                      '${state.jogTestRemainingSeconds}s remaining', 
-                      state.jogTestRemainingSeconds! > 3 ? Colors.green : Colors.orange));
+                  // Add jog test status if running
+                  if (state.jogTestRunning) {
+                    metrics.add(_buildMetricRow('Jog Test Status', 
+                      'Running...', 
+                      Colors.blue));
                   }
                   
                   // Add performance metrics if available
@@ -400,7 +250,7 @@ class _FrameworkValidationScreenState extends State<FrameworkValidationScreen> {
         return Icon(Icons.wifi_find, color: Colors.orange);
       case TestPhase.baseline:
         return Icon(Icons.speed, color: Colors.blue);
-      case TestPhase.highFrequency:
+      case TestPhase.jogTest:
         return Icon(Icons.flash_on, color: Colors.purple);
       case TestPhase.analyzing:
         return Icon(Icons.analytics, color: Colors.indigo);
@@ -412,22 +262,7 @@ class _FrameworkValidationScreenState extends State<FrameworkValidationScreen> {
   }
   
   String _getPhaseDescription(TestPhase phase) {
-    switch (phase) {
-      case TestPhase.initializing:
-        return 'Initializing test environment...';
-      case TestPhase.connecting:
-        return 'Connecting to grblHAL simulator...';
-      case TestPhase.baseline:
-        return 'Running baseline communication test...';
-      case TestPhase.highFrequency:
-        return 'Running jog responsiveness test...';
-      case TestPhase.analyzing:
-        return 'Analyzing test results...';
-      case TestPhase.completed:
-        return 'Test completed - see logs for results';
-      case TestPhase.failed:
-        return 'Test failed - connection error';
-    }
+    return phase.description;
   }
   
   Color _getMessageColor(String message) {
@@ -440,12 +275,3 @@ class _FrameworkValidationScreenState extends State<FrameworkValidationScreen> {
   }
 }
 
-enum TestPhase {
-  initializing,
-  connecting,
-  baseline,
-  highFrequency,
-  analyzing,
-  completed,
-  failed,
-}
