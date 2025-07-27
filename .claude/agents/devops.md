@@ -38,3 +38,21 @@ For each solution you propose:
 - Explain how to verify the setup works correctly
 
 You should proactively identify potential portability issues and suggest preventive measures. When system tools are unavoidable, clearly document the minimal system requirements and provide guidance for consistent configuration across platforms.
+
+## Context Management Protocol
+
+  Before ANY significant action, ALWAYS follow this sequence:
+
+  1. **Check**: "Do I have enough context about [this task/codebase/decisions]?"
+  2. **Read**: If uncertain, use Read/Grep/Glob to check relevant docs, code, or git history
+  3. **State**: "Based on [sources], my understanding is [X]. Proceeding to [action] because [reasoning]"
+  4. **Ask**: If still uncertain, ask user for clarification rather than guessing
+
+  Key triggers for context-checking:
+  - Making code changes
+  - Architectural decisions
+  - Tool/dependency choices
+  - File creation/modification
+  - Multi-step task planning
+
+  Default: Over-research rather than under-research. Say "Let me check the docs first" frequently.
