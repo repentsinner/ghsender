@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
-import 'isolate_communication_bloc.dart';
+import 'grbl_communication_bloc.dart';
 import 'logger.dart';
 
-class AutomatedTestScreen extends StatefulWidget {
+class FrameworkValidationScreen extends StatefulWidget {
   @override
-  _AutomatedTestScreenState createState() => _AutomatedTestScreenState();
+  _FrameworkValidationScreenState createState() => _FrameworkValidationScreenState();
 }
 
-class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
+class _FrameworkValidationScreenState extends State<FrameworkValidationScreen> {
   static final _logger = AppLogger.ui;
   
   Timer? _testSequenceTimer;
@@ -17,8 +17,8 @@ class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
   Map<String, dynamic> _uiMetrics = {};
   
   // Test configuration
-  static const String DEFAULT_HOST = '192.168.77.177';
-  static const int DEFAULT_PORT = 8081;
+  static const String DEFAULT_HOST = '192.168.77.87';
+  static const int DEFAULT_PORT = 80;
   static const int TEST_DURATION_SECONDS = 5;
   static const int TEST_INTERVAL_MS = 20;
   
@@ -31,7 +31,7 @@ class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
   @override
   void initState() {
     super.initState();
-    _logger.info('AutomatedTestScreen initialized - Starting automated validation');
+    _logger.info('FrameworkValidationScreen initialized - Starting automated validation');
     
     // Start UI performance monitoring
     _startUIMetricsMonitoring();
@@ -49,7 +49,7 @@ class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
   
   void _startUIMetricsMonitoring() {
     _uiMetricsTimer = Timer.periodic(Duration(milliseconds: 100), (_) {
-      final bloc = context.read<IsolateCommunicationBloc>();
+      final bloc = context.read<GrblCommunicationBloc>();
       setState(() {
         _uiMetrics = bloc.getUIPerformanceMetrics();
       });
@@ -58,14 +58,15 @@ class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
   
   void _startAutomatedTestSequence() {
     _logger.info('=== STARTING AUTOMATED FRAMEWORK VALIDATION ===');
-    _logger.info('Target: $DEFAULT_HOST:$DEFAULT_PORT');
-    _logger.info('High-frequency test: ${TEST_DURATION_SECONDS}s @ ${TEST_INTERVAL_MS}ms interval');
+    _logger.info('Target: ws://$DEFAULT_HOST:$DEFAULT_PORT');
+    _logger.info('Jog responsiveness test: 10s duration, 2mm jogs @ 500mm/min');
     
     _updateTestPhase(TestPhase.connecting);
     
-    // Step 1: Connect to simulator
-    context.read<IsolateCommunicationBloc>().add(
-      IsolateConnectEvent(DEFAULT_HOST, DEFAULT_PORT)
+    // Step 1: Connect to simulator via WebSocket
+    final wsUrl = 'ws://$DEFAULT_HOST:$DEFAULT_PORT';
+    context.read<GrblCommunicationBloc>().add(
+      GrblConnectEvent(wsUrl)
     );
     
     // Set up test sequence timer to monitor progress
@@ -73,16 +74,17 @@ class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
   }
   
   void _checkTestProgress(Timer timer) {
-    final bloc = context.read<IsolateCommunicationBloc>();
+    final bloc = context.read<GrblCommunicationBloc>();
     final state = bloc.state;
     
     switch (_currentPhase) {
       case TestPhase.connecting:
-        if (state is IsolateCommunicationConnected) {
+        if (state is GrblCommunicationConnected || 
+            (state is GrblCommunicationWithData && state.isConnected)) {
           _logger.info('✅ Connection established - starting baseline test');
           _updateTestPhase(TestPhase.baseline);
           _scheduleBaslineTest();
-        } else if (state is IsolateCommunicationError) {
+        } else if (state is GrblCommunicationError) {
           _logger.severe('❌ Connection failed: ${state.error}');
           _updateTestPhase(TestPhase.failed);
           timer.cancel();
@@ -94,9 +96,9 @@ class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
         break;
         
       case TestPhase.highFrequency:
-        // High frequency test runs for configured duration
-        if (state is IsolateCommunicationWithData && !state.highFrequencyTestRunning) {
-          _logger.info('✅ High-frequency test completed - analyzing results');
+        // Jog test runs for configured duration
+        if (state is GrblCommunicationWithData && !state.jogTestRunning) {
+          _logger.info('✅ Jog responsiveness test completed - analyzing results');
           _updateTestPhase(TestPhase.analyzing);
           _analyzeResults(state);
           timer.cancel();
@@ -119,33 +121,34 @@ class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
     // Send a few manual commands to establish baseline
     Timer(Duration(seconds: 1), () {
       _logger.info('Sending baseline commands...');
-      final bloc = context.read<IsolateCommunicationBloc>();
-      bloc.add(IsolateSendCommandEvent('\$\$'));
+      final bloc = context.read<GrblCommunicationBloc>();
+      bloc.add(GrblSendCommandEvent('\$\$'));
     });
     
     Timer(Duration(seconds: 2), () {
-      final bloc = context.read<IsolateCommunicationBloc>();
-      bloc.add(IsolateSendCommandEvent('?'));
+      final bloc = context.read<GrblCommunicationBloc>();
+      bloc.add(GrblSendCommandEvent('?'));
     });
     
     Timer(Duration(seconds: 3), () {
-      final bloc = context.read<IsolateCommunicationBloc>();
-      bloc.add(IsolateSendCommandEvent('\$I'));
+      final bloc = context.read<GrblCommunicationBloc>();
+      bloc.add(GrblSendCommandEvent('\$I'));
     });
     
-    // Start high-frequency test after baseline
+    // Start jog test after baseline
     Timer(Duration(seconds: 5), () {
-      _logger.info('✅ Baseline complete - starting high-frequency stress test');
+      _logger.info('✅ Baseline complete - starting jog responsiveness test');
       _updateTestPhase(TestPhase.highFrequency);
       _testStartTime = DateTime.now();
       
-      context.read<IsolateCommunicationBloc>().add(
-        IsolateStartHighFrequencyTestEvent(TEST_DURATION_SECONDS, TEST_INTERVAL_MS)
+      // Test jog responsiveness: 10 seconds, 2mm jogs at 500mm/min
+      context.read<GrblCommunicationBloc>().add(
+        GrblStartJogTestEvent(10, 2.0, 500)
       );
     });
   }
   
-  void _analyzeResults(IsolateCommunicationWithData state) {
+  void _analyzeResults(GrblCommunicationWithData state) {
     final testDuration = _testStartTime != null 
       ? DateTime.now().difference(_testStartTime!).inMilliseconds / 1000.0
       : 0.0;
@@ -288,22 +291,38 @@ class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
           children: [
             Text('Real-time Metrics', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             SizedBox(height: 8),
-            BlocBuilder<IsolateCommunicationBloc, IsolateCommunicationState>(
+            BlocBuilder<GrblCommunicationBloc, GrblCommunicationState>(
               builder: (context, state) {
-                if (state is IsolateCommunicationWithData && state.performanceData != null) {
-                  final perf = state.performanceData!;
-                  return Column(
-                    children: [
+                if (state is GrblCommunicationWithData) {
+                  List<Widget> metrics = [];
+                  
+                  // Add jog test countdown if running
+                  if (state.jogTestRunning && state.jogTestRemainingSeconds != null) {
+                    metrics.add(_buildMetricRow('Jog Test Countdown', 
+                      '${state.jogTestRemainingSeconds}s remaining', 
+                      state.jogTestRemainingSeconds! > 3 ? Colors.green : Colors.orange));
+                  }
+                  
+                  // Add performance metrics if available
+                  if (state.performanceData != null) {
+                    final perf = state.performanceData!;
+                    metrics.addAll([
                       _buildMetricRow('Avg Latency', '${perf.averageLatencyMs.toStringAsFixed(2)}ms', 
                         perf.meetsLatencyRequirement ? Colors.green : Colors.red),
                       _buildMetricRow('Messages/sec', '${perf.messagesPerSecond}', Colors.blue),
-                      _buildMetricRow('UI Framerate', '${(_uiMetrics['framerate'] ?? 0.0).toStringAsFixed(1)} fps', 
-                        (_uiMetrics['framerate'] ?? 0.0) >= 55.0 ? Colors.green : Colors.red),
-                      _buildMetricRow('UI Status', 
-                        (_uiMetrics['uiThreadBlocked'] ?? false) ? '❌ BLOCKED' : '✅ RESPONSIVE',
-                        (_uiMetrics['uiThreadBlocked'] ?? false) ? Colors.red : Colors.green),
-                    ],
-                  );
+                    ]);
+                  }
+                  
+                  // Add UI metrics
+                  metrics.addAll([
+                    _buildMetricRow('UI Framerate', '${(_uiMetrics['framerate'] ?? 0.0).toStringAsFixed(1)} fps', 
+                      (_uiMetrics['framerate'] ?? 0.0) >= 55.0 ? Colors.green : Colors.red),
+                    _buildMetricRow('UI Status', 
+                      (_uiMetrics['uiThreadBlocked'] ?? false) ? '❌ BLOCKED' : '✅ RESPONSIVE',
+                      (_uiMetrics['uiThreadBlocked'] ?? false) ? Colors.red : Colors.green),
+                  ]);
+                  
+                  return Column(children: metrics);
                 }
                 return Text('Waiting for data...');
               },
@@ -324,9 +343,9 @@ class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
             child: Text('Live Test Log', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ),
           Expanded(
-            child: BlocBuilder<IsolateCommunicationBloc, IsolateCommunicationState>(
+            child: BlocBuilder<GrblCommunicationBloc, GrblCommunicationState>(
               builder: (context, state) {
-                if (state is IsolateCommunicationWithData) {
+                if (state is GrblCommunicationWithData) {
                   // Show only recent messages (last 20)
                   final recentMessages = state.messages.length > 20 
                     ? state.messages.sublist(state.messages.length - 20)
@@ -401,7 +420,7 @@ class _AutomatedTestScreenState extends State<AutomatedTestScreen> {
       case TestPhase.baseline:
         return 'Running baseline communication test...';
       case TestPhase.highFrequency:
-        return 'Running high-frequency stress test...';
+        return 'Running jog responsiveness test...';
       case TestPhase.analyzing:
         return 'Analyzing test results...';
       case TestPhase.completed:
