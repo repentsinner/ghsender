@@ -1,11 +1,19 @@
-import 'dart:math';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_gpu/gpu.dart' as gpu;
-import 'package:vector_math/vector_math.dart' as vm;
+import 'package:vector_math/vector_math_64.dart' as vm;
 import '../scene.dart';
 import '../scene/scene_manager.dart';
 import 'renderer_interface.dart';
+
+/// G-code processing states for visual feedback
+enum ProcessingState {
+  completed,  // Already processed (dimmed)
+  current,    // Currently executing (highlighted)
+  upcoming,   // Next ~30s (bright)
+  future,     // Not yet reached (normal)
+}
 
 class GpuBatchRenderer implements Renderer {
   gpu.HostBuffer? _hostBuffer;
@@ -44,48 +52,6 @@ class GpuBatchRenderer implements Renderer {
     }
   }
   
-  void _createBatchedGeometry() {
-    if (_sceneData == null) {
-      throw Exception('Scene data not available - call setupScene() first');
-    }
-    
-    // KEY CONCEPT: Combine all scene objects into a single vertex buffer
-    final vertices = <double>[];
-    final indices = <int>[];
-    int vertexOffset = 0;
-    
-    // Process all scene objects (cubes and axes)
-    for (final sceneObject in _sceneData!.objects) {
-      // Add 8 vertices for this object to the shared buffer (with colors)
-      _addCubeVerticesWithColor(
-        vertices, 
-        sceneObject.position.x, 
-        sceneObject.position.y, 
-        sceneObject.position.z, 
-        vm.Vector3(sceneObject.scale.x, sceneObject.scale.y, sceneObject.scale.z), // Convert Vector3 types
-        sceneObject.color
-      );
-      
-      // Add 36 indices (12 triangles) for this object
-      _addCubeIndices(indices, vertexOffset);
-      
-      vertexOffset += 8; // Next object starts 8 vertices later
-    }
-    
-    _vertexCount = vertices.length ~/ 6; // 6 floats per vertex (x,y,z,r,g,b)
-    _indexCount = indices.length;
-    _polygonCount = _indexCount ~/ 3;
-    _drawCallCount = 1; // THE KEY: All objects in 1 draw call!
-    
-    print('=== GPU BATCHING FROM SCENE DATA ===');
-    print('Scene objects: ${_sceneData!.objects.length}');
-    print('Vertices in buffer: $_vertexCount');
-    print('Indices in buffer: $_indexCount'); 
-    print('Total Polygons: $_polygonCount');
-    print('GPU Draw Calls: $_drawCallCount (TRUE BATCHING!)');
-    print('Polygons per draw call: $_polygonCount');
-    print('====================================');
-  }
   
   void _createGpuBuffers() {
     try {
@@ -101,18 +67,33 @@ class GpuBatchRenderer implements Renderer {
       final indices = <int>[];
       int vertexOffset = 0;
       
-      // Process all scene objects
+      // Process all scene objects with proper geometry for each type
       for (final sceneObject in _sceneData!.objects) {
-        _addCubeVerticesWithColor(
-          vertices, 
-          sceneObject.position.x, 
-          sceneObject.position.y, 
-          sceneObject.position.z, 
-          vm.Vector3(sceneObject.scale.x, sceneObject.scale.y, sceneObject.scale.z),
-          sceneObject.color
-        );
-        _addCubeIndices(indices, vertexOffset);
-        vertexOffset += 8;
+        if (sceneObject.type == SceneObjectType.line) {
+          // Lines are rendered as tessellated line geometry (quad strips)
+          _addLineVerticesWithColor(
+            vertices, 
+            sceneObject,
+          );
+          
+          // Add quad indices for line (2 triangles forming a textured line segment)
+          _addLineIndices(indices, vertexOffset);
+          vertexOffset += 4; // Lines use 4 vertices per segment
+        } else {
+          // Cubes and axes use standard cube rendering
+          _addCubeVerticesWithColor(
+            vertices, 
+            sceneObject.position.x, 
+            sceneObject.position.y, 
+            sceneObject.position.z, 
+            vm.Vector3(sceneObject.scale.x, sceneObject.scale.y, sceneObject.scale.z),
+            sceneObject.color
+          );
+          
+          // Add 36 indices (12 triangles) for this object
+          _addCubeIndices(indices, vertexOffset);
+          vertexOffset += 8; // Cubes use 8 vertices
+        }
       }
       
       // Store vertex and index data in host buffer
@@ -122,7 +103,21 @@ class GpuBatchRenderer implements Renderer {
       _vertexBufferView = _hostBuffer!.emplace(vertexData.buffer.asByteData());
       _indexBufferView = _hostBuffer!.emplace(indexData.buffer.asByteData());
       
-      print('GPU buffers created with ${vertices.length ~/ 6} vertices (${vertices.length} floats) and ${indices.length} indices');
+      // Update performance metrics
+      _vertexCount = vertices.length ~/ 6; // 6 floats per vertex (x,y,z,r,g,b)
+      _indexCount = indices.length;
+      _polygonCount = _indexCount ~/ 3;
+      _drawCallCount = 1; // THE KEY: All objects in 1 draw call!
+      
+      print('=== GPU BATCHING FROM SCENE DATA ===');
+      print('Scene objects: ${_sceneData!.objects.length}');
+      print('Vertices in buffer: $_vertexCount');
+      print('Indices in buffer: $_indexCount'); 
+      print('Total Polygons: $_polygonCount');
+      print('GPU Draw Calls: $_drawCallCount (TRUE BATCHING!)');
+      print('Polygons per draw call: $_polygonCount');
+      print('====================================');
+      print('GPU buffers created with $_vertexCount vertices (${vertices.length} floats) and $_indexCount indices');
     } catch (e) {
       print('GPU buffer creation failed: $e');
     }
@@ -172,6 +167,159 @@ class GpuBatchRenderer implements Renderer {
     for (final index in cubeIndices) {
       indices.add(index + offset);
     }
+  }
+
+  /// Add tessellated line vertices with proper width and G-code state coloring
+  /// Uses the same approach as flutter_scene: scale defines geometry size, position+rotation define placement
+  void _addLineVerticesWithColor(List<double> vertices, SceneObject lineObject) {
+    // Use the same approach as flutter_scene:
+    // - Scale defines the geometry dimensions (length, width, height) 
+    // - Position and rotation define where to place the geometry
+    final scale = lineObject.scale;
+    final position = lineObject.position;
+    final rotation = lineObject.rotation;
+    
+    final lineLength = scale.x;  // X = length 
+    final lineWidth = scale.y;   // Y = width
+    final lineHeight = scale.z;  // Z = height (thickness)
+    
+    // Debug very small lines to understand the scale
+    if (lineLength < 0.1 && vertices.length < 20) {
+      print('Short line: length: $lineLength, width: $lineWidth, height: $lineHeight, pos: $position');
+    }
+    
+    // Create line geometry in local space (like flutter_scene does with CuboidGeometry)
+    // Line extends from -length/2 to +length/2 along X-axis
+    final halfLength = lineLength / 2;
+    final halfWidth = lineWidth / 2;
+    
+    // Define 4 corners of the line quad in local space (X-axis aligned)
+    final localCorners = [
+      vm.Vector3(-halfLength, -halfWidth, 0), // Bottom-left
+      vm.Vector3(-halfLength, halfWidth, 0), // Top-left  
+      vm.Vector3(halfLength, halfWidth, 0), // Top-right
+      vm.Vector3(halfLength, -halfWidth, 0), // Bottom-right
+    ];
+    
+    // Transform each corner to world space using position + rotation (like flutter_scene)
+    final rotationMatrix = vm.Matrix4.identity();
+    rotationMatrix.setRotation(rotation.asRotationMatrix());
+    
+    final worldCorners = localCorners.map((corner) {
+      final transformed = rotationMatrix.transformed3(corner);
+      return transformed + position;
+    }).toList();
+    
+    // Apply G-code state coloring
+    final stateColor = _getGCodeStateColor(lineObject);
+    final r = stateColor.red / 255.0;
+    final g = stateColor.green / 255.0;
+    final b = stateColor.blue / 255.0;
+    
+    // Create 4 vertices for line quad using the transformed corners
+    final lineVerts = [
+      // Vertex 0: Bottom-left
+      worldCorners[0].x, worldCorners[0].y, worldCorners[0].z, r, g, b,
+      // Vertex 1: Top-left
+      worldCorners[1].x, worldCorners[1].y, worldCorners[1].z, r, g, b,
+      // Vertex 2: Top-right  
+      worldCorners[2].x, worldCorners[2].y, worldCorners[2].z, r, g, b,
+      // Vertex 3: Bottom-right
+      worldCorners[3].x, worldCorners[3].y, worldCorners[3].z, r, g, b,
+    ];
+    vertices.addAll(lineVerts);
+  }
+  
+  /// Add indices for line quad (2 triangles)
+  void _addLineIndices(List<int> indices, int offset) {
+    // Create quad with proper winding order
+    final lineIndices = [
+      0, 1, 2,  // First triangle (CCW)
+      0, 2, 3,  // Second triangle (CCW)
+    ];
+    
+    for (final index in lineIndices) {
+      indices.add(index + offset);
+    }
+  }
+  
+  /// Apply G-code state-based coloring for realistic CNC visualization
+  Color _getGCodeStateColor(SceneObject lineObject) {
+    // Simulate processing progress (45% complete as requested)
+    final progressPercent = 0.45;
+    final totalOperations = _sceneData?.objects.length ?? 1;
+    final processedOperations = (totalOperations * progressPercent).round();
+    final operationIndex = lineObject.operationIndex ?? 0;
+    
+    // Determine processing state
+    ProcessingState state;
+    if (operationIndex < processedOperations) {
+      state = ProcessingState.completed;
+    } else if (operationIndex == processedOperations) {
+      state = ProcessingState.current;
+    } else {
+      // Check if within next 30 seconds of operations
+      final upcomingThreshold = _calculateUpcomingThreshold(processedOperations);
+      if (operationIndex <= processedOperations + upcomingThreshold) {
+        state = ProcessingState.upcoming;
+      } else {
+        state = ProcessingState.future;
+      }
+    }
+    
+    // Use the original G-code colors which already distinguish operation types:
+    // Blue = rapids, Green = linear cuts, Red/Orange = arcs
+    Color baseColor = lineObject.color;
+    
+    // Debug: Count operation types (first few operations only)
+    if (operationIndex < 5) {
+      final colorName = baseColor == Colors.blue ? 'BLUE(rapid)' : 
+                       baseColor == Colors.green ? 'GREEN(linear)' : 
+                       baseColor == Colors.red ? 'RED(arc)' : 
+                       baseColor == Colors.orange ? 'ORANGE(arc)' : 'UNKNOWN';
+      print('Op $operationIndex: $colorName, rapid=${lineObject.isRapidMove}, cut=${lineObject.isCuttingMove}');
+    }
+    
+    // Then apply processing state modifications
+    switch (state) {
+      case ProcessingState.completed:
+        // Past operations: slightly desaturated but still visible
+        return Color.fromRGBO(
+          (baseColor.red * 0.7).round(),
+          (baseColor.green * 0.7).round(), 
+          (baseColor.blue * 0.7).round(),
+          0.8  // More opaque so they're still visible
+        );
+        
+      case ProcessingState.current:
+        // Currently executing: bright and pulsing (for now just bright)
+        return Color.fromRGBO(
+          255,
+          255, 
+          0,
+          1.0
+        ); // Bright yellow for current operation
+        
+      case ProcessingState.upcoming:
+        // Next ~30s: highlighted with slightly brighter colors
+        return Color.fromRGBO(
+          math.min(255, (baseColor.red * 1.3).round()),
+          math.min(255, (baseColor.green * 1.3).round()),
+          math.min(255, (baseColor.blue * 1.3).round()),
+          0.9
+        );
+        
+      case ProcessingState.future:
+        // Future operations: standard colors
+        return baseColor;
+    }
+  }
+  
+  /// Calculate how many operations ahead constitute "upcoming" (~30 seconds)
+  int _calculateUpcomingThreshold(int currentOperation) {
+    // Estimate 30 seconds worth of operations
+    // This is a rough estimate - in reality you'd use actual timing data
+    return 50; // Assume ~30 seconds worth of operations
   }
   
   Future<void> _createRenderPipelines() async {
@@ -365,7 +513,7 @@ class GpuBatchRenderer implements Renderer {
     
     // Projection matrix (perspective) - use scene camera configuration
     final aspectRatio = size.width / size.height;
-    final fovRadians = cameraConfig.fov * (pi / 180.0);
+    final fovRadians = cameraConfig.fov * (math.pi / 180.0);
     final nearPlane = 1.0;
     final farPlane = 1000.0;
     final projMatrix = vm.makePerspectiveMatrix(fovRadians, aspectRatio, nearPlane, farPlane);
@@ -419,7 +567,6 @@ class GpuBatchRenderer implements Renderer {
     print('GPU renderer received scene with ${sceneData.objects.length} objects');
     // Recreate geometry and buffers with new scene data
     if (_initialized) {
-      _createBatchedGeometry();
       _createGpuBuffers();
     }
   }

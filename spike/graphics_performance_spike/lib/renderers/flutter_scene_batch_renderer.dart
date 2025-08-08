@@ -56,8 +56,15 @@ class FlutterSceneBatchRenderer implements Renderer {
       // Convert scale to flutter_scene vector type
       final scale = vm.Vector3(sceneObject.scale.x, sceneObject.scale.y, sceneObject.scale.z);
       
-      // Create cube geometry with the scale from scene data  
-      final geometry = CuboidGeometry(scale);
+      // Create appropriate geometry based on object type
+      Geometry geometry;
+      if (sceneObject.type == SceneObjectType.line) {
+        // Lines are rendered as thin cubes (elongated cuboids)
+        geometry = CuboidGeometry(scale);
+      } else {
+        // Cubes and axes use standard cube geometry  
+        geometry = CuboidGeometry(scale);
+      }
       
       // Create material with the color from scene data
       final material = UnlitMaterial();
@@ -72,16 +79,27 @@ class FlutterSceneBatchRenderer implements Renderer {
       final primitive = MeshPrimitive(geometry, material);
       final mesh = Mesh.primitives(primitives: [primitive]);
       
-      // Create node with proper positioning
+      // Create node with proper positioning and rotation
       final node = Node();
       node.mesh = mesh;
       
       // Convert position to flutter_scene vector type  
       final position = vm.Vector3(sceneObject.position.x, sceneObject.position.y, sceneObject.position.z);
       
-      node.localTransform = vm.Matrix4.identity()
-        ..translate(position)
-        ..scale(scale);
+      // Apply object transformation (position, rotation, scale)
+      // Convert quaternion from 64-bit to 32-bit version for flutter_scene compatibility
+      final rotation32 = vm.Quaternion(
+        sceneObject.rotation.x,
+        sceneObject.rotation.y, 
+        sceneObject.rotation.z,
+        sceneObject.rotation.w,
+      );
+      
+      node.localTransform = vm.Matrix4.compose(
+        position,
+        rotation32,
+        vm.Vector3.all(1.0), // Scale is handled by geometry size
+      );
       
       // Add to root node for global rotation control
       _rootNode.add(node);

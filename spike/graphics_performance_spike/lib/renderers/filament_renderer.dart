@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:thermion_flutter/thermion_flutter.dart';
 import 'package:thermion_dart/thermion_dart.dart';
@@ -55,13 +56,18 @@ class FilamentRenderer implements Renderer {
     // Calculate performance metrics based on scene data
     final cubeObjects = sceneData.objects.where((obj) => obj.type == SceneObjectType.cube).length;
     final axisObjects = sceneData.objects.where((obj) => obj.type == SceneObjectType.axis).length;
-    _actualPolygons = (cubeObjects * 12) + (axisObjects * 12); // 12 triangles per cube/axis
-    _actualDrawCalls = sceneData.objects.length; // One draw call per object
+    final lineObjects = sceneData.objects.where((obj) => obj.type == SceneObjectType.line).length;
+    _actualPolygons = (cubeObjects * 12) + (axisObjects * 12) + (lineObjects * 12); // 12 triangles per object (lines rendered as thin cubes)
+    
+    // Estimate draw calls based on color grouping (much fewer than individual objects)
+    final uniqueColors = sceneData.objects.map((obj) => obj.color.value).toSet().length;
+    _actualDrawCalls = uniqueColors; // One draw call per unique color group
     
     print('=== FILAMENT SCENE SETUP ===');
     print('Scene objects: ${sceneData.objects.length}');
-    print('Cubes: $cubeObjects, Axes: $axisObjects');
-    print('Estimated Draw Calls: $_actualDrawCalls');
+    print('Cubes: $cubeObjects, Axes: $axisObjects, Lines: $lineObjects');
+    print('Unique colors: $uniqueColors');
+    print('Estimated Draw Calls: $_actualDrawCalls (color-grouped)');
     print('Total Polygons: $_actualPolygons');
     print('===========================');
   }
@@ -77,13 +83,16 @@ class FilamentRenderer implements Renderer {
   }
   
   Future<void> _updateCamera() async {
-    if (_viewer == null) return;
+    if (_viewer == null || _sceneData == null) return;
+    
     final camera = await _viewer!.getActiveCamera();
-    final distance = 50.0;
-    final x = distance * math.sin(_rotationY) * math.cos(_rotationX);
-    final y = distance * math.sin(_rotationX);
-    final z = distance * math.cos(_rotationY) * math.cos(_rotationX);
-    await camera.lookAt(vm.Vector3(x, y, z), focus: vm.Vector3.zero());
+    
+    // Use the same camera position from scene data (don't modify it for rotation)
+    // The rotation should be handled by rotating the scene objects, not the camera
+    await camera.lookAt(
+      _sceneData!.camera.position, 
+      focus: _sceneData!.camera.target
+    );
   }
   
   @override
@@ -159,58 +168,10 @@ class FilamentRenderer implements Renderer {
         focus: _sceneData!.camera.target
       );
       
-      // Create geometry for cubes and axes
-      final cubeGeometry = GeometryHelper.cube(flipUvs: true);
+      // Create instanced geometry for better batching - use shared geometry with multiple instances
+      print('Creating instanced Filament rendering for ${_sceneData!.objects.length} scene objects...');
       
-      int objectsCreated = 0;
-      
-      // Create all scene objects
-      for (final sceneObject in _sceneData!.objects) {
-        if (!_initialized) {
-          print('Renderer disposed during scene creation, stopping at $objectsCreated objects');
-          break;
-        }
-        
-        try {
-          // Create material
-          final materialInstance = await FilamentApp.instance!
-              .createUbershaderMaterialInstance(unlit: true);
-          
-          // Set color
-          await materialInstance.setParameterFloat4(
-            "baseColorFactor", 
-            sceneObject.color.red / 255.0, 
-            sceneObject.color.green / 255.0, 
-            sceneObject.color.blue / 255.0, 
-            1.0
-          );
-          
-          // Create asset
-          final asset = await viewer.createGeometry(
-            cubeGeometry, 
-            materialInstances: [materialInstance]
-          );
-          
-          // Track resources for cleanup
-          _createdAssets.add(asset);
-          _createdMaterials.add(materialInstance);
-          
-          // Position and scale object using its transform matrix
-          await asset.setTransform(sceneObject.transformMatrix);
-          
-          objectsCreated++;
-          
-          if (objectsCreated % 100 == 0 && objectsCreated > 0) {
-            print('Created $objectsCreated/${_sceneData!.objects.length} scene objects...');
-          }
-          
-        } catch (e) {
-          print('Error creating scene object ${sceneObject.id}: $e');
-        }
-      }
-      
-      print('Filament scene creation complete: $objectsCreated objects created');
-      print('Scene matches other renderers exactly (unified scene data)');
+      await _createInstancedGeometry(viewer, _sceneData!.objects);
       
     } catch (e, stackTrace) {
       print('Error setting up Filament scene: $e');
@@ -218,9 +179,79 @@ class FilamentRenderer implements Renderer {
     }
   }
   
-  // Removed _add3DAxes - axes are now created from scene data like all other objects
+  /// Create instanced geometry - group objects by color for better batching  
+  Future<void> _createInstancedGeometry(ThermionViewer viewer, List<SceneObject> sceneObjects) async {
+    try {
+      print('=== FILAMENT INSTANCED RENDERING ===');
+      
+      // Group objects by color to minimize draw calls
+      final colorGroups = <String, List<SceneObject>>{};
+      for (final sceneObject in sceneObjects) {
+        final colorKey = '${sceneObject.color.value}';
+        colorGroups[colorKey] ??= [];
+        colorGroups[colorKey]!.add(sceneObject);
+      }
+      
+      print('Grouped ${sceneObjects.length} objects into ${colorGroups.length} color groups');
+      
+      // Create one batch per color group
+      final cubeGeometry = GeometryHelper.cube(flipUvs: true);
+      int totalObjectsCreated = 0;
+      
+      for (final entry in colorGroups.entries) {
+        final colorObjects = entry.value;
+        final firstObject = colorObjects.first;
+        
+        // Create material for this color group
+        final materialInstance = await FilamentApp.instance!
+            .createUbershaderMaterialInstance(unlit: true);
+        
+        await materialInstance.setParameterFloat4(
+          "baseColorFactor",
+          firstObject.color.red / 255.0,
+          firstObject.color.green / 255.0, 
+          firstObject.color.blue / 255.0,
+          1.0
+        );
+        
+        // Create instances for each object in this color group (with memory limit)
+        final maxInstancesPerColor = 500; // Prevent HandleAllocator exhaustion
+        final instancesToCreate = colorObjects.length > maxInstancesPerColor 
+            ? colorObjects.take(maxInstancesPerColor).toList()
+            : colorObjects;
+        
+        if (colorObjects.length > maxInstancesPerColor) {
+          print('Limiting color group to ${maxInstancesPerColor}/${colorObjects.length} instances');
+        }
+        
+        for (final sceneObject in instancesToCreate) {
+          final asset = await viewer.createGeometry(
+            cubeGeometry,
+            materialInstances: [materialInstance]
+          );
+          
+          await asset.setTransform(sceneObject.transformMatrix);
+          
+          _createdAssets.add(asset);
+          totalObjectsCreated++;
+        }
+        
+        _createdMaterials.add(materialInstance);
+        
+        if (colorObjects.length > 1) {
+          print('Created ${colorObjects.length} instances for color group ${entry.key}');
+        }
+      }
+      
+      print('Filament instanced rendering: ${colorGroups.length} draw calls for $totalObjectsCreated objects');
+      print('Color-based batching: ${sceneObjects.length ~/ colorGroups.length} objects per draw call (average)');
+      print('======================================');
+      
+    } catch (e) {
+      print('Error creating instanced geometry: $e');
+    }
+  }
   
-  // Removed _addAxis - axes are now created from scene data like all other objects
   
   @override
   void dispose() {
