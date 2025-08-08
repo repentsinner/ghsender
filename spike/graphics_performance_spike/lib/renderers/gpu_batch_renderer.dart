@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:vector_math/vector_math.dart' as vm;
 import '../scene.dart';
+import '../scene/scene_manager.dart';
+import 'renderer_interface.dart';
 
-class GpuBatchRenderer {
+class GpuBatchRenderer implements Renderer {
   gpu.HostBuffer? _hostBuffer;
   gpu.BufferView? _vertexBufferView;
   gpu.BufferView? _indexBufferView;
@@ -17,22 +19,24 @@ class GpuBatchRenderer {
   int _drawCallCount = 0;
   int _polygonCount = 0;
   
-  // Rendering mode
+  // Renderer state
+  bool _initialized = false;
   bool _wireframeMode = false;
   
-  // Removed auto-rotation, now using interactive rotation
+  // Scene data received from SceneManager
+  SceneData? _sceneData;
+  
+  // Interactive rotation state
+  double _rotationX = 0.0;
+  double _rotationY = 0.0;
   
   Future<bool> initialize() async {
     try {
-      // Create batched geometry data (the key concept!)
-      _createBatchedGeometry();
-      
-      // Create GPU buffers with actual vertex data including colors
-      _createGpuBuffers();
-      
-      // Create render pipelines with shaders
+      // Only create render pipelines during initialization
+      // Geometry and buffers will be created when scene data is provided
       await _createRenderPipelines();
       
+      _initialized = true;
       return true;
     } catch (e) {
       print('GPU renderer initialization failed: $e');
@@ -41,32 +45,40 @@ class GpuBatchRenderer {
   }
   
   void _createBatchedGeometry() {
-    // KEY CONCEPT: Combine cubes into a single vertex buffer using shared scene config
+    if (_sceneData == null) {
+      throw Exception('Scene data not available - call setupScene() first');
+    }
+    
+    // KEY CONCEPT: Combine all scene objects into a single vertex buffer
     final vertices = <double>[];
     final indices = <int>[];
     int vertexOffset = 0;
     
-    // Get all cube data from shared scene configuration
-    final cubeDataList = SceneConfiguration.getAllCubeData();
-    
-    // For each cube, add its vertices to the single buffer
-    for (final cubeData in cubeDataList) {
-      // Add 8 vertices for this cube to the shared buffer (with colors)
-      _addCubeVerticesWithColor(vertices, cubeData.position.x, cubeData.position.y, cubeData.position.z, cubeData.size, cubeData.color);
+    // Process all scene objects (cubes and axes)
+    for (final sceneObject in _sceneData!.objects) {
+      // Add 8 vertices for this object to the shared buffer (with colors)
+      _addCubeVerticesWithColor(
+        vertices, 
+        sceneObject.position.x, 
+        sceneObject.position.y, 
+        sceneObject.position.z, 
+        vm.Vector3(sceneObject.scale.x, sceneObject.scale.y, sceneObject.scale.z), // Convert Vector3 types
+        sceneObject.color
+      );
       
-      // Add 36 indices (12 triangles) for this cube
+      // Add 36 indices (12 triangles) for this object
       _addCubeIndices(indices, vertexOffset);
       
-      vertexOffset += 8; // Next cube starts 8 vertices later
+      vertexOffset += 8; // Next object starts 8 vertices later
     }
     
     _vertexCount = vertices.length ~/ 6; // 6 floats per vertex (x,y,z,r,g,b)
     _indexCount = indices.length;
     _polygonCount = _indexCount ~/ 3;
-    _drawCallCount = 1; // THE KEY: All 10k cubes in 1 draw call!
+    _drawCallCount = 1; // THE KEY: All objects in 1 draw call!
     
-    print('=== BATCHING CONCEPT DEMONSTRATED ===');
-    print('Total Cubes: ${SceneConfiguration.totalCubes}');
+    print('=== GPU BATCHING FROM SCENE DATA ===');
+    print('Scene objects: ${_sceneData!.objects.length}');
     print('Vertices in buffer: $_vertexCount');
     print('Indices in buffer: $_indexCount'); 
     print('Total Polygons: $_polygonCount');
@@ -77,24 +89,27 @@ class GpuBatchRenderer {
   
   void _createGpuBuffers() {
     try {
+      if (_sceneData == null) {
+        throw Exception('Scene data not available - call setupScene() first');
+      }
+      
       // Create host buffer for efficient GPU access
       _hostBuffer = gpu.gpuContext.createHostBuffer();
       
-      // Create actual vertex buffer with 3D cube data including colors
+      // Create actual vertex buffer with 3D scene data including colors
       final vertices = <double>[];
       final indices = <int>[];
       int vertexOffset = 0;
       
-      final cubeDataList = SceneConfiguration.getAllCubeData();
-      
-      for (final cubeData in cubeDataList) {
+      // Process all scene objects
+      for (final sceneObject in _sceneData!.objects) {
         _addCubeVerticesWithColor(
           vertices, 
-          cubeData.position.x, 
-          cubeData.position.y, 
-          cubeData.position.z, 
-          cubeData.size,
-          cubeData.color
+          sceneObject.position.x, 
+          sceneObject.position.y, 
+          sceneObject.position.z, 
+          vm.Vector3(sceneObject.scale.x, sceneObject.scale.y, sceneObject.scale.z),
+          sceneObject.color
         );
         _addCubeIndices(indices, vertexOffset);
         vertexOffset += 8;
@@ -113,8 +128,10 @@ class GpuBatchRenderer {
     }
   }
   
-  void _addCubeVerticesWithColor(List<double> vertices, double x, double y, double z, double size, Color color) {
-    final s = size / 2;
+  void _addCubeVerticesWithColor(List<double> vertices, double x, double y, double z, vm.Vector3 scale, Color color) {
+    final sx = scale.x / 2;
+    final sy = scale.y / 2;
+    final sz = scale.z / 2;
     final r = color.red / 255.0;
     final g = color.green / 255.0;
     final b = color.blue / 255.0;
@@ -122,21 +139,21 @@ class GpuBatchRenderer {
     // 8 vertices of a cube, each with position (x,y,z) and color (r,g,b)
     final cubeVerts = [
       // Vertex 0: front bottom-left
-      x-s, y-s, z+s, r, g, b,
+      x-sx, y-sy, z+sz, r, g, b,
       // Vertex 1: front bottom-right  
-      x+s, y-s, z+s, r, g, b,
+      x+sx, y-sy, z+sz, r, g, b,
       // Vertex 2: front top-right
-      x+s, y+s, z+s, r, g, b,
+      x+sx, y+sy, z+sz, r, g, b,
       // Vertex 3: front top-left
-      x-s, y+s, z+s, r, g, b,
+      x-sx, y+sy, z+sz, r, g, b,
       // Vertex 4: back bottom-left
-      x-s, y-s, z-s, r, g, b,
+      x-sx, y-sy, z-sz, r, g, b,
       // Vertex 5: back bottom-right
-      x+s, y-s, z-s, r, g, b,
+      x+sx, y-sy, z-sz, r, g, b,
       // Vertex 6: back top-right
-      x+s, y+s, z-s, r, g, b,
+      x+sx, y+sy, z-sz, r, g, b,
       // Vertex 7: back top-left
-      x-s, y+s, z-s, r, g, b,
+      x-sx, y+sy, z-sz, r, g, b,
     ];
     vertices.addAll(cubeVerts);
   }
@@ -199,7 +216,11 @@ class GpuBatchRenderer {
   // Note: 3D axes would be included in the GPU vertex buffer as geometry
   // Not using Canvas drawing for axes in true GPU renderer
 
-  void render(Canvas canvas, Size size, [double rotationX = 0.0, double rotationY = 0.0]) {
+  @override
+  void render(Canvas canvas, Size size, double rotationX, double rotationY) {
+    // Update internal rotation state
+    _rotationX = rotationX;
+    _rotationY = rotationY;
     // Clear the screen with black background first
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
@@ -222,7 +243,7 @@ class GpuBatchRenderer {
     
     // Use actual GPU rendering with flutter_gpu APIs only
     try {
-      _renderWithGPU(canvas, size, rotationX, rotationY);
+      _renderWithGPU(canvas, size, _rotationX, _rotationY);
     } catch (e) {
       print('GPU rendering error: $e');
       // Show error message instead of Canvas fallback
@@ -335,18 +356,19 @@ class GpuBatchRenderer {
     final rotationMatrixY = vm.Matrix4.rotationY(rotationY);
     final modelMatrix = rotationMatrixY * rotationMatrixX;
     
-    // View matrix (camera transform)
-    final cameraPos = vm.Vector3(0, 50, 300);
-    final target = vm.Vector3.zero();
-    final up = vm.Vector3(0, 1, 0);
+    // View matrix (camera transform) - use scene camera configuration
+    final cameraConfig = _sceneData!.camera;
+    final cameraPos = vm.Vector3(cameraConfig.position.x, cameraConfig.position.y, cameraConfig.position.z);
+    final target = vm.Vector3(cameraConfig.target.x, cameraConfig.target.y, cameraConfig.target.z);
+    final up = vm.Vector3(cameraConfig.up.x, cameraConfig.up.y, cameraConfig.up.z);
     final viewMatrix = vm.makeViewMatrix(cameraPos, target, up);
     
-    // Projection matrix (perspective)
+    // Projection matrix (perspective) - use scene camera configuration
     final aspectRatio = size.width / size.height;
-    final fov = 45.0 * (pi / 180.0);
+    final fovRadians = cameraConfig.fov * (pi / 180.0);
     final nearPlane = 1.0;
     final farPlane = 1000.0;
-    final projMatrix = vm.makePerspectiveMatrix(fov, aspectRatio, nearPlane, farPlane);
+    final projMatrix = vm.makePerspectiveMatrix(fovRadians, aspectRatio, nearPlane, farPlane);
     
     // Combined MVP matrix
     return projMatrix * viewMatrix * modelMatrix;
@@ -364,8 +386,9 @@ class GpuBatchRenderer {
       ],
     );
     
+    final objectCount = _sceneData?.objects.length ?? 0;
     final textSpan = TextSpan(
-      text: 'ACTUAL GPU BATCHING: ${_polygonCount} triangles in ${_drawCallCount} draw call!\n10,000 cubes (each with 12 triangles) rendered via flutter_gpu\nNo Canvas shortcuts - true GPU geometry rendering',
+      text: 'ACTUAL GPU BATCHING: ${_polygonCount} triangles in ${_drawCallCount} draw call!\n$objectCount scene objects rendered via flutter_gpu\nNo Canvas shortcuts - true GPU geometry rendering',
       style: textStyle,
     );
     
@@ -388,6 +411,40 @@ class GpuBatchRenderer {
     // For true GPU wireframe, we'd need to modify the render pipeline
     print('Wireframe mode: $_wireframeMode (requires GPU shader changes)');
   }
+  
+  // Renderer interface implementation
+  @override
+  Future<void> setupScene(SceneData sceneData) async {
+    _sceneData = sceneData;
+    print('GPU renderer received scene with ${sceneData.objects.length} objects');
+    // Recreate geometry and buffers with new scene data
+    if (_initialized) {
+      _createBatchedGeometry();
+      _createGpuBuffers();
+    }
+  }
+  
+  @override
+  void updateRotation(double rotationX, double rotationY) {
+    _rotationX = rotationX;
+    _rotationY = rotationY;
+  }
+  
+  @override
+  Widget createWidget() {
+    // GPU renderer uses CustomPaint, not its own widget
+    return Container(
+      color: Colors.black,
+      child: const Center(
+        child: Text(
+          'GPU Renderer uses CustomPaint',
+          style: TextStyle(color: Colors.white),
+        ),
+      ),
+    );
+  }
+  @override
+  bool get initialized => _initialized;
   
   // Note: Wireframe rendering would be handled by GPU shaders/render state
   // Not using Canvas drawing methods in true GPU renderer

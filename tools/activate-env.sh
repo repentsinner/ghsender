@@ -12,11 +12,19 @@ fi
 PROJECT_ROOT="/Users/ritchie/development/ghsender"
 TOOLCHAIN_DIR="$PROJECT_ROOT/toolchain"
 
+# Add local toolchain bin directory to PATH (for direct tool links)
+export PATH="$TOOLCHAIN_DIR/bin:$PATH"
+
 # Add Flutter to PATH
 export FLUTTER_HOME="$TOOLCHAIN_DIR/flutter"
 export PATH="$FLUTTER_HOME/bin:$PATH"
 
-# Add CMake to PATH
+# Add ASDF managed tools to PATH (includes cmake, ruby, etc.)
+export ASDF_DIR="$TOOLCHAIN_DIR/asdf"
+export ASDF_DATA_DIR="$TOOLCHAIN_DIR/asdf-data"
+export PATH="$ASDF_DATA_DIR/shims:$PATH"
+
+# Add CMake to PATH (fallback for direct installation)
 export CMAKE_HOME="$TOOLCHAIN_DIR/cmake"
 if [[ -d "$CMAKE_HOME/CMake.app/Contents/bin" ]]; then
     # macOS CMake app bundle

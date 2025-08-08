@@ -4,7 +4,7 @@
 
 # Get project root directory
 set SCRIPT_DIR (dirname (status --current-filename))
-set PROJECT_ROOT (cd $SCRIPT_DIR/.. && pwd)
+set PROJECT_ROOT (realpath $SCRIPT_DIR/..)
 set TOOLCHAIN_DIR $PROJECT_ROOT/toolchain
 
 # Color output functions
@@ -25,6 +25,18 @@ if not test -f $PROJECT_ROOT/tools/setup-toolchain.sh
     print_error "Could not find setup-toolchain.sh - are you in the right directory?"
     print_error "Project root detected as: $PROJECT_ROOT"
     exit 1
+end
+
+# Add toolchain tools to PATH
+# Add asdf shims (includes cmake and other tools)
+if test -d $TOOLCHAIN_DIR/asdf-data/shims
+    set -gx PATH $TOOLCHAIN_DIR/asdf-data/shims $PATH
+    print_status "Toolchain tools (cmake, etc.) added to PATH"
+end
+
+# Add direct toolchain bin directory
+if test -d $TOOLCHAIN_DIR/bin
+    set -gx PATH $TOOLCHAIN_DIR/bin $PATH
 end
 
 # Add Flutter to PATH
@@ -89,4 +101,10 @@ if command -v pod >/dev/null 2>&1
     echo "  ✅ CocoaPods: "(pod --version 2>/dev/null; or echo 'version check failed')
 else
     echo "  ❌ CocoaPods: not available"
+end
+
+if command -v cmake >/dev/null 2>&1
+    echo "  ✅ CMake: "(cmake --version | head -n1 | cut -d' ' -f3)
+else
+    echo "  ❌ CMake: not available"
 end
