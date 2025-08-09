@@ -1,10 +1,6 @@
-import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../utils/logger.dart';
 import 'package:thermion_flutter/thermion_flutter.dart';
-import 'package:thermion_dart/thermion_dart.dart';
-import 'package:vector_math/vector_math_64.dart' as vm;
-import '../scene.dart';
 import '../scene/scene_manager.dart';
 import 'renderer_interface.dart';
 
@@ -31,20 +27,23 @@ class FilamentRenderer implements Renderer {
   final List<MaterialInstance> _createdMaterials = [];
   
   // Getter methods to match other renderer interfaces
+  @override
   bool get initialized => _initialized;
+  @override
   int get actualPolygons => _actualPolygons;
+  @override
   int get actualDrawCalls => _actualDrawCalls;
 
   @override
   Future<bool> initialize() async {
     try {
-      print('=== INITIALIZING FILAMENT RENDERER ===');
+      AppLogger.info('Initializing Filament renderer');
       
       _initialized = true;
-      print('Filament renderer prepared successfully');
+      AppLogger.info('Filament renderer prepared successfully');
       return true;
     } catch (e) {
-      print('Filament renderer initialization failed: $e');
+      AppLogger.error('Filament renderer initialization failed', e);
       return false;
     }
   }
@@ -60,16 +59,15 @@ class FilamentRenderer implements Renderer {
     _actualPolygons = (cubeObjects * 12) + (axisObjects * 12) + (lineObjects * 12); // 12 triangles per object (lines rendered as thin cubes)
     
     // Estimate draw calls based on color grouping (much fewer than individual objects)
-    final uniqueColors = sceneData.objects.map((obj) => obj.color.value).toSet().length;
+    final uniqueColors = sceneData.objects.map((obj) => obj.color.toARGB32()).toSet().length;
     _actualDrawCalls = uniqueColors; // One draw call per unique color group
     
-    print('=== FILAMENT SCENE SETUP ===');
-    print('Scene objects: ${sceneData.objects.length}');
-    print('Cubes: $cubeObjects, Axes: $axisObjects, Lines: $lineObjects');
-    print('Unique colors: $uniqueColors');
-    print('Estimated Draw Calls: $_actualDrawCalls (color-grouped)');
-    print('Total Polygons: $_actualPolygons');
-    print('===========================');
+    AppLogger.info('Filament scene setup:');
+    AppLogger.info('Scene objects: ${sceneData.objects.length}');
+    AppLogger.info('Cubes: $cubeObjects, Axes: $axisObjects, Lines: $lineObjects');
+    AppLogger.info('Unique colors: $uniqueColors');
+    AppLogger.info('Estimated Draw Calls: $_actualDrawCalls (color-grouped)');
+    AppLogger.info('Total Polygons: $_actualPolygons');
   }
   
   @override
@@ -143,11 +141,11 @@ class FilamentRenderer implements Renderer {
   Future<void> _setupScene(ThermionViewer viewer) async {
     try {
       if (_sceneData == null) {
-        print('No scene data available for Filament renderer');
+        AppLogger.warning('No scene data available for Filament renderer');
         return;
       }
       
-      print('=== Setting up Filament scene from SceneManager data ===');
+      AppLogger.info('Setting up Filament scene from SceneManager data');
       
       // Add lighting using scene configuration
       if (_sceneData!.lighting.directionalLight != null) {
@@ -169,30 +167,29 @@ class FilamentRenderer implements Renderer {
       );
       
       // Create instanced geometry for better batching - use shared geometry with multiple instances
-      print('Creating instanced Filament rendering for ${_sceneData!.objects.length} scene objects...');
+      AppLogger.info('Creating instanced Filament rendering for ${_sceneData!.objects.length} scene objects...');
       
       await _createInstancedGeometry(viewer, _sceneData!.objects);
       
     } catch (e, stackTrace) {
-      print('Error setting up Filament scene: $e');
-      print('Stack trace: $stackTrace');
+      AppLogger.error('Error setting up Filament scene', e, stackTrace);
     }
   }
   
   /// Create instanced geometry - group objects by color for better batching  
   Future<void> _createInstancedGeometry(ThermionViewer viewer, List<SceneObject> sceneObjects) async {
     try {
-      print('=== FILAMENT INSTANCED RENDERING ===');
+      AppLogger.info('Filament instanced rendering:');
       
       // Group objects by color to minimize draw calls
       final colorGroups = <String, List<SceneObject>>{};
       for (final sceneObject in sceneObjects) {
-        final colorKey = '${sceneObject.color.value}';
+        final colorKey = '${sceneObject.color.toARGB32()}';
         colorGroups[colorKey] ??= [];
         colorGroups[colorKey]!.add(sceneObject);
       }
       
-      print('Grouped ${sceneObjects.length} objects into ${colorGroups.length} color groups');
+      AppLogger.info('Grouped ${sceneObjects.length} objects into ${colorGroups.length} color groups');
       
       // Create one batch per color group
       final cubeGeometry = GeometryHelper.cube(flipUvs: true);
@@ -208,9 +205,9 @@ class FilamentRenderer implements Renderer {
         
         await materialInstance.setParameterFloat4(
           "baseColorFactor",
-          firstObject.color.red / 255.0,
-          firstObject.color.green / 255.0, 
-          firstObject.color.blue / 255.0,
+          (firstObject.color.r * 255.0).round().clamp(0, 255) / 255.0,
+          (firstObject.color.g * 255.0).round().clamp(0, 255) / 255.0, 
+          (firstObject.color.b * 255.0).round().clamp(0, 255) / 255.0,
           1.0
         );
         
@@ -221,7 +218,7 @@ class FilamentRenderer implements Renderer {
             : colorObjects;
         
         if (colorObjects.length > maxInstancesPerColor) {
-          print('Limiting color group to ${maxInstancesPerColor}/${colorObjects.length} instances');
+          AppLogger.debug('Limiting color group to $maxInstancesPerColor/${colorObjects.length} instances');
         }
         
         for (final sceneObject in instancesToCreate) {
@@ -239,28 +236,27 @@ class FilamentRenderer implements Renderer {
         _createdMaterials.add(materialInstance);
         
         if (colorObjects.length > 1) {
-          print('Created ${colorObjects.length} instances for color group ${entry.key}');
+          AppLogger.debug('Created ${colorObjects.length} instances for color group ${entry.key}');
         }
       }
       
-      print('Filament instanced rendering: ${colorGroups.length} draw calls for $totalObjectsCreated objects');
-      print('Color-based batching: ${sceneObjects.length ~/ colorGroups.length} objects per draw call (average)');
-      print('======================================');
+      AppLogger.info('Filament instanced rendering: ${colorGroups.length} draw calls for $totalObjectsCreated objects');
+      AppLogger.info('Color-based batching: ${sceneObjects.length ~/ colorGroups.length} objects per draw call (average)');
       
     } catch (e) {
-      print('Error creating instanced geometry: $e');
+      AppLogger.error('Error creating instanced geometry', e);
     }
   }
   
   
   @override
   void dispose() {
-    print('=== FILAMENT RENDERER: dispose() called ===');
+    AppLogger.info('Filament renderer: dispose() called');
     _initialized = false;
     _cachedWidget = null;
     _viewer = null;
     _sceneData = null;
     // ViewerWidget will handle its own cleanup properly
-    print('=== FILAMENT RENDERER: dispose() complete ===');
+    AppLogger.info('Filament renderer: dispose() complete');
   }
 }

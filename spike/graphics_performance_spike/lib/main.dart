@@ -1,5 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'utils/logger.dart';
 import 'package:flutter/scheduler.dart';
 import 'renderers/gpu_batch_renderer.dart';
 import 'renderers/flutter_scene_batch_renderer.dart';
@@ -56,9 +56,7 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   late Renderer _flutterSceneRenderer;
   late Renderer _filamentRenderer;
   
-  static const int _targetDrawCalls = 10000;
-  static const int _targetPolygons = 120000;
-  List<double> _fpsSamples = [];
+  final List<double> _fpsSamples = [];
 
   @override
   void initState() {
@@ -67,11 +65,11 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   }
 
   void _initializeBothRenderers() async {
-    print('=== INITIALIZING SCENE AND RENDERERS ===');
+    AppLogger.info('Initializing scene and renderers');
     
     // Initialize the shared scene first
     await SceneManager.instance.initialize();
-    print('Shared scene initialized');
+    AppLogger.info('Scene manager initialized');
     
     // Initialize all renderers
     _gpuRenderer = GpuBatchRenderer();
@@ -79,24 +77,24 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     if (gpuSuccess) {
       await _gpuRenderer.setupScene(SceneManager.instance.sceneData);
     }
-    print('GPU renderer initialized: $gpuSuccess');
+    AppLogger.info('GPU renderer initialized: $gpuSuccess');
     
     _flutterSceneRenderer = FlutterSceneBatchRenderer();
     final flutterSceneSuccess = await _flutterSceneRenderer.initialize();
     if (flutterSceneSuccess) {
       await _flutterSceneRenderer.setupScene(SceneManager.instance.sceneData);
     }
-    print('flutter_scene renderer initialized: $flutterSceneSuccess');
+    AppLogger.info('FlutterScene renderer initialized: $flutterSceneSuccess');
     
     _filamentRenderer = FilamentRenderer();
     final filamentSuccess = await _filamentRenderer.initialize();
     if (filamentSuccess) {
       await _filamentRenderer.setupScene(SceneManager.instance.sceneData);
     }
-    print('filament renderer initialized: $filamentSuccess');
+    AppLogger.info('Filament renderer initialized: $filamentSuccess');
     
     _renderersInitialized = true;
-    print('=== ALL RENDERERS READY - Starting with ${_currentRenderer.name.toUpperCase()} ===');
+    AppLogger.info('All renderers ready - starting with ${_currentRenderer.name}');
 
     _ticker = Ticker((_) {
       _frameCount++;
@@ -238,7 +236,7 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
       _lastFrameTime = DateTime.now();
     });
     
-    print('Switched to ${_currentRenderer.name.toUpperCase()} renderer');
+    AppLogger.info('Switched to ${_currentRenderer.name.toUpperCase()} renderer');
   }
 
   @override

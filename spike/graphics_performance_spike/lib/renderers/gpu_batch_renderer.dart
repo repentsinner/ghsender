@@ -1,9 +1,9 @@
 import 'dart:math' as math;
+import '../utils/logger.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:vector_math/vector_math_64.dart' as vm;
-import '../scene.dart';
 import '../scene/scene_manager.dart';
 import 'renderer_interface.dart';
 
@@ -38,6 +38,7 @@ class GpuBatchRenderer implements Renderer {
   double _rotationX = 0.0;
   double _rotationY = 0.0;
   
+  @override
   Future<bool> initialize() async {
     try {
       // Only create render pipelines during initialization
@@ -47,7 +48,7 @@ class GpuBatchRenderer implements Renderer {
       _initialized = true;
       return true;
     } catch (e) {
-      print('GPU renderer initialization failed: $e');
+      AppLogger.error('GPU renderer initialization failed', e);
       return false;
     }
   }
@@ -109,17 +110,9 @@ class GpuBatchRenderer implements Renderer {
       _polygonCount = _indexCount ~/ 3;
       _drawCallCount = 1; // THE KEY: All objects in 1 draw call!
       
-      print('=== GPU BATCHING FROM SCENE DATA ===');
-      print('Scene objects: ${_sceneData!.objects.length}');
-      print('Vertices in buffer: $_vertexCount');
-      print('Indices in buffer: $_indexCount'); 
-      print('Total Polygons: $_polygonCount');
-      print('GPU Draw Calls: $_drawCallCount (TRUE BATCHING!)');
-      print('Polygons per draw call: $_polygonCount');
-      print('====================================');
-      print('GPU buffers created with $_vertexCount vertices (${vertices.length} floats) and $_indexCount indices');
+      AppLogger.info('GPU batching: ${_sceneData!.objects.length} objects -> $_polygonCount triangles in $_drawCallCount draw call');
     } catch (e) {
-      print('GPU buffer creation failed: $e');
+      AppLogger.error('GPU buffer creation failed', e);
     }
   }
   
@@ -127,9 +120,9 @@ class GpuBatchRenderer implements Renderer {
     final sx = scale.x / 2;
     final sy = scale.y / 2;
     final sz = scale.z / 2;
-    final r = color.red / 255.0;
-    final g = color.green / 255.0;
-    final b = color.blue / 255.0;
+    final r = (color.r * 255.0).round().clamp(0, 255) / 255.0;
+    final g = (color.g * 255.0).round().clamp(0, 255) / 255.0;
+    final b = (color.b * 255.0).round().clamp(0, 255) / 255.0;
     
     // 8 vertices of a cube, each with position (x,y,z) and color (r,g,b)
     final cubeVerts = [
@@ -181,12 +174,9 @@ class GpuBatchRenderer implements Renderer {
     
     final lineLength = scale.x;  // X = length 
     final lineWidth = scale.y;   // Y = width
-    final lineHeight = scale.z;  // Z = height (thickness)
+    // final lineHeight = scale.z;  // Z = height (thickness) - unused in 2D quad
     
-    // Debug very small lines to understand the scale
-    if (lineLength < 0.1 && vertices.length < 20) {
-      print('Short line: length: $lineLength, width: $lineWidth, height: $lineHeight, pos: $position');
-    }
+    // Skip debug logging in production - remove for performance
     
     // Create line geometry in local space (like flutter_scene does with CuboidGeometry)
     // Line extends from -length/2 to +length/2 along X-axis
@@ -212,9 +202,9 @@ class GpuBatchRenderer implements Renderer {
     
     // Apply G-code state coloring
     final stateColor = _getGCodeStateColor(lineObject);
-    final r = stateColor.red / 255.0;
-    final g = stateColor.green / 255.0;
-    final b = stateColor.blue / 255.0;
+    final r = (stateColor.r * 255.0).round().clamp(0, 255) / 255.0;
+    final g = (stateColor.g * 255.0).round().clamp(0, 255) / 255.0;
+    final b = (stateColor.b * 255.0).round().clamp(0, 255) / 255.0;
     
     // Create 4 vertices for line quad using the transformed corners
     final lineVerts = [
@@ -271,23 +261,26 @@ class GpuBatchRenderer implements Renderer {
     // Blue = rapids, Green = linear cuts, Red/Orange = arcs
     Color baseColor = lineObject.color;
     
-    // Debug: Count operation types (first few operations only)
+    // Debug G-code operation types (disabled for performance)
+    // Can be enabled during development by uncommenting the block below
+    /*
     if (operationIndex < 5) {
       final colorName = baseColor == Colors.blue ? 'BLUE(rapid)' : 
                        baseColor == Colors.green ? 'GREEN(linear)' : 
                        baseColor == Colors.red ? 'RED(arc)' : 
                        baseColor == Colors.orange ? 'ORANGE(arc)' : 'UNKNOWN';
-      print('Op $operationIndex: $colorName, rapid=${lineObject.isRapidMove}, cut=${lineObject.isCuttingMove}');
+      debugPrint('Op $operationIndex: $colorName, rapid=${lineObject.isRapidMove}, cut=${lineObject.isCuttingMove}');
     }
+    */
     
     // Then apply processing state modifications
     switch (state) {
       case ProcessingState.completed:
         // Past operations: slightly desaturated but still visible
         return Color.fromRGBO(
-          (baseColor.red * 0.7).round(),
-          (baseColor.green * 0.7).round(), 
-          (baseColor.blue * 0.7).round(),
+          ((baseColor.r * 255.0).round().clamp(0, 255) * 0.7).round(),
+          ((baseColor.g * 255.0).round().clamp(0, 255) * 0.7).round(), 
+          ((baseColor.b * 255.0).round().clamp(0, 255) * 0.7).round(),
           0.8  // More opaque so they're still visible
         );
         
@@ -303,9 +296,9 @@ class GpuBatchRenderer implements Renderer {
       case ProcessingState.upcoming:
         // Next ~30s: highlighted with slightly brighter colors
         return Color.fromRGBO(
-          math.min(255, (baseColor.red * 1.3).round()),
-          math.min(255, (baseColor.green * 1.3).round()),
-          math.min(255, (baseColor.blue * 1.3).round()),
+          math.min(255, ((baseColor.r * 255.0).round().clamp(0, 255) * 1.3).round()),
+          math.min(255, ((baseColor.g * 255.0).round().clamp(0, 255) * 1.3).round()),
+          math.min(255, ((baseColor.b * 255.0).round().clamp(0, 255) * 1.3).round()),
           0.9
         );
         
@@ -353,11 +346,11 @@ class GpuBatchRenderer implements Renderer {
         wireframeFragmentShader,
       );
       
-      print('Render pipelines created successfully');
+      debugPrint('GPU render pipelines created successfully');
       
     } catch (e) {
-      print('Failed to create render pipelines: $e');
-      throw e;
+      debugPrint('Failed to create render pipelines: $e');
+      rethrow;
     }
   }
   
@@ -393,7 +386,7 @@ class GpuBatchRenderer implements Renderer {
     try {
       _renderWithGPU(canvas, size, _rotationX, _rotationY);
     } catch (e) {
-      print('GPU rendering error: $e');
+      AppLogger.error('GPU rendering error', e);
       // Show error message instead of Canvas fallback
       final textPainter = TextPainter(
         text: TextSpan(
@@ -422,9 +415,6 @@ class GpuBatchRenderer implements Renderer {
         coordinateSystem: gpu.TextureCoordinateSystem.renderToTexture,
       );
       
-      if (renderTexture == null) {
-        throw Exception('Failed to create render texture');
-      }
       
       // Create depth texture for 3D rendering
       final depthTexture = gpu.gpuContext.createTexture(
@@ -442,9 +432,7 @@ class GpuBatchRenderer implements Renderer {
       // Create render target with color and depth
       final renderTarget = gpu.RenderTarget.singleColor(
         gpu.ColorAttachment(texture: renderTexture),
-        depthStencilAttachment: depthTexture != null 
-          ? gpu.DepthStencilAttachment(texture: depthTexture) 
-          : null,
+        depthStencilAttachment: gpu.DepthStencilAttachment(texture: depthTexture),
       );
       
       // Begin render pass
@@ -479,22 +467,20 @@ class GpuBatchRenderer implements Renderer {
       // THE KEY: Draw ALL 120,000 triangles in ONE GPU draw call with actual shaders
       renderPass.draw();
       
-      print('GPU rendered ${_indexCount} indices (${_polygonCount} triangles) in ${_wireframeMode ? 'wireframe' : 'filled'} mode');
+      // GPU rendering performance logging removed for production
       
       // Submit GPU commands
       commandBuffer.submit();
       
       // Copy GPU render texture to canvas
       final image = renderTexture.asImage();
-      if (image != null) {
-        canvas.drawImage(image, Offset.zero, Paint());
-      }
+      canvas.drawImage(image, Offset.zero, Paint());
       
-      print('GPU rendered ${_polygonCount} triangles in ${_drawCallCount} draw call');
+      // Performance metrics logged elsewhere
       
     } catch (e) {
-      print('GPU rendering failed: $e');
-      throw e;
+      debugPrint('GPU rendering failed: $e');
+      rethrow;
     }
   }
   
@@ -536,7 +522,7 @@ class GpuBatchRenderer implements Renderer {
     
     final objectCount = _sceneData?.objects.length ?? 0;
     final textSpan = TextSpan(
-      text: 'ACTUAL GPU BATCHING: ${_polygonCount} triangles in ${_drawCallCount} draw call!\n$objectCount scene objects rendered via flutter_gpu\nNo Canvas shortcuts - true GPU geometry rendering',
+      text: 'ACTUAL GPU BATCHING: $_polygonCount triangles in $_drawCallCount draw call!\n$objectCount scene objects rendered via flutter_gpu\nNo Canvas shortcuts - true GPU geometry rendering',
       style: textStyle,
     );
     
@@ -548,7 +534,9 @@ class GpuBatchRenderer implements Renderer {
     textPainter.paint(canvas, Offset(10, size.height - 80));
   }
   
+  @override
   int get actualDrawCalls => _drawCallCount;
+  @override
   int get actualPolygons => _polygonCount;
   int get targetDrawCalls => 10000;
   bool get wireframeMode => _wireframeMode;
@@ -557,14 +545,14 @@ class GpuBatchRenderer implements Renderer {
     _wireframeMode = !_wireframeMode;
     // Note: Wireframe mode would require different GPU shaders/render state
     // For true GPU wireframe, we'd need to modify the render pipeline
-    print('Wireframe mode: $_wireframeMode (requires GPU shader changes)');
+    debugPrint('Wireframe mode: $_wireframeMode');
   }
   
   // Renderer interface implementation
   @override
   Future<void> setupScene(SceneData sceneData) async {
     _sceneData = sceneData;
-    print('GPU renderer received scene with ${sceneData.objects.length} objects');
+    debugPrint('GPU renderer setup: ${sceneData.objects.length} objects');
     // Recreate geometry and buffers with new scene data
     if (_initialized) {
       _createGpuBuffers();
@@ -596,6 +584,7 @@ class GpuBatchRenderer implements Renderer {
   // Note: Wireframe rendering would be handled by GPU shaders/render state
   // Not using Canvas drawing methods in true GPU renderer
   
+  @override
   void dispose() {
     _hostBuffer = null;
     _vertexBufferView = null;

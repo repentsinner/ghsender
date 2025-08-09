@@ -56,4 +56,4 @@ This spike tests 3D graphics rendering performance using flutter_scene library.
 
 - This spike demonstrates the difference between 2D Canvas rendering (~117 FPS) and 3D scene rendering (~21 FPS)
 - The implementation uses proper flutter_scene APIs with Scene.render() instead of custom 3D projection
-- Optimizations include shared mesh resources and UnlitMaterial for better performance
+- Optimizations include shared mesh resources and UnlitMaterial for better performance# Test commit

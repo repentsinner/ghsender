@@ -1,7 +1,7 @@
 import 'dart:io';
+import '../utils/logger.dart';
 import 'dart:math';
 import 'package:vector_math/vector_math_64.dart' as vm;
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 enum GCodeCommandType { 
@@ -116,11 +116,11 @@ class GCodeParser {
       }
     }
     
-    print('=== G-CODE PARSING RESULTS ===');
-    print('Total commands: ${commands.length}');
-    print('Bounds: ${minBounds} to ${maxBounds}');
-    print('Size: ${maxBounds - minBounds}');
-    print('===============================');
+    AppLogger.info('G-code parsing results:');
+    AppLogger.info('Total commands: ${commands.length}');
+    AppLogger.info('Bounds: $minBounds to $maxBounds');
+    AppLogger.info('Size: ${maxBounds - minBounds}');
+    // Logging complete
     
     return GCodePath(
       commands: commands,

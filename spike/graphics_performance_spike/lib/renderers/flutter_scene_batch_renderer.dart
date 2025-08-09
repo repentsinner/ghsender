@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import '../utils/logger.dart';
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart' as vm;
-import '../scene.dart';
 import '../scene/scene_manager.dart';
 import 'renderer_interface.dart';
 
@@ -17,7 +17,7 @@ class FlutterSceneBatchRenderer implements Renderer {
   SceneData? _sceneData;
   
   // Root node for applying interactive rotation to all cubes
-  Node _rootNode = Node();
+  final Node _rootNode = Node();
   
   // Interactive rotation state
   double _rotationX = 0.0;
@@ -32,10 +32,10 @@ class FlutterSceneBatchRenderer implements Renderer {
       scene.add(_rootNode);
       
       _initialized = true;
-      print('FlutterScene renderer initialized successfully');
+      AppLogger.info('FlutterScene renderer initialized successfully');
       return true;
     } catch (e) {
-      print('FlutterScene renderer initialization failed: $e');
+      AppLogger.error('FlutterScene renderer initialization failed', e);
       return false;
     }
   }
@@ -47,7 +47,7 @@ class FlutterSceneBatchRenderer implements Renderer {
     // Clear any existing scene objects
     _rootNode.children.clear();
     
-    print('Creating scene objects from SceneManager data...');
+    AppLogger.info('Creating scene objects from SceneManager data...');
     
     int objectsCreated = 0;
     
@@ -69,10 +69,10 @@ class FlutterSceneBatchRenderer implements Renderer {
       // Create material with the color from scene data
       final material = UnlitMaterial();
       material.baseColorFactor = vm.Vector4(
-        sceneObject.color.red / 255.0,
-        sceneObject.color.green / 255.0,
-        sceneObject.color.blue / 255.0,
-        sceneObject.color.alpha / 255.0,
+        (sceneObject.color.r * 255.0).round().clamp(0, 255) / 255.0,
+        (sceneObject.color.g * 255.0).round().clamp(0, 255) / 255.0,
+        (sceneObject.color.b * 255.0).round().clamp(0, 255) / 255.0,
+        (sceneObject.color.a * 255.0).round().clamp(0, 255) / 255.0,
       );
       
       // Create mesh primitive
@@ -106,7 +106,7 @@ class FlutterSceneBatchRenderer implements Renderer {
       
       objectsCreated++;
       if (objectsCreated % 100 == 0) {
-        print('Created $objectsCreated/${sceneData.objects.length} scene objects...');
+        AppLogger.debug('Created $objectsCreated/${sceneData.objects.length} scene objects...');
       }
     }
     
@@ -118,8 +118,8 @@ class FlutterSceneBatchRenderer implements Renderer {
     _setupCamera();
     
     _sceneInitialized = true;
-    print('FlutterScene renderer setup complete with ${sceneData.objects.length} scene objects');
-    print('Performance: ${_actualPolygons} triangles in ${_actualDrawCalls} draw calls');
+    AppLogger.info('FlutterScene renderer setup complete with ${sceneData.objects.length} scene objects');
+    AppLogger.info('Performance: $_actualPolygons triangles in $_actualDrawCalls draw calls');
   }
   
   @override

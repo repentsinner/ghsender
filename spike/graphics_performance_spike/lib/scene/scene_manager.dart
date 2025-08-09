@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/logger.dart';
 import 'package:vector_math/vector_math_64.dart' as vm;
 import '../scene.dart';
 import '../gcode/gcode_parser.dart';
@@ -23,7 +24,7 @@ class SceneManager {
   Future<void> initialize() async {
     if (_initialized) return;
     
-    print('=== INITIALIZING G-CODE SCENE DATA ===');
+    AppLogger.info('Initializing G-code scene data');
     
     try {
       // Parse G-code file from assets
@@ -53,15 +54,14 @@ class SceneManager {
       
       _initialized = true;
       
-      print('G-code scene initialized with:');
-      print('- ${gcodePath.totalOperations} G-code operations');
-      print('- ${allObjects.length} rendered objects');  
-      print('- Camera at ${cameraConfig.position}');
-      print('- Bounds: ${gcodePath.minBounds} to ${gcodePath.maxBounds}');
-      print('=========================================');
+      AppLogger.info('G-code scene initialized:');
+      AppLogger.info('- ${gcodePath.totalOperations} G-code operations');
+      AppLogger.info('- ${allObjects.length} rendered objects');
+      AppLogger.info('- Camera at ${cameraConfig.position}');
+      AppLogger.info('- Bounds: ${gcodePath.minBounds} to ${gcodePath.maxBounds}');
     } catch (e) {
-      print('Failed to load G-code: $e');
-      print('Falling back to cube scene...');
+      AppLogger.warning('Failed to load G-code: $e');
+      AppLogger.info('Falling back to cube scene...');
       
       // Fallback to original cube scene
       await _initializeCubeScene();
@@ -141,12 +141,11 @@ class SceneManager {
     
     _initialized = true;
     
-    print('Fallback cube scene initialized with:');
-    print('- ${cubes.length} cubes');
-    print('- ${axes.length} coordinate axes');  
-    print('- Camera at ${cameraConfig.position}');
-    print('- Total objects: ${allObjects.length}');
-    print('======================================');
+    AppLogger.info('Fallback cube scene initialized:');
+    AppLogger.info('- ${cubes.length} cubes');
+    AppLogger.info('- ${axes.length} coordinate axes');
+    AppLogger.info('- Camera at ${cameraConfig.position}');
+    AppLogger.info('- Total objects: ${allObjects.length}');
   }
   
   /// Get scene objects filtered by type

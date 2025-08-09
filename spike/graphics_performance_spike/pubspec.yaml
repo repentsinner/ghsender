@@ -48,6 +48,8 @@ dependencies:
   vector_math: ^2.1.4
   # Google Filament rendering via Thermion bindings
   thermion_flutter: ^0.3.3
+  # Logging framework
+  logger: ^2.4.0
 
 dev_dependencies:
   flutter_test:
@@ -59,6 +61,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  
+  # Native assets CLI for build hooks
+  native_assets_cli: ^0.13.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

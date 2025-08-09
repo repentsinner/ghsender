@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../utils/logger.dart';
 import 'package:vector_math/vector_math_64.dart' as vm;
 import '../scene/scene_manager.dart';
 import 'gcode_parser.dart';
@@ -36,7 +37,6 @@ class GCodeSegment {
 
 /// Converts G-code path to scene objects for rendering
 class GCodeSceneGenerator {
-  static const double _rapidMoveHeight = 5.0;  // Z height for rapid moves
   static const double _cuttingThickness = 1.0; // Thickness for cutting moves (increased for visibility)
   static const double _rapidThickness = 0.5;   // Thickness for rapid moves (increased for visibility)
   
@@ -48,8 +48,8 @@ class GCodeSceneGenerator {
     // Join consecutive short segments to reduce visual artifacts and improve performance
     final segments = _joinShortSegments(rawSegments);
     
-    print('=== G-CODE TO SCENE CONVERSION ===');
-    print('Generated ${rawSegments.length} raw segments -> ${segments.length} joined segments');
+    AppLogger.info('G-code to scene conversion:');
+    AppLogger.info('Generated ${rawSegments.length} raw segments -> ${segments.length} joined segments');
     
     // Convert segments to scene objects with state and timing information
     double cumulativeTime = 0.0;
@@ -76,8 +76,8 @@ class GCodeSceneGenerator {
     // Add coordinate axes for reference
     sceneObjects.addAll(_createCoordinateAxes(gcodePath));
     
-    print('Total scene objects: ${sceneObjects.length}');
-    print('===================================');
+    AppLogger.info('Total scene objects: ${sceneObjects.length}');
+    // Scene conversion complete
     
     return sceneObjects;
   }
@@ -117,7 +117,7 @@ class GCodeSceneGenerator {
       previousPosition = command.position;
     }
     
-    print('G-code segments: $rapidCount rapids (blue), $linearCount linear (green), $arcCount arcs (red/orange)');
+    AppLogger.info('G-code segments: $rapidCount rapids (blue), $linearCount linear (green), $arcCount arcs (red/orange)');
     return segments;
   }
   
@@ -190,10 +190,6 @@ class GCodeSceneGenerator {
     );
   }
   
-  /// Create a line scene object from a segment (legacy method for compatibility)
-  static SceneObject _createLineObject(GCodeSegment segment, int index) {
-    return _createLineObjectWithState(segment, index, 0.0, 0.0);
-  }
   
   /// Tessellate an arc into multiple line segments with state information
   static List<SceneObject> _tessellateArcWithState(GCodeSegment arcSegment, int baseIndex, double totalArcTime, double cumulativeTime) {
@@ -412,7 +408,7 @@ class GCodeSceneGenerator {
     final originalCount = segments.length;
     final joinedCount = joinedSegments.length;
     final reduction = ((originalCount - joinedCount) / originalCount * 100).round();
-    print('Segment joining: $originalCount -> $joinedCount segments ($reduction% reduction)');
+    AppLogger.info('Segment joining: $originalCount -> $joinedCount segments ($reduction% reduction)');
     
     return joinedSegments;
   }
