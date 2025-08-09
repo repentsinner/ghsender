@@ -1,0 +1,114 @@
+#!/bin/bash
+
+# Pre-commit hook to run Flutter static analysis (errors only)
+# This hook runs static analysis on the Flutter projects and blocks commits only if ERRORS are found
+# Warnings are allowed to pass through
+
+set -e  # Exit on any error
+
+# Activate local toolchain environment
+GIT_ROOT=$(git rev-parse --show-toplevel)
+if [[ -f "$GIT_ROOT/tools/activate-env.sh" ]]; then
+    source "$GIT_ROOT/tools/activate-env.sh"
+else
+    echo "Warning: Could not find toolchain activation script at $GIT_ROOT/tools/activate-env.sh"
+    echo "Pre-commit hook will attempt to use system Flutter installation"
+fi
+
+# ANSI color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Project paths to analyze (relative to git root)
+FLUTTER_PROJECTS=(
+    "spike/graphics_performance_spike"
+    "spike/communication-spike"
+)
+
+echo -e "${BLUE}🔍 Running static analysis on Flutter projects (errors only)...${NC}"
+
+# Track analysis status
+ANALYSIS_FAILED=false
+
+# Function to run static analysis on a Flutter project
+run_flutter_analysis() {
+    local project_path="$1"
+    local full_path="$GIT_ROOT/$project_path"
+    
+    if [ ! -d "$full_path" ]; then
+        echo -e "${YELLOW}⚠️  Warning: Flutter project directory not found: $project_path${NC}"
+        return 0
+    fi
+    
+    if [ ! -f "$full_path/pubspec.yaml" ]; then
+        echo -e "${YELLOW}⚠️  Warning: No pubspec.yaml found in $project_path, skipping...${NC}"
+        return 0
+    fi
+    
+    echo -e "${BLUE}📁 Analyzing: $project_path${NC}"
+    
+    cd "$full_path"
+    
+    # Check if Flutter is available
+    if ! command -v flutter &> /dev/null; then
+        echo -e "${RED}❌ Flutter command not found. Please ensure Flutter is installed and in PATH.${NC}"
+        return 1
+    fi
+    
+    # Get Flutter version for diagnostics
+    echo -e "${BLUE}Flutter version:${NC}"
+    flutter --version
+    echo ""
+    
+    # Run dart analyze (without --fatal-warnings to allow warnings)
+    echo -e "${BLUE}Running dart analyze (errors only)...${NC}"
+    analyze_output=$(dart analyze 2>&1)
+    analyze_exit_code=$?
+    
+    echo "$analyze_output"
+    
+    # Check if there are any errors (not just warnings)
+    if [ $analyze_exit_code -ne 0 ]; then
+        # Check if output contains actual errors (not just warnings/info)
+        if echo "$analyze_output" | grep -q "error -"; then
+            echo -e "${RED}❌ Static analysis found ERRORS for $project_path${NC}"
+            echo -e "${RED}   Please fix the above errors before committing.${NC}"
+            return 1
+        else
+            echo -e "${YELLOW}⚠️  Static analysis found warnings for $project_path, but no errors${NC}"
+            echo -e "${GREEN}✅ Proceeding with commit (warnings allowed)${NC}"
+            return 0
+        fi
+    fi
+    
+    echo -e "${GREEN}✅ Static analysis passed for $project_path${NC}"
+    return 0
+}
+
+# Analyze each Flutter project
+for project in "${FLUTTER_PROJECTS[@]}"; do
+    if ! run_flutter_analysis "$project"; then
+        ANALYSIS_FAILED=true
+    fi
+done
+
+# Check if any analysis failed
+if [ "$ANALYSIS_FAILED" = true ]; then
+    echo ""
+    echo -e "${RED}❌ Pre-commit hook failed: Static analysis ERRORS detected${NC}"
+    echo -e "${YELLOW}📋 To fix these issues:${NC}"
+    echo -e "   1. Review and fix the reported ERRORS (warnings are OK)"
+    echo -e "   2. Run 'dart analyze' in the project directory"
+    echo -e "   3. Commit your changes again"
+    echo ""
+    echo -e "${YELLOW}💡 To bypass this hook (not recommended):${NC}"
+    echo -e "   git commit --no-verify"
+    echo ""
+    exit 1
+fi
+
+echo -e "${GREEN}🎉 All static analysis checks passed! (Warnings present but allowed)${NC}"
+exit 0

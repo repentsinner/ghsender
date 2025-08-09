@@ -325,6 +325,12 @@ EOF
 }
 
 # Run Flutter doctor to check system dependencies
+# Install git hooks for code quality
+setup_git_hooks() {
+    print_step "Setting up git hooks..."
+    "$SCRIPT_DIR/setup-git-hooks.sh"
+}
+
 check_system_dependencies() {
     print_step "Checking system dependencies with Flutter doctor..."
     
@@ -400,6 +406,7 @@ main() {
     create_tools_activation_script
     update_build_scripts
     create_vscode_config
+    setup_git_hooks
     
     if [[ -n "$component" && "$component" != "doctor" ]]; then
         echo
