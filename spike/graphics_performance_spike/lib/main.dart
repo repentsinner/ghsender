@@ -3,11 +3,10 @@ import 'utils/logger.dart';
 import 'package:flutter/scheduler.dart';
 import 'renderers/gpu_batch_renderer.dart';
 import 'renderers/flutter_scene_batch_renderer.dart';
-import 'renderers/filament_renderer.dart';
 import 'scene/scene_manager.dart';
 import 'renderers/renderer_interface.dart';
 
-enum RendererType { gpu, flutterScene, filament }
+enum RendererType { gpu, flutterScene }
 
 void main() {
   runApp(const MyApp());
@@ -54,7 +53,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   // Renderers implementing the common interface
   late Renderer _gpuRenderer;
   late Renderer _flutterSceneRenderer;
-  late Renderer _filamentRenderer;
   
   final List<double> _fpsSamples = [];
 
@@ -86,12 +84,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     }
     AppLogger.info('FlutterScene renderer initialized: $flutterSceneSuccess');
     
-    _filamentRenderer = FilamentRenderer();
-    final filamentSuccess = await _filamentRenderer.initialize();
-    if (filamentSuccess) {
-      await _filamentRenderer.setupScene(SceneManager.instance.sceneData);
-    }
-    AppLogger.info('Filament renderer initialized: $filamentSuccess');
     
     _renderersInitialized = true;
     AppLogger.info('All renderers ready - starting with ${_currentRenderer.name}');
@@ -108,9 +100,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
           break;
         case RendererType.flutterScene:
           _flutterSceneRenderer.updateRotation(_rotationX, _rotationY);
-          break;
-        case RendererType.filament:
-          _filamentRenderer.updateRotation(_rotationX, _rotationY);
           break;
       }
 
@@ -132,7 +121,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     if (_renderersInitialized) {
       _gpuRenderer.dispose();
       _flutterSceneRenderer.dispose();
-      _filamentRenderer.dispose();
     }
     super.dispose();
   }
@@ -144,8 +132,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
         return _gpuRenderer;
       case RendererType.flutterScene:
         return _flutterSceneRenderer;
-      case RendererType.filament:
-        return _filamentRenderer;
     }
   }
   
@@ -155,8 +141,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
         return 'GPU RENDERER';
       case RendererType.flutterScene:
         return 'FLUTTER_SCENE RENDERER';
-      case RendererType.filament:
-        return 'FILAMENT RENDERER';
     }
   }
   
@@ -166,8 +150,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
         return 'flutter_gpu batching';
       case RendererType.flutterScene:
         return 'MeshPrimitive batching';
-      case RendererType.filament:
-        return 'Filament PBR rendering';
     }
   }
   
@@ -176,8 +158,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
       case RendererType.gpu:
         return 'Flutter Scene';
       case RendererType.flutterScene:
-        return 'Filament';
-      case RendererType.filament:
         return 'GPU';
     }
   }
@@ -209,9 +189,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
                   rotationY: _rotationY,
                 ),
         );
-      case RendererType.filament:
-        // Widget-based renderer returns its own widget
-        return _filamentRenderer.createWidget();
     }
   }
 
@@ -223,9 +200,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
           _currentRenderer = RendererType.flutterScene;
           break;
         case RendererType.flutterScene:
-          _currentRenderer = RendererType.filament;
-          break;
-        case RendererType.filament:
           _currentRenderer = RendererType.gpu;
           break;
       }

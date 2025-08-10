@@ -6,6 +6,7 @@ import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:vector_math/vector_math_64.dart' as vm;
 import '../scene/scene_manager.dart';
 import 'renderer_interface.dart';
+import 'gpu_line_tessellator.dart';
 
 /// G-code processing states for visual feedback
 enum ProcessingState {
@@ -34,6 +35,9 @@ class GpuBatchRenderer implements Renderer {
   // Scene data received from SceneManager
   SceneData? _sceneData;
   
+  // GPU line tessellator for consistent line rendering with flutter_scene
+  final GpuLineTessellator _lineTessellator = GpuLineTessellator();
+  
   // Interactive rotation state
   double _rotationX = 0.0;
   double _rotationY = 0.0;
@@ -44,6 +48,12 @@ class GpuBatchRenderer implements Renderer {
       // Only create render pipelines during initialization
       // Geometry and buffers will be created when scene data is provided
       await _createRenderPipelines();
+      
+      // Initialize shared line tessellator
+      final lineInitSuccess = await _lineTessellator.initialize();
+      if (!lineInitSuccess) {
+        AppLogger.warning('GPU line tessellator failed to initialize in GPU renderer');
+      }
       
       _initialized = true;
       return true;
@@ -68,33 +78,39 @@ class GpuBatchRenderer implements Renderer {
       final indices = <int>[];
       int vertexOffset = 0;
       
-      // Process all scene objects with proper geometry for each type
-      for (final sceneObject in _sceneData!.objects) {
-        if (sceneObject.type == SceneObjectType.line) {
-          // Lines are rendered as tessellated line geometry (quad strips)
-          _addLineVerticesWithColor(
-            vertices, 
-            sceneObject,
-          );
-          
-          // Add quad indices for line (2 triangles forming a textured line segment)
-          _addLineIndices(indices, vertexOffset);
-          vertexOffset += 4; // Lines use 4 vertices per segment
-        } else {
-          // Cubes and axes use standard cube rendering
-          _addCubeVerticesWithColor(
-            vertices, 
-            sceneObject.position.x, 
-            sceneObject.position.y, 
-            sceneObject.position.z, 
-            vm.Vector3(sceneObject.scale.x, sceneObject.scale.y, sceneObject.scale.z),
-            sceneObject.color
-          );
-          
-          // Add 36 indices (12 triangles) for this object
-          _addCubeIndices(indices, vertexOffset);
-          vertexOffset += 8; // Cubes use 8 vertices
-        }
+      // Separate line and non-line objects
+      final lineObjects = _sceneData!.objects.where((obj) => obj.type == SceneObjectType.line).toList();
+      final nonLineObjects = _sceneData!.objects.where((obj) => obj.type != SceneObjectType.line).toList();
+      
+      // Process lines using shared tessellator for consistency with flutter_scene
+      if (lineObjects.isNotEmpty) {
+        final tessellatedData = _lineTessellator.tessellateLines(lineObjects);
+        
+        // Add tessellated line data directly
+        vertices.addAll(tessellatedData.vertices);
+        
+        // Add tessellated indices with proper offset
+        final offsetIndices = tessellatedData.indices.map((index) => index.toInt() + vertexOffset).toList();
+        indices.addAll(offsetIndices);
+        vertexOffset += tessellatedData.vertexCount;
+        
+        AppLogger.info('GPU renderer: Using shared tessellator for ${lineObjects.length} lines');
+      }
+      
+      // Process non-line objects with standard cube rendering
+      for (final sceneObject in nonLineObjects) {
+        _addCubeVerticesWithColor(
+          vertices, 
+          sceneObject.position.x, 
+          sceneObject.position.y, 
+          sceneObject.position.z, 
+          vm.Vector3(sceneObject.scale.x, sceneObject.scale.y, sceneObject.scale.z),
+          sceneObject.color
+        );
+        
+        // Add 36 indices (12 triangles) for this object
+        _addCubeIndices(indices, vertexOffset);
+        vertexOffset += 8; // Cubes use 8 vertices
       }
       
       // Store vertex and index data in host buffer
@@ -162,158 +178,8 @@ class GpuBatchRenderer implements Renderer {
     }
   }
 
-  /// Add tessellated line vertices with proper width and G-code state coloring
-  /// Uses the same approach as flutter_scene: scale defines geometry size, position+rotation define placement
-  void _addLineVerticesWithColor(List<double> vertices, SceneObject lineObject) {
-    // Use the same approach as flutter_scene:
-    // - Scale defines the geometry dimensions (length, width, height) 
-    // - Position and rotation define where to place the geometry
-    final scale = lineObject.scale;
-    final position = lineObject.position;
-    final rotation = lineObject.rotation;
-    
-    final lineLength = scale.x;  // X = length 
-    final lineWidth = scale.y;   // Y = width
-    // final lineHeight = scale.z;  // Z = height (thickness) - unused in 2D quad
-    
-    // Skip debug logging in production - remove for performance
-    
-    // Create line geometry in local space (like flutter_scene does with CuboidGeometry)
-    // Line extends from -length/2 to +length/2 along X-axis
-    final halfLength = lineLength / 2;
-    final halfWidth = lineWidth / 2;
-    
-    // Define 4 corners of the line quad in local space (X-axis aligned)
-    final localCorners = [
-      vm.Vector3(-halfLength, -halfWidth, 0), // Bottom-left
-      vm.Vector3(-halfLength, halfWidth, 0), // Top-left  
-      vm.Vector3(halfLength, halfWidth, 0), // Top-right
-      vm.Vector3(halfLength, -halfWidth, 0), // Bottom-right
-    ];
-    
-    // Transform each corner to world space using position + rotation (like flutter_scene)
-    final rotationMatrix = vm.Matrix4.identity();
-    rotationMatrix.setRotation(rotation.asRotationMatrix());
-    
-    final worldCorners = localCorners.map((corner) {
-      final transformed = rotationMatrix.transformed3(corner);
-      return transformed + position;
-    }).toList();
-    
-    // Apply G-code state coloring
-    final stateColor = _getGCodeStateColor(lineObject);
-    final r = (stateColor.r * 255.0).round().clamp(0, 255) / 255.0;
-    final g = (stateColor.g * 255.0).round().clamp(0, 255) / 255.0;
-    final b = (stateColor.b * 255.0).round().clamp(0, 255) / 255.0;
-    
-    // Create 4 vertices for line quad using the transformed corners
-    final lineVerts = [
-      // Vertex 0: Bottom-left
-      worldCorners[0].x, worldCorners[0].y, worldCorners[0].z, r, g, b,
-      // Vertex 1: Top-left
-      worldCorners[1].x, worldCorners[1].y, worldCorners[1].z, r, g, b,
-      // Vertex 2: Top-right  
-      worldCorners[2].x, worldCorners[2].y, worldCorners[2].z, r, g, b,
-      // Vertex 3: Bottom-right
-      worldCorners[3].x, worldCorners[3].y, worldCorners[3].z, r, g, b,
-    ];
-    vertices.addAll(lineVerts);
-  }
-  
-  /// Add indices for line quad (2 triangles)
-  void _addLineIndices(List<int> indices, int offset) {
-    // Create quad with proper winding order
-    final lineIndices = [
-      0, 1, 2,  // First triangle (CCW)
-      0, 2, 3,  // Second triangle (CCW)
-    ];
-    
-    for (final index in lineIndices) {
-      indices.add(index + offset);
-    }
-  }
-  
-  /// Apply G-code state-based coloring for realistic CNC visualization
-  Color _getGCodeStateColor(SceneObject lineObject) {
-    // Simulate processing progress (45% complete as requested)
-    final progressPercent = 0.45;
-    final totalOperations = _sceneData?.objects.length ?? 1;
-    final processedOperations = (totalOperations * progressPercent).round();
-    final operationIndex = lineObject.operationIndex ?? 0;
-    
-    // Determine processing state
-    ProcessingState state;
-    if (operationIndex < processedOperations) {
-      state = ProcessingState.completed;
-    } else if (operationIndex == processedOperations) {
-      state = ProcessingState.current;
-    } else {
-      // Check if within next 30 seconds of operations
-      final upcomingThreshold = _calculateUpcomingThreshold(processedOperations);
-      if (operationIndex <= processedOperations + upcomingThreshold) {
-        state = ProcessingState.upcoming;
-      } else {
-        state = ProcessingState.future;
-      }
-    }
-    
-    // Use the original G-code colors which already distinguish operation types:
-    // Blue = rapids, Green = linear cuts, Red/Orange = arcs
-    Color baseColor = lineObject.color;
-    
-    // Debug G-code operation types (disabled for performance)
-    // Can be enabled during development by uncommenting the block below
-    /*
-    if (operationIndex < 5) {
-      final colorName = baseColor == Colors.blue ? 'BLUE(rapid)' : 
-                       baseColor == Colors.green ? 'GREEN(linear)' : 
-                       baseColor == Colors.red ? 'RED(arc)' : 
-                       baseColor == Colors.orange ? 'ORANGE(arc)' : 'UNKNOWN';
-      debugPrint('Op $operationIndex: $colorName, rapid=${lineObject.isRapidMove}, cut=${lineObject.isCuttingMove}');
-    }
-    */
-    
-    // Then apply processing state modifications
-    switch (state) {
-      case ProcessingState.completed:
-        // Past operations: slightly desaturated but still visible
-        return Color.fromRGBO(
-          ((baseColor.r * 255.0).round().clamp(0, 255) * 0.7).round(),
-          ((baseColor.g * 255.0).round().clamp(0, 255) * 0.7).round(), 
-          ((baseColor.b * 255.0).round().clamp(0, 255) * 0.7).round(),
-          0.8  // More opaque so they're still visible
-        );
-        
-      case ProcessingState.current:
-        // Currently executing: bright and pulsing (for now just bright)
-        return Color.fromRGBO(
-          255,
-          255, 
-          0,
-          1.0
-        ); // Bright yellow for current operation
-        
-      case ProcessingState.upcoming:
-        // Next ~30s: highlighted with slightly brighter colors
-        return Color.fromRGBO(
-          math.min(255, ((baseColor.r * 255.0).round().clamp(0, 255) * 1.3).round()),
-          math.min(255, ((baseColor.g * 255.0).round().clamp(0, 255) * 1.3).round()),
-          math.min(255, ((baseColor.b * 255.0).round().clamp(0, 255) * 1.3).round()),
-          0.9
-        );
-        
-      case ProcessingState.future:
-        // Future operations: standard colors
-        return baseColor;
-    }
-  }
-  
-  /// Calculate how many operations ahead constitute "upcoming" (~30 seconds)
-  int _calculateUpcomingThreshold(int currentOperation) {
-    // Estimate 30 seconds worth of operations
-    // This is a rough estimate - in reality you'd use actual timing data
-    return 50; // Assume ~30 seconds worth of operations
-  }
+  // Line tessellation now handled by shared GpuLineTessellator
+  // G-code state coloring is also handled by the tessellator
   
   Future<void> _createRenderPipelines() async {
     try {
@@ -591,5 +457,6 @@ class GpuBatchRenderer implements Renderer {
     _indexBufferView = null;
     _fillPipeline = null;
     _wireframePipeline = null;
+    _lineTessellator.dispose();
   }
 }
