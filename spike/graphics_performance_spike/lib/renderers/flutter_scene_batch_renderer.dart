@@ -113,9 +113,9 @@ class FlutterSceneBatchRenderer implements Renderer {
     final azimuth = _rotationY;  // Horizontal rotation around Z axis
     
     // rotationX controls elevation angle from XY plane
-    // Map mouse Y to elevation: negative mouse Y = look up, positive = look down
+    // Invert Y-axis: positive mouse Y = look up, negative = look down
     // Constrain elevation to prevent camera from going underground or flipping
-    final elevation = math.max(-math.pi * 0.4, math.min(math.pi * 0.4, -_rotationX));
+    final elevation = math.max(-math.pi * 0.4, math.min(math.pi * 0.4, _rotationX));
     
     // Convert to spherical coordinates in Z-up system:
     // - azimuth: rotation around Z axis (0 = +X direction)  
