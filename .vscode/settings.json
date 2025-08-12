@@ -1,6 +1,12 @@
 {
   "dart.flutterSdkPath": "./toolchain/flutter",
   "dart.sdkPath": "./toolchain/flutter/bin/cache/dart-sdk",
+  "dart.analysisExcludedFolders": [
+    "toolchain/",
+    ".dart_tool/",
+    "build/",
+    "context/"
+  ],
   "dart.debugExternalPackageLibraries": false,
   "dart.debugSdkLibraries": false,
   "flutter.hotReloadOnSave": true,
@@ -30,10 +36,5 @@
     "toolchain/**": true,
     ".dart_tool/**": true,
     "build/**": true
-  },
-  "dart.analysisExcludedFolders": [
-    "toolchain/",
-    ".dart_tool/",
-    "build/"
-  ]
+  }
 }
