@@ -25,6 +25,7 @@ class AppLogger {
       final logLine = '[$timestamp] $level [$logger] $message';
       
       // Output to console
+      // ignore: avoid_print
       print(logLine);
       
       // Also send to developer console for better web debugging
@@ -39,9 +40,11 @@ class AppLogger {
       
       // For errors, also log stack trace
       if (record.error != null) {
+        // ignore: avoid_print
         print('ERROR DETAILS: ${record.error}');
       }
       if (record.stackTrace != null) {
+        // ignore: avoid_print
         print('STACK TRACE: ${record.stackTrace}');
       }
     });

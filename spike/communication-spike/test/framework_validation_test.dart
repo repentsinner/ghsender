@@ -3,9 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:integration_test/integration_test.dart';
 
-import '../lib/main.dart';
-import '../lib/grbl_communication_bloc.dart';
-import '../lib/framework_validation_screen.dart';
+import 'package:ghsender_communication_spike/main.dart';
+import 'package:ghsender_communication_spike/grbl_communication_bloc.dart';
+import 'package:ghsender_communication_spike/framework_validation_screen.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

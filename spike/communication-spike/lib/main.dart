@@ -12,10 +12,12 @@ void main() {
   appLogger.info('Build mode: ${const String.fromEnvironment('FLUTTER_BUILD_MODE', defaultValue: 'unknown')}');
   appLogger.info('Running automated framework validation test');
   
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+  
   @override
   Widget build(BuildContext context) {
     return MaterialApp(

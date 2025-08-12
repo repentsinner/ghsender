@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/logger.dart';
-import 'package:vector_math/vector_math_64.dart' as vm;
-import '../scene.dart';
+import 'package:vector_math/vector_math.dart' as vm;
 import '../gcode/gcode_parser.dart';
 import '../gcode/gcode_scene.dart';
 
@@ -32,7 +31,11 @@ class SceneManager {
       final gcodePath = await parser.parseAsset('assets/complex_10k.nc');
       
       // Generate scene objects from G-code
-      final allObjects = GCodeSceneGenerator.generateSceneObjects(gcodePath);
+      final gcodeObjects = GCodeSceneGenerator.generateSceneObjects(gcodePath);
+      
+      // Add world origin axes for debugging
+      final worldAxes = _createWorldOriginAxes();
+      final allObjects = [...gcodeObjects, ...worldAxes];
       
       // Create camera configuration optimized for G-code visualization
       final cameraConfig = GCodeSceneGenerator.calculateCamera(gcodePath);
@@ -56,111 +59,55 @@ class SceneManager {
       
       AppLogger.info('G-code scene initialized:');
       AppLogger.info('- ${gcodePath.totalOperations} G-code operations');
-      AppLogger.info('- ${allObjects.length} rendered objects');
+      AppLogger.info('- ${gcodeObjects.length} G-code objects + ${worldAxes.length} world axes = ${allObjects.length} total objects');
       AppLogger.info('- Camera at ${cameraConfig.position}');
       AppLogger.info('- Bounds: ${gcodePath.minBounds} to ${gcodePath.maxBounds}');
     } catch (e) {
-      AppLogger.warning('Failed to load G-code: $e');
-      AppLogger.info('Falling back to cube scene...');
-      
-      // Fallback to original cube scene
-      await _initializeCubeScene();
+      AppLogger.error('Failed to load G-code: $e');
+      rethrow;
     }
   }
   
-  /// Fallback initialization with cube scene
-  Future<void> _initializeCubeScene() async {
-    // Create all cubes using the scene configuration
-    final cubes = SceneConfiguration.getAllCubeData().map((cubeData) => 
-      SceneObject(
-        type: SceneObjectType.cube,
-        position: vm.Vector3(cubeData.position.x, cubeData.position.y, cubeData.position.z),
-        scale: vm.Vector3.all(cubeData.size),
-        rotation: vm.Quaternion.identity(),
-        color: cubeData.color,
-        id: 'cube_${cubeData.index}',
-      )
-    ).toList();
-    
-    // Create coordinate axes
-    final axes = [
-      // X-axis (Red)
-      SceneObject(
-        type: SceneObjectType.axis,
-        position: vm.Vector3(50.0, 0, 0), // Half length offset
-        scale: vm.Vector3(100.0, 1.0, 1.0), // Long, thin box
-        rotation: vm.Quaternion.identity(),
-        color: Colors.red,
-        id: 'axis_x',
-      ),
-      // Y-axis (Green)
-      SceneObject(
-        type: SceneObjectType.axis,
-        position: vm.Vector3(0, 50.0, 0),
-        scale: vm.Vector3(1.0, 100.0, 1.0),
-        rotation: vm.Quaternion.identity(),
-        color: Colors.green,
-        id: 'axis_y',
-      ),
-      // Z-axis (Blue)
-      SceneObject(
-        type: SceneObjectType.axis,
-        position: vm.Vector3(0, 0, 50.0),
-        scale: vm.Vector3(1.0, 1.0, 100.0),
-        rotation: vm.Quaternion.identity(),
-        color: Colors.blue,
-        id: 'axis_z',
-      ),
-    ];
-    
-    // Combine all scene objects
-    final allObjects = [...cubes, ...axes];
-    
-    // Create camera configuration
-    final cameraConfig = CameraConfiguration(
-      position: vm.Vector3(SceneConfiguration.cameraDistance, SceneConfiguration.cameraY, 0),
-      target: vm.Vector3.zero(),
-      up: vm.Vector3(0, 1, 0),
-      fov: SceneConfiguration.fov,
-    );
-    
-    // Create lighting configuration
-    final lightConfig = LightingConfiguration(
-      directionalLight: DirectionalLightData(
-        direction: vm.Vector3(0, -1, 0),
-        color: Colors.white,
-        intensity: 1.0,
-      ),
-    );
-    
-    _sceneData = SceneData(
-      objects: allObjects,
-      camera: cameraConfig,
-      lighting: lightConfig,
-    );
-    
-    _initialized = true;
-    
-    AppLogger.info('Fallback cube scene initialized:');
-    AppLogger.info('- ${cubes.length} cubes');
-    AppLogger.info('- ${axes.length} coordinate axes');
-    AppLogger.info('- Camera at ${cameraConfig.position}');
-    AppLogger.info('- Total objects: ${allObjects.length}');
-  }
   
   /// Get scene objects filtered by type
   List<SceneObject> getObjectsByType(SceneObjectType type) {
     return _sceneData.objects.where((obj) => obj.type == type).toList();
   }
   
-  /// Get all cubes in the scene
-  List<SceneObject> get cubes => getObjectsByType(SceneObjectType.cube);
-  
-  /// Get all axes in the scene  
-  List<SceneObject> get axes => getObjectsByType(SceneObjectType.axis);
-  
-  /// Get all lines in the scene
+  /// Get all lines in the scene (includes coordinate axes)
   List<SceneObject> get lines => getObjectsByType(SceneObjectType.line);
+  
+  /// Create world origin coordinate axes for debugging
+  List<SceneObject> _createWorldOriginAxes() {
+    const double axisLength = 50.0;
+    
+    return [
+      // X-axis (Red) - from origin to +X
+      SceneObject(
+        type: SceneObjectType.line,
+        startPoint: vm.Vector3(0.0, 0.0, 0.0),
+        endPoint: vm.Vector3(axisLength, 0.0, 0.0),
+        color: Colors.red,
+        id: 'world_axis_x',
+      ),
+      // Y-axis (Green) - from origin to +Y
+      SceneObject(
+        type: SceneObjectType.line,
+        startPoint: vm.Vector3(0.0, 0.0, 0.0),
+        endPoint: vm.Vector3(0.0, axisLength, 0.0),
+        color: Colors.green,
+        id: 'world_axis_y',
+      ),
+      // Z-axis (Blue) - from origin to +Z
+      SceneObject(
+        type: SceneObjectType.line,
+        startPoint: vm.Vector3(0.0, 0.0, 0.0),
+        endPoint: vm.Vector3(0.0, 0.0, axisLength),
+        color: Colors.blue,
+        id: 'world_axis_z',
+      ),
+    ];
+  }
 }
 
 /// Complete scene data that all renderers receive
@@ -179,11 +126,12 @@ class SceneData {
 /// Individual object in the 3D scene
 class SceneObject {
   final SceneObjectType type;
-  final vm.Vector3 position;
-  final vm.Vector3 scale;
-  final vm.Quaternion rotation;
   final Color color;
   final String id;
+  
+  // Line segment properties (for SceneObjectType.line)
+  final vm.Vector3? startPoint;   // Start point for line segments
+  final vm.Vector3? endPoint;     // End point for line segments
   
   // G-code specific properties
   final int? operationIndex;     // Index in the G-code operation sequence
@@ -194,11 +142,10 @@ class SceneObject {
   
   const SceneObject({
     required this.type,
-    required this.position,
-    required this.scale,
-    required this.rotation,
     required this.color,
     required this.id,
+    this.startPoint,
+    this.endPoint,
     this.operationIndex,
     this.estimatedTime,
     this.isRapidMove = false,
@@ -206,16 +153,10 @@ class SceneObject {
     this.isArcMove = false,
   });
   
-  /// Get transformation matrix for this object
-  vm.Matrix4 get transformMatrix {
-    return vm.Matrix4.compose(position, rotation, scale);
-  }
 }
 
 enum SceneObjectType {
-  cube,
-  axis,
-  line,  // For G-code path segments
+  line,  // For G-code path segments and coordinate axes
 }
 
 /// Camera configuration for the scene

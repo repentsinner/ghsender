@@ -74,32 +74,194 @@ run_tests() {
     echo
 }
 
+# Check for native assets requirements
+check_native_assets() {
+    local project_dir="$1"
+    if [[ -f "$project_dir/hook/build.dart" ]]; then
+        print_status "Project uses native assets (flutter_gpu_shaders)"
+        return 0
+    fi
+    return 1
+}
+
+# Prepare native assets build environment
+prepare_native_assets() {
+    local project_dir="$1"
+    print_status "Preparing native assets build environment..."
+    
+    # Ensure native assets build hooks are available
+    if ! flutter pub deps | grep -q -E "(native_assets_cli|hooks)"; then
+        print_error "Native assets build system not found in dependencies"
+        return 1
+    fi
+    
+    # Clean any previous build artifacts that might interfere
+    if [[ -d "$project_dir/.dart_tool/hooks_runner" ]]; then
+        print_status "Cleaning previous native assets build cache..."
+        rm -rf "$project_dir/.dart_tool/hooks_runner"
+    fi
+    
+    # Ensure build directory exists for shader compilation
+    mkdir -p "$project_dir/build/shaderbundles"
+    
+    return 0
+}
+
+# Validate shader files for common GLSL issues
+validate_shaders() {
+    local project_dir="$1"
+    local shader_dir="$project_dir/shaders"
+    
+    if [[ ! -d "$shader_dir" ]]; then
+        return 0  # No shaders to validate
+    fi
+    
+    print_status "Validating shader files for modern GLSL compatibility..."
+    
+    local has_issues=false
+    
+    # Check for deprecated GLSL syntax
+    for shader_file in "$shader_dir"/*.vert "$shader_dir"/*.frag; do
+        if [[ -f "$shader_file" ]]; then
+            local filename=$(basename "$shader_file")
+            
+            # Check for deprecated 'attribute' keyword
+            if grep -q "attribute " "$shader_file"; then
+                print_warning "$filename: Uses deprecated 'attribute' keyword (should be 'in' for modern GLSL)"
+                has_issues=true
+            fi
+            
+            # Check for non-blocked uniforms (Vulkan compatibility issue)
+            if grep -E "^uniform [^{]*;.*$" "$shader_file" | grep -v "uniform.*{" > /dev/null; then
+                print_warning "$filename: Uses non-blocked uniforms (not compatible with Vulkan)"
+                has_issues=true
+            fi
+        fi
+    done
+    
+    if [[ "$has_issues" == true ]]; then
+        print_warning "Shader validation found compatibility issues"
+        print_warning "Consider updating shaders for modern GLSL/Vulkan compatibility"
+        print_warning "Build will attempt to continue but may fail during shader compilation"
+    else
+        print_status "Shader validation passed"
+    fi
+}
+
+# Fix shader syntax for modern GLSL/Vulkan compatibility
+fix_shader_syntax() {
+    local project_dir="$1"
+    local shader_dir="$project_dir/shaders"
+    
+    if [[ ! -d "$shader_dir" ]]; then
+        print_warning "No shader directory found"
+        return 1
+    fi
+    
+    print_status "Fixing shader syntax for modern GLSL compatibility..."
+    
+    # Create backups
+    local backup_dir="$shader_dir/.backup_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$backup_dir"
+    
+    for shader_file in "$shader_dir"/*.vert "$shader_dir"/*.frag; do
+        if [[ -f "$shader_file" ]]; then
+            local filename=$(basename "$shader_file")
+            cp "$shader_file" "$backup_dir/$filename"
+            
+            # Fix deprecated 'attribute' to 'in'
+            if grep -q "attribute " "$shader_file"; then
+                print_status "Fixing 'attribute' keyword in $filename"
+                sed -i '' 's/attribute /in /g' "$shader_file"
+            fi
+            
+            # Fix non-blocked uniforms by wrapping them in a uniform block
+            if grep -E "^uniform [^{]*;.*$" "$shader_file" | grep -v "uniform.*{" > /dev/null; then
+                print_status "Converting non-blocked uniforms in $filename"
+                # This is a complex transformation that would need careful handling
+                print_warning "Non-blocked uniform conversion requires manual intervention"
+                print_warning "Please wrap standalone uniforms in uniform blocks for Vulkan compatibility"
+            fi
+        fi
+    done
+    
+    print_status "Shader syntax fixes completed. Backups stored in $backup_dir"
+    print_warning "Please review the changes and test thoroughly"
+}
+
 # Build for specific platform
 build_platform() {
     local platform=$1
+    local current_dir=$(pwd)
     print_status "Building for $platform..."
+    
+    # Check if this project requires native assets
+    if check_native_assets "$current_dir"; then
+        validate_shaders "$current_dir"
+        if ! prepare_native_assets "$current_dir"; then
+            print_error "Failed to prepare native assets build environment"
+            return 1
+        fi
+    fi
     
     case $platform in
         "macos")
-            flutter build macos --release
+            # For native assets projects, use verbose output to better diagnose issues
+            if check_native_assets "$current_dir"; then
+                print_status "Building macOS with native assets support..."
+                if ! flutter build macos --release --verbose; then
+                    print_error "macOS build with native assets failed"
+                    print_error "Check shader files for GLSL compatibility issues"
+                    return 1
+                fi
+            else
+                flutter build macos --release
+            fi
             print_status "macOS build completed: build/macos/Build/Products/Release/"
             ;;
         "ios")
             if [[ "$OSTYPE" == "darwin"* ]]; then
                 # iOS build only available on macOS
-                flutter build ios --release
+                if check_native_assets "$current_dir"; then
+                    print_status "Building iOS with native assets support..."
+                    if ! flutter build ios --release --verbose; then
+                        print_error "iOS build with native assets failed"
+                        print_error "Check shader files for GLSL compatibility issues"
+                        return 1
+                    fi
+                else
+                    flutter build ios --release
+                fi
                 print_status "iOS build completed: build/ios/Release-iphoneos/"
             else
                 print_warning "iOS builds only available on macOS"
             fi
             ;;
         "android")
-            flutter build apk --release
+            if check_native_assets "$current_dir"; then
+                print_status "Building Android with native assets support..."
+                if ! flutter build apk --release --verbose; then
+                    print_error "Android build with native assets failed"
+                    print_error "Check shader files for GLSL compatibility issues"
+                    return 1
+                fi
+            else
+                flutter build apk --release
+            fi
             print_status "Android APK completed: build/app/outputs/flutter-apk/"
             ;;
         "linux")
             if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-                flutter build linux --release
+                if check_native_assets "$current_dir"; then
+                    print_status "Building Linux with native assets support..."
+                    if ! flutter build linux --release --verbose; then
+                        print_error "Linux build with native assets failed"
+                        print_error "Check shader files for GLSL compatibility issues"
+                        return 1
+                    fi
+                else
+                    flutter build linux --release
+                fi
                 print_status "Linux build completed: build/linux/x64/release/bundle/"
             else
                 print_warning "Linux builds only available on Linux"
@@ -239,6 +401,37 @@ main() {
                 exit 1
             fi
             ;;
+        "diagnose-shaders")
+            local project=${2:-"graphics_performance_spike"}
+            if [[ -d "spike/$project" ]]; then
+                print_status "Diagnosing shader compatibility for $project..."
+                (cd "spike/$project" && validate_shaders "$(pwd)")
+                if [[ -f "spike/$project/graphics_performance_spike.shaderbundle.json" ]]; then
+                    print_status "Shader bundle configuration:"
+                    cat "spike/$project/graphics_performance_spike.shaderbundle.json"
+                fi
+            else
+                print_error "Project spike/$project not found"
+                exit 1
+            fi
+            ;;
+        "fix-shaders")
+            local project=${2:-"graphics_performance_spike"}
+            if [[ -d "spike/$project" ]]; then
+                print_status "Attempting to fix shader compatibility issues for $project..."
+                print_warning "This will modify shader files to use modern GLSL syntax"
+                read -p "Continue? (y/N): " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    (cd "spike/$project" && fix_shader_syntax "$(pwd)")
+                else
+                    print_status "Shader fix cancelled"
+                fi
+            else
+                print_error "Project spike/$project not found"
+                exit 1
+            fi
+            ;;
         "all")
             check_flutter
             get_dependencies_all
@@ -269,9 +462,13 @@ main() {
             echo "  test-single <project>              - Test specific project"
             echo "  build-single <project> <platform>  - Build specific project for platform"
             echo
+            echo "🔧 Shader/Native Assets Diagnostics:"
+            echo "  diagnose-shaders [project]          - Check shader compatibility (default: graphics_performance_spike)"
+            echo "  fix-shaders [project]               - Attempt to fix common shader issues (default: graphics_performance_spike)"
+            echo
             echo "📁 Available Projects:"
             echo "  • communication-spike      - WebSocket communication testing"
-            echo "  • graphics_performance_spike - Graphics and rendering performance"
+            echo "  • graphics_performance_spike - Graphics and rendering performance (uses native assets)"
             echo "  • state_management_spike  - State management patterns"
             echo
             echo "🖥️  Available Platforms:"
@@ -286,6 +483,8 @@ main() {
             echo "  $0 test-single communication-spike         # Test communication spike only"
             echo "  $0 build macos                             # Build all projects for macOS"
             echo "  $0 build-single graphics_performance_spike macos  # Build graphics spike for macOS"
+            echo "  $0 diagnose-shaders                        # Check shader compatibility issues"
+            echo "  $0 fix-shaders                             # Fix common shader syntax issues"
             echo "  $0 all                                      # Build all projects for all platforms"
             echo "  $0 clean                                    # Clean all projects"
             ;;

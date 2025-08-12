@@ -6,8 +6,10 @@ import 'framework_test_orchestrator.dart';
 import 'logger.dart';
 
 class FrameworkValidationScreen extends StatefulWidget {
+  const FrameworkValidationScreen({super.key});
+  
   @override
-  _FrameworkValidationScreenState createState() => _FrameworkValidationScreenState();
+  State<FrameworkValidationScreen> createState() => _FrameworkValidationScreenState();
 }
 
 class _FrameworkValidationScreenState extends State<FrameworkValidationScreen> {

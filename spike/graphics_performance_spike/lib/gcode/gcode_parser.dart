@@ -1,7 +1,7 @@
 import 'dart:io';
 import '../utils/logger.dart';
 import 'dart:math';
-import 'package:vector_math/vector_math_64.dart' as vm;
+import 'package:vector_math/vector_math.dart' as vm;
 import 'package:flutter/services.dart';
 
 enum GCodeCommandType { 

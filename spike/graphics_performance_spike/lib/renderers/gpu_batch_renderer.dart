@@ -3,10 +3,11 @@ import '../utils/logger.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_gpu/gpu.dart' as gpu;
-import 'package:vector_math/vector_math_64.dart' as vm;
+import 'package:vector_math/vector_math.dart' as vm;
 import '../scene/scene_manager.dart';
 import 'renderer_interface.dart';
 import 'gpu_line_tessellator.dart';
+import 'line_style.dart';
 
 /// G-code processing states for visual feedback
 enum ProcessingState {
@@ -17,11 +18,14 @@ enum ProcessingState {
 }
 
 class GpuBatchRenderer implements Renderer {
+  // Buffers for lines (6-float format)
   gpu.HostBuffer? _hostBuffer;
-  gpu.BufferView? _vertexBufferView;
-  gpu.BufferView? _indexBufferView;
-  gpu.RenderPipeline? _fillPipeline;
-  gpu.RenderPipeline? _wireframePipeline;
+  gpu.BufferView? _lineVertexBufferView;
+  gpu.BufferView? _lineIndexBufferView;
+  
+  // Pipeline for line rendering
+  gpu.RenderPipeline? _linePipeline;        // Uses VertexColor shaders (6-float format)
+  gpu.RenderPipeline? _wireframePipeline;   // Uses Wireframe shaders (6-float format)
   
   int _vertexCount = 0;
   int _indexCount = 0;
@@ -35,8 +39,11 @@ class GpuBatchRenderer implements Renderer {
   // Scene data received from SceneManager
   SceneData? _sceneData;
   
-  // GPU line tessellator for consistent line rendering with flutter_scene
-  final GpuLineTessellator _lineTessellator = GpuLineTessellator();
+  // GPU line primitive generator for consistent line rendering with flutter_scene
+  final GpuLinePrimitive _linePrimitive = GpuLinePrimitive();
+  
+  // Dynamic line style settings
+  LineStyle _currentLineStyle = LineStyles.technical;
   
   // Interactive rotation state
   double _rotationX = 0.0;
@@ -49,10 +56,10 @@ class GpuBatchRenderer implements Renderer {
       // Geometry and buffers will be created when scene data is provided
       await _createRenderPipelines();
       
-      // Initialize shared line tessellator
-      final lineInitSuccess = await _lineTessellator.initialize();
+      // Initialize shared line primitive generator
+      final lineInitSuccess = await _linePrimitive.initialize();
       if (!lineInitSuccess) {
-        AppLogger.warning('GPU line tessellator failed to initialize in GPU renderer');
+        AppLogger.warning('GPU line primitive failed to initialize in GPU renderer');
       }
       
       _initialized = true;
@@ -73,110 +80,56 @@ class GpuBatchRenderer implements Renderer {
       // Create host buffer for efficient GPU access
       _hostBuffer = gpu.gpuContext.createHostBuffer();
       
-      // Create actual vertex buffer with 3D scene data including colors
-      final vertices = <double>[];
-      final indices = <int>[];
-      int vertexOffset = 0;
-      
-      // Separate line and non-line objects
+      // Process only line objects
       final lineObjects = _sceneData!.objects.where((obj) => obj.type == SceneObjectType.line).toList();
-      final nonLineObjects = _sceneData!.objects.where((obj) => obj.type != SceneObjectType.line).toList();
       
-      // Process lines using shared tessellator for consistency with flutter_scene
+      AppLogger.info('GPU renderer: Scene has ${_sceneData!.objects.length} total objects');
+      AppLogger.info('GPU renderer: ${lineObjects.length} line objects');
+      
+      var totalVertexCount = 0;
+      var totalIndexCount = 0;
+      var drawCallCount = 0;
+      
+      // Process lines using GPU tessellator (6-float format with vertex color shaders)
       if (lineObjects.isNotEmpty) {
-        final tessellatedData = _lineTessellator.tessellateLines(lineObjects);
+        AppLogger.info('GPU renderer: Processing ${lineObjects.length} lines with tessellator');
         
-        // Add tessellated line data directly
-        vertices.addAll(tessellatedData.vertices);
+        // Create line style mapping using current dynamic settings
+        final lineStyles = <String, LineStyle>{
+          for (final obj in lineObjects) obj.id: _currentLineStyle,
+        };
         
-        // Add tessellated indices with proper offset
-        final offsetIndices = tessellatedData.indices.map((index) => index.toInt() + vertexOffset).toList();
-        indices.addAll(offsetIndices);
-        vertexOffset += tessellatedData.vertexCount;
+        // Generate minimal line primitive data (Three.js Line2 approach)
+        final lineData = _linePrimitive.generateLinePrimitives(lineObjects, lineStyles: lineStyles);
         
-        AppLogger.info('GPU renderer: Using shared tessellator for ${lineObjects.length} lines');
+        if (lineData.vertexCount > 0) {
+          // Create GPU buffers for line rendering (6-float format: start+end points)
+          _lineVertexBufferView = _hostBuffer!.emplace(lineData.vertices.buffer.asByteData());
+          _lineIndexBufferView = _hostBuffer!.emplace(lineData.indices.buffer.asByteData());
+          
+          totalVertexCount += lineData.vertexCount;
+          totalIndexCount += lineData.indexCount;
+          drawCallCount += 1;
+          
+          AppLogger.info('GPU renderer: Line primitives complete - ${lineData.lineCount} lines, ${lineData.vertexCount} vertices (Line2 approach)');
+        }
       }
       
-      // Process non-line objects with standard cube rendering
-      for (final sceneObject in nonLineObjects) {
-        _addCubeVerticesWithColor(
-          vertices, 
-          sceneObject.position.x, 
-          sceneObject.position.y, 
-          sceneObject.position.z, 
-          vm.Vector3(sceneObject.scale.x, sceneObject.scale.y, sceneObject.scale.z),
-          sceneObject.color
-        );
-        
-        // Add 36 indices (12 triangles) for this object
-        _addCubeIndices(indices, vertexOffset);
-        vertexOffset += 8; // Cubes use 8 vertices
-      }
-      
-      // Store vertex and index data in host buffer
-      final vertexData = Float32List.fromList(vertices);
-      final indexData = Uint16List.fromList(indices.map((i) => i.toInt()).toList());
-      
-      _vertexBufferView = _hostBuffer!.emplace(vertexData.buffer.asByteData());
-      _indexBufferView = _hostBuffer!.emplace(indexData.buffer.asByteData());
       
       // Update performance metrics
-      _vertexCount = vertices.length ~/ 6; // 6 floats per vertex (x,y,z,r,g,b)
-      _indexCount = indices.length;
-      _polygonCount = _indexCount ~/ 3;
-      _drawCallCount = 1; // THE KEY: All objects in 1 draw call!
+      _vertexCount = totalVertexCount;
+      _indexCount = totalIndexCount;
+      _polygonCount = totalIndexCount ~/ 3;
+      _drawCallCount = drawCallCount;
       
-      AppLogger.info('GPU batching: ${_sceneData!.objects.length} objects -> $_polygonCount triangles in $_drawCallCount draw call');
+      AppLogger.info('ACTUAL GPU batching metrics: ${_sceneData!.objects.length} objects -> $_polygonCount triangles in $_drawCallCount draw calls');
+      AppLogger.info('GPU tessellation details: $_vertexCount vertices, $_indexCount indices ($_indexCount ÷ 3 = $_polygonCount triangles)');
     } catch (e) {
       AppLogger.error('GPU buffer creation failed', e);
     }
   }
   
-  void _addCubeVerticesWithColor(List<double> vertices, double x, double y, double z, vm.Vector3 scale, Color color) {
-    final sx = scale.x / 2;
-    final sy = scale.y / 2;
-    final sz = scale.z / 2;
-    final r = (color.r * 255.0).round().clamp(0, 255) / 255.0;
-    final g = (color.g * 255.0).round().clamp(0, 255) / 255.0;
-    final b = (color.b * 255.0).round().clamp(0, 255) / 255.0;
-    
-    // 8 vertices of a cube, each with position (x,y,z) and color (r,g,b)
-    final cubeVerts = [
-      // Vertex 0: front bottom-left
-      x-sx, y-sy, z+sz, r, g, b,
-      // Vertex 1: front bottom-right  
-      x+sx, y-sy, z+sz, r, g, b,
-      // Vertex 2: front top-right
-      x+sx, y+sy, z+sz, r, g, b,
-      // Vertex 3: front top-left
-      x-sx, y+sy, z+sz, r, g, b,
-      // Vertex 4: back bottom-left
-      x-sx, y-sy, z-sz, r, g, b,
-      // Vertex 5: back bottom-right
-      x+sx, y-sy, z-sz, r, g, b,
-      // Vertex 6: back top-right
-      x+sx, y+sy, z-sz, r, g, b,
-      // Vertex 7: back top-left
-      x-sx, y+sy, z-sz, r, g, b,
-    ];
-    vertices.addAll(cubeVerts);
-  }
   
-  void _addCubeIndices(List<int> indices, int offset) {
-    // All faces use consistent counter-clockwise winding for proper barycentric coordinates
-    final cubeIndices = [
-      0, 1, 2,  0, 2, 3,  // Front face (CCW when viewed from outside)
-      5, 4, 7,  5, 7, 6,  // Back face (CCW when viewed from outside)
-      4, 0, 3,  4, 3, 7,  // Left face (CCW when viewed from outside)
-      1, 5, 6,  1, 6, 2,  // Right face (CCW when viewed from outside)
-      3, 2, 6,  3, 6, 7,  // Top face (CCW when viewed from outside)
-      4, 5, 1,  4, 1, 0,  // Bottom face (CCW when viewed from outside)
-    ];
-    
-    for (final index in cubeIndices) {
-      indices.add(index + offset);
-    }
-  }
 
   // Line tessellation now handled by shared GpuLineTessellator
   // G-code state coloring is also handled by the tessellator
@@ -201,8 +154,8 @@ class GpuBatchRenderer implements Renderer {
         throw Exception('Failed to load shaders from shader library');
       }
       
-      // Create render pipelines (vertex layout handled automatically by shaders)
-      _fillPipeline = gpu.gpuContext.createRenderPipeline(
+      // Create render pipelines for line rendering
+      _linePipeline = gpu.gpuContext.createRenderPipeline(
         vertexShader,
         fillFragmentShader,
       );
@@ -234,7 +187,7 @@ class GpuBatchRenderer implements Renderer {
       Paint()..color = Colors.black,
     );
     
-    if (_vertexBufferView == null || _indexBufferView == null) {
+    if (_lineVertexBufferView == null) {
       // Draw placeholder text while GPU buffers are being created
       final textPainter = TextPainter(
         text: TextSpan(
@@ -304,34 +257,42 @@ class GpuBatchRenderer implements Renderer {
       // Begin render pass
       final renderPass = commandBuffer.createRenderPass(renderTarget);
       
-      // Bind the appropriate render pipeline
-      final pipeline = _wireframeMode ? _wireframePipeline : _fillPipeline;
-      if (pipeline == null) {
-        throw Exception('Render pipeline not created');
-      }
-      renderPass.bindPipeline(pipeline);
       
       // Set up transformation matrices for 3D rendering
       final mvpMatrix = _createMVPMatrix(size, rotationX, rotationY);
       
-      // Create uniform buffer with transformation matrix
-      final mvpData = Float32List(16);
-      mvpMatrix.copyIntoArray(mvpData);
-      final uniformView = _hostBuffer!.emplace(mvpData.buffer.asByteData());
+      // Create uniform buffer with transformation matrix + line style parameters
+      final uniformData = Float32List(24); // 16 (matrix) + 4 (color) + 4 (width, sharpness, aspectRatio, padding)
+      mvpMatrix.copyIntoArray(uniformData, 0);
       
-      // Bind uniform buffer using shader uniform slot
-      final vertexShader = _wireframeMode ? _wireframePipeline!.vertexShader : _fillPipeline!.vertexShader;
-      final uniformSlot = vertexShader.getUniformSlot('UniformData');
-      renderPass.bindUniform(uniformSlot, uniformView);
+      // Add line style uniforms
+      final lineColor = _currentLineStyle.colorComponents;
+      uniformData[16] = lineColor[0]; // r
+      uniformData[17] = lineColor[1]; // g  
+      uniformData[18] = lineColor[2]; // b
+      uniformData[19] = lineColor[3]; // a
+      uniformData[20] = _currentLineStyle.width;
+      uniformData[21] = _currentLineStyle.sharpness;
+      uniformData[22] = size.width / size.height; // aspectRatio
+      uniformData[23] = 0.0; // padding
       
-      // Bind vertex buffer 
-      renderPass.bindVertexBuffer(_vertexBufferView!, _vertexCount);
+      final uniformView = _hostBuffer!.emplace(uniformData.buffer.asByteData());
       
-      // Bind index buffer for indexed drawing
-      renderPass.bindIndexBuffer(_indexBufferView!, gpu.IndexType.int16, _indexCount);
-      
-      // THE KEY: Draw ALL 120,000 triangles in ONE GPU draw call with actual shaders
-      renderPass.draw();
+      // Render lines with line pipeline (6-float format)
+      if (_lineVertexBufferView != null && _lineIndexBufferView != null) {
+        final pipeline = _wireframeMode ? _wireframePipeline! : _linePipeline!;
+        renderPass.bindPipeline(pipeline);
+        
+        // Bind uniform for line shader
+        final lineVertexShader = pipeline.vertexShader;
+        final lineUniformSlot = lineVertexShader.getUniformSlot('UniformData');
+        renderPass.bindUniform(lineUniformSlot, uniformView);
+        
+        // Bind line buffers and draw
+        renderPass.bindVertexBuffer(_lineVertexBufferView!, _lineVertexBufferView!.lengthInBytes ~/ (6 * 4)); // 6 floats * 4 bytes
+        renderPass.bindIndexBuffer(_lineIndexBufferView!, gpu.IndexType.int16, _lineIndexBufferView!.lengthInBytes ~/ 2); // 2 bytes per index
+        renderPass.draw();
+      }
       
       // GPU rendering performance logging removed for production
       
@@ -413,15 +374,28 @@ class GpuBatchRenderer implements Renderer {
     // For true GPU wireframe, we'd need to modify the render pipeline
     debugPrint('Wireframe mode: $_wireframeMode');
   }
+
+  /// Update the line style for dynamic line settings control
+  void updateLineStyle(LineStyle newStyle) {
+    _currentLineStyle = newStyle;
+  }
   
   // Renderer interface implementation
   @override
   Future<void> setupScene(SceneData sceneData) async {
     _sceneData = sceneData;
-    debugPrint('GPU renderer setup: ${sceneData.objects.length} objects');
+    AppLogger.info('GPU renderer setupScene called with ${sceneData.objects.length} objects');
+    
+    if (sceneData.objects.isNotEmpty) {
+      AppLogger.info('GPU renderer: First object - type: ${sceneData.objects.first.type}, id: ${sceneData.objects.first.id}');
+    }
+    
     // Recreate geometry and buffers with new scene data
     if (_initialized) {
+      AppLogger.info('GPU renderer: Calling _createGpuBuffers...');
       _createGpuBuffers();
+    } else {
+      AppLogger.warning('GPU renderer: Not initialized yet, skipping buffer creation');
     }
   }
   
@@ -453,10 +427,10 @@ class GpuBatchRenderer implements Renderer {
   @override
   void dispose() {
     _hostBuffer = null;
-    _vertexBufferView = null;
-    _indexBufferView = null;
-    _fillPipeline = null;
+    _lineVertexBufferView = null;
+    _lineIndexBufferView = null;
+    _linePipeline = null;
     _wireframePipeline = null;
-    _lineTessellator.dispose();
+    _linePrimitive.dispose();
   }
 }

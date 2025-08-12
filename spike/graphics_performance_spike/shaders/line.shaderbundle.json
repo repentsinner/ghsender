@@ -1,0 +1,10 @@
+{
+    "LineVertex": {
+        "type": "vertex",
+        "file": "shaders/line_vertex.vert"
+    },
+    "LineFragment": {
+        "type": "fragment",
+        "file": "shaders/line_fragment.frag"
+    }
+}

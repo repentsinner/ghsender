@@ -140,7 +140,7 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
   double _jogDistance = 0.0;
   int _jogFeedRate = 0;
   DateTime? _jogStartTime;
-  List<String> _stateTransitions = [];
+  final List<String> _stateTransitions = [];
   
   // Performance instrumentation
   final List<double> _uiFrameTimes = [];
@@ -280,7 +280,7 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
         ? timestamp.difference(_jogStartTime!).inMicroseconds / 1000.0
         : 0.0;
       
-      final transition = '${_lastMachineState} → $currentState (${transitionTime.toStringAsFixed(1)}ms)';
+      final transition = '$_lastMachineState → $currentState (${transitionTime.toStringAsFixed(1)}ms)';
       _stateTransitions.add(transition);
       
       _messages.add('State: $transition');
@@ -369,7 +369,7 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
     }
     
     try {
-      final commandWithNewline = command + '\r\n';
+      final commandWithNewline = '$command\r\n';
       _webSocketChannel!.sink.add(commandWithNewline);
       
       final timestamp = DateTime.now();
@@ -439,7 +439,7 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
     
     // Send jog command: alternate between +X and -X
     final direction = (_jogCount % 2 == 1) ? '' : '-';
-    final jogCommand = '\$J=G91 X${direction}${_jogDistance} F$_jogFeedRate';
+    final jogCommand = '\$J=G91 X$direction$_jogDistance F$_jogFeedRate';
     
     _logger.fine('Executing jog $_jogCount: $jogCommand');
     _sendCommand(jogCommand, 20000 + _jogCount);
@@ -519,7 +519,6 @@ class GrblCommunicationBloc extends Bloc<GrblCommunicationEvent, GrblCommunicati
     }
     
     final commandId = ++_commandIdCounter;
-    final timestamp = DateTime.now();
     
     _logger.info('Sending command $commandId: "${event.command}"');
     

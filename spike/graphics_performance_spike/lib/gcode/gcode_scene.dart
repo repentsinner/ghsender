@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../utils/logger.dart';
-import 'package:vector_math/vector_math_64.dart' as vm;
+import 'package:vector_math/vector_math.dart' as vm;
 import '../scene/scene_manager.dart';
 import 'gcode_parser.dart';
 
@@ -73,8 +73,6 @@ class GCodeSceneGenerator {
       }
     }
     
-    // Add coordinate axes for reference
-    sceneObjects.addAll(_createCoordinateAxes(gcodePath));
     
     AppLogger.info('Total scene objects: ${sceneObjects.length}');
     // Scene conversion complete
@@ -164,24 +162,17 @@ class GCodeSceneGenerator {
   
   /// Create a line scene object with G-code state information
   static SceneObject _createLineObjectWithState(GCodeSegment segment, int index, double operationTime, double cumulativeTime) {
-    final direction = segment.end - segment.start;
-    final length = direction.length;
-    final center = (segment.start + segment.end) * 0.5;
-    
-    // Calculate rotation to align with line direction
-    final rotation = _calculateLineRotation(direction.normalized());
-    
     // Determine G-code operation type
     final isRapid = segment.type == GCodeSegmentType.rapidMove;
     final isCutting = segment.type == GCodeSegmentType.line && !isRapid;
     
     return SceneObject(
       type: SceneObjectType.line,
-      position: center,
-      scale: vm.Vector3(length, segment.thickness, segment.thickness),
-      rotation: rotation,
       color: segment.color,
       id: segment.id,
+      // Use startPoint/endPoint for proper line segment rendering
+      startPoint: segment.start,
+      endPoint: segment.end,
       operationIndex: index,
       estimatedTime: operationTime,
       isRapidMove: isRapid,
@@ -202,14 +193,13 @@ class GCodeSceneGenerator {
     
     for (int i = 0; i < lineObjects.length; i++) {
       final obj = lineObjects[i];
-      // Create new object with state information
+      // Create new object with state information, preserving startPoint/endPoint
       lineObjects[i] = SceneObject(
         type: obj.type,
-        position: obj.position,
-        scale: obj.scale,
-        rotation: obj.rotation,
         color: obj.color,
         id: obj.id,
+        startPoint: obj.startPoint,
+        endPoint: obj.endPoint,
         operationIndex: baseIndex,
         estimatedTime: timePerSegment,
         isRapidMove: false,
@@ -266,81 +256,20 @@ class GCodeSceneGenerator {
         arcSegment.start.z + (arcSegment.end.z - arcSegment.start.z) * ((i + 1) / segments),
       );
       
-      final direction = endPoint - startPoint;
-      final length = direction.length;
-      final lineCenter = (startPoint + endPoint) * 0.5;
-      final rotation = _calculateLineRotation(direction.normalized());
-      
+      // Use startPoint/endPoint directly
       lineObjects.add(SceneObject(
         type: SceneObjectType.line,
-        position: lineCenter,
-        scale: vm.Vector3(length, arcSegment.thickness, arcSegment.thickness),
-        rotation: rotation,
         color: arcSegment.color,
         id: '${arcSegment.id}_arc_$i',
+        startPoint: startPoint,
+        endPoint: endPoint,
       ));
     }
     
     return lineObjects;
   }
   
-  /// Calculate rotation quaternion to align with line direction
-  static vm.Quaternion _calculateLineRotation(vm.Vector3 direction) {
-    // Default orientation is along X axis
-    final defaultDirection = vm.Vector3(1, 0, 0);
-    
-    // Handle parallel/anti-parallel cases
-    if (direction.dot(defaultDirection).abs() > 0.9999) {
-      if (direction.x > 0) {
-        return vm.Quaternion.identity();
-      } else {
-        return vm.Quaternion.axisAngle(vm.Vector3(0, 1, 0), pi);
-      }
-    }
-    
-    // Calculate rotation axis and angle
-    final axis = defaultDirection.cross(direction).normalized();
-    final angle = acos(defaultDirection.dot(direction));
-    
-    return vm.Quaternion.axisAngle(axis, angle);
-  }
   
-  /// Create coordinate axes for reference
-  static List<SceneObject> _createCoordinateAxes(GCodePath gcodePath) {
-    final center = (gcodePath.minBounds + gcodePath.maxBounds) * 0.5;
-    final size = gcodePath.maxBounds - gcodePath.minBounds;
-    final axisLength = max(size.x, size.y) * 0.2;
-    
-    return [
-      // X-axis (Red)
-      SceneObject(
-        type: SceneObjectType.axis,
-        position: vm.Vector3(center.x + axisLength/2, gcodePath.minBounds.y - 5, gcodePath.maxBounds.z + 2),
-        scale: vm.Vector3(axisLength, 0.5, 0.5),
-        rotation: vm.Quaternion.identity(),
-        color: Colors.red,
-        id: 'gcode_axis_x',
-      ),
-      // Y-axis (Green)
-      SceneObject(
-        type: SceneObjectType.axis,
-        position: vm.Vector3(gcodePath.minBounds.x - 5, center.y + axisLength/2, gcodePath.maxBounds.z + 2),
-        scale: vm.Vector3(0.5, axisLength, 0.5),
-        rotation: vm.Quaternion.identity(),
-        color: Colors.green,
-        id: 'gcode_axis_y',
-      ),
-      // Z-axis (Blue)
-      SceneObject(
-        type: SceneObjectType.axis,
-        position: vm.Vector3(gcodePath.minBounds.x - 5, gcodePath.minBounds.y - 5, center.z + axisLength/2),
-        scale: vm.Vector3(0.5, 0.5, axisLength),
-        rotation: vm.Quaternion.identity(),
-        color: Colors.blue,
-        id: 'gcode_axis_z',
-      ),
-    ];
-  }
   
   /// Join consecutive short segments to reduce visual artifacts and improve performance
   static List<GCodeSegment> _joinShortSegments(List<GCodeSegment> segments) {
