@@ -20,6 +20,8 @@ enum LineGeometryMode {
 class LineGeometry extends UnskinnedGeometry {
   final LineGeometryMode mode;
   final List<vm.Vector3> points;
+  final vm.Vector2 resolution;
+  final double lineWidth;
 
   // Shader loading
   static gpu.ShaderLibrary? _shaderLibrary;
@@ -27,7 +29,7 @@ class LineGeometry extends UnskinnedGeometry {
   static bool _shaderLoadingAttempted = false;
 
   // Private constructor
-  LineGeometry._(this.mode, this.points) {
+  LineGeometry._(this.mode, this.points, this.resolution, this.lineWidth) {
     // Use modified flutter_scene vertex shader (not instanced)
     _generateParametricGeometry();
 
@@ -38,20 +40,28 @@ class LineGeometry extends UnskinnedGeometry {
   }
 
   // Factory constructors following Three.js Line2/LineSegments2 pattern
-  factory LineGeometry.polyline(List<vm.Vector3> points) {
+  factory LineGeometry.polyline(
+    List<vm.Vector3> points, {
+    vm.Vector2? resolution,
+    double lineWidth = 1.0,
+  }) {
     if (points.length < 2) {
       throw ArgumentError('Polyline requires at least 2 points');
     }
-    return LineGeometry._(LineGeometryMode.polyline, points);
+    return LineGeometry._(LineGeometryMode.polyline, points, resolution ?? vm.Vector2(1024, 768), lineWidth);
   }
 
-  factory LineGeometry.segments(List<vm.Vector3> points) {
+  factory LineGeometry.segments(
+    List<vm.Vector3> points, {
+    vm.Vector2? resolution,
+    double lineWidth = 1.0,
+  }) {
     if (points.length < 2 || points.length % 2 != 0) {
       throw ArgumentError(
         'Segments mode requires even number of points (pairs)',
       );
     }
-    return LineGeometry._(LineGeometryMode.segments, points);
+    return LineGeometry._(LineGeometryMode.segments, points, resolution ?? vm.Vector2(1024, 768), lineWidth);
   }
 
   void _generateParametricGeometry() {
@@ -102,7 +112,7 @@ class LineGeometry extends UnskinnedGeometry {
           j < 2
               ? 0.0
               : 1.0, // uv.y -> u coordinate (1 float: 0 = start, 1 = end)
-          1.0, 1.0, 1.0, 1.0, // color -> keep as white (4 floats)
+          resolution.x, resolution.y, lineWidth, 1.0, // color -> repurposed as lineInfo (resolution.x, resolution.y, lineWidth, opacity)
         ]);
       }
 

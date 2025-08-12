@@ -48,12 +48,17 @@ class LineMeshFactory {
     double opacity = 1.0,
     vm.Vector2? resolution,
   }) {
-    final geometry = LineGeometry.polyline(points);
+    final actualResolution = resolution ?? vm.Vector2(1024, 768);
+    final geometry = LineGeometry.polyline(
+      points, 
+      resolution: actualResolution,
+      lineWidth: lineWidth,
+    );
     final material = LineMaterial(
       lineWidth: lineWidth,
       color: color,
       opacity: opacity,
-      resolution: resolution,
+      resolution: actualResolution,
     );
     return Mesh.primitives(primitives: [MeshPrimitive(geometry, material)]);
   }
@@ -78,12 +83,17 @@ class LineMeshFactory {
     double opacity = 1.0,
     vm.Vector2? resolution,
   }) {
-    final geometry = LineGeometry.segments(points);
+    final actualResolution = resolution ?? vm.Vector2(1024, 768);
+    final geometry = LineGeometry.segments(
+      points,
+      resolution: actualResolution, 
+      lineWidth: lineWidth,
+    );
     final material = LineMaterial(
       lineWidth: lineWidth,
       color: color,
       opacity: opacity,
-      resolution: resolution,
+      resolution: actualResolution,
     );
     return Mesh.primitives(primitives: [MeshPrimitive(geometry, material)]);
   }
@@ -99,6 +109,7 @@ class LineMeshFactory {
     double lineWidth = 1.0,
     flutter.Color? defaultColor,
     bool enablePolylineGrouping = true,
+    vm.Vector2? resolution,
   }) {
     final nodes = <Node>[];
     int totalTriangles = 0;
@@ -138,6 +149,7 @@ class LineMeshFactory {
               points,
               lineWidth: lineWidth,
               color: color,
+              resolution: resolution,
             );
             
             final node = Node();
@@ -175,6 +187,7 @@ class LineMeshFactory {
               polylinePoints,
               lineWidth: lineWidth,
               color: color,
+              resolution: resolution,
             );
             
             final node = Node();
@@ -207,6 +220,7 @@ class LineMeshFactory {
             points,
             lineWidth: lineWidth,
             color: color,
+            resolution: resolution,
           );
           
           final node = Node();

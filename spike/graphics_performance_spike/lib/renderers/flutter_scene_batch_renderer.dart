@@ -37,6 +37,9 @@ class FlutterSceneBatchRenderer implements Renderer {
   // Camera orbit parameters
   double _orbitRadius = 100.0; // Distance from target
   vm.Vector3 _orbitTarget = vm.Vector3.zero(); // Point the camera orbits around
+  
+  // Viewport resolution tracking for pixel-perfect line rendering
+  Size? _lastViewportSize;
 
   @override
   Future<bool> initialize() async {
@@ -142,6 +145,12 @@ class FlutterSceneBatchRenderer implements Renderer {
   void render(Canvas canvas, Size size, double rotationX, double rotationY) {
     // Update rotation state
     updateRotation(rotationX, rotationY);
+    
+    // Update resolution for pixel-perfect line rendering if viewport size changed
+    if (_sceneData != null && (size.width != _lastViewportSize?.width || size.height != _lastViewportSize?.height)) {
+      _updateViewportResolution(size);
+    }
+    
     if (!_sceneInitialized) return;
 
     // Clear the canvas with black background to match GPU renderer
@@ -195,6 +204,21 @@ class FlutterSceneBatchRenderer implements Renderer {
     AppLogger.info('Camera orbit initialized: radius=${_orbitRadius.toStringAsFixed(1)}, target=$_orbitTarget');
   }
 
+  /// Update viewport resolution for pixel-perfect line rendering when window size changes
+  void _updateViewportResolution(Size newSize) {
+    _lastViewportSize = newSize;
+    final newResolution = vm.Vector2(newSize.width, newSize.height);
+    
+    // Update all existing line meshes with new resolution
+    // This requires regenerating the geometry since resolution is baked into vertex data
+    if (_sceneData != null) {
+      // Regenerate scene with new resolution
+      setupScene(_sceneData!);
+    }
+    
+    AppLogger.info('Viewport resolution updated: ${newSize.width.toInt()}x${newSize.height.toInt()}');
+  }
+
   @override
   Widget createWidget() {
     // FlutterScene renderer uses CustomPaint, not its own widget
@@ -223,6 +247,11 @@ class FlutterSceneBatchRenderer implements Renderer {
         'Processing ${lineObjects.length} lines with LineMeshFactory (Three.js Line2/LineSegments2)',
       );
 
+      // Get current viewport resolution for pixel-perfect line rendering
+      final currentResolution = _lastViewportSize != null 
+          ? vm.Vector2(_lastViewportSize!.width, _lastViewportSize!.height)
+          : vm.Vector2(1024, 768); // Default resolution
+
       // Use LineMeshFactory to create line meshes with proper Three.js-style rendering
       final lineMeshResult = LineMeshFactory.createLinesFromSceneData(
         SceneData(
@@ -231,6 +260,7 @@ class FlutterSceneBatchRenderer implements Renderer {
           lighting: _sceneData!.lighting,
         ),
         lineWidth: _currentLineStyle.width,
+        resolution: currentResolution,
         // Don't override individual line colors - let each line use its own color
       );
 
