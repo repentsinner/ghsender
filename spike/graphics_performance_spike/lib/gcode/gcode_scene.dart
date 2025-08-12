@@ -342,27 +342,6 @@ class GCodeSceneGenerator {
     return joinedSegments;
   }
 
-  /// Calculate appropriate camera position for G-code visualization
-  static CameraConfiguration calculateCamera(GCodePath gcodePath) {
-    final center = (gcodePath.minBounds + gcodePath.maxBounds) * 0.5;
-    final size = gcodePath.maxBounds - gcodePath.minBounds;
-    final maxDimension = max(max(size.x, size.y), size.z);
-    
-    // Position camera to view the entire part
-    final cameraDistance = maxDimension * 2.0;
-    final cameraHeight = maxDimension * 0.8;
-    
-    return CameraConfiguration(
-      position: vm.Vector3(
-        center.x + cameraDistance * 0.7, 
-        center.y + cameraDistance * 0.7, 
-        center.z + cameraHeight
-      ),
-      target: center,
-      up: vm.Vector3(0, 0, 1), // Z-up for CNC coordinate system
-      fov: 45.0,
-    );
-  }
   
   /// Estimate operation time for a G-code segment based on type and length
   static double _estimateOperationTime(GCodeSegment segment) {

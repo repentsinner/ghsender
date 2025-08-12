@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../utils/logger.dart';
 import 'package:flutter_scene/scene.dart';
@@ -29,9 +30,13 @@ class FlutterSceneBatchRenderer implements Renderer {
   // Dynamic line style settings
   LineStyle _currentLineStyle = LineStyles.technical;
 
-  // Interactive rotation state
+  // Interactive rotation state (now used for camera orbit)
   double _rotationX = 0.0;
   double _rotationY = 0.0;
+  
+  // Camera orbit parameters
+  double _orbitRadius = 100.0; // Distance from target
+  vm.Vector3 _orbitTarget = vm.Vector3.zero(); // Point the camera orbits around
 
   @override
   Future<bool> initialize() async {
@@ -97,10 +102,40 @@ class FlutterSceneBatchRenderer implements Renderer {
 
     if (!_sceneInitialized) return;
 
-    // Apply rotation to the root node (affects all objects)
-    final rotationMatrix =
-        vm.Matrix4.rotationY(_rotationY) * vm.Matrix4.rotationX(_rotationX);
-    _rootNode.localTransform = rotationMatrix;
+    // Update camera position using spherical coordinates (orbit around target)
+    _updateCameraOrbit();
+  }
+  
+  /// Calculate and update camera position to orbit around the target point
+  void _updateCameraOrbit() {
+    // Convert rotation inputs to spherical coordinates for Z-up system
+    // rotationY controls horizontal rotation around Z-axis (azimuth)
+    final azimuth = _rotationY;  // Horizontal rotation around Z axis
+    
+    // rotationX controls elevation angle from XY plane
+    // Map mouse Y to elevation: negative mouse Y = look up, positive = look down
+    // Constrain elevation to prevent camera from going underground or flipping
+    final elevation = math.max(-math.pi * 0.4, math.min(math.pi * 0.4, -_rotationX));
+    
+    // Convert to spherical coordinates in Z-up system:
+    // - azimuth: rotation around Z axis (0 = +X direction)  
+    // - elevation: angle from XY plane (positive = above horizon)
+    final x = _orbitRadius * math.cos(elevation) * math.cos(azimuth);
+    final y = _orbitRadius * math.cos(elevation) * math.sin(azimuth);  
+    final z = _orbitRadius * math.sin(elevation);
+    
+    // Set camera position relative to orbit target
+    camera.position = _orbitTarget + vm.Vector3(x, y, z);
+    
+    // Always look at the target point
+    camera.target = _orbitTarget;
+    
+    // Ensure Z-up orientation is maintained during orbit
+    try {
+      (camera as dynamic).up = vm.Vector3(0, 0, 1);  // Z-up
+    } catch (e) {
+      // Silently ignore if up vector can't be set
+    }
   }
 
   @override
@@ -128,17 +163,36 @@ class FlutterSceneBatchRenderer implements Renderer {
   void _setupCamera() {
     if (_sceneData == null) return;
 
-    // Use camera configuration from scene data
-    camera.position = vm.Vector3(
+    // Initialize orbit parameters from scene data
+    final initialCameraPos = vm.Vector3(
       _sceneData!.camera.position.x,
       _sceneData!.camera.position.y,
       _sceneData!.camera.position.z,
     );
-    camera.target = vm.Vector3(
+    _orbitTarget = vm.Vector3(
       _sceneData!.camera.target.x,
       _sceneData!.camera.target.y,
       _sceneData!.camera.target.z,
     );
+    
+    // Calculate initial orbit radius from camera to target distance
+    _orbitRadius = (initialCameraPos - _orbitTarget).length;
+    
+    // Set initial camera position and target
+    camera.position = initialCameraPos;
+    camera.target = _orbitTarget;
+    
+    // Explicitly set Z-up orientation for CNC coordinate system
+    // This should ensure Z points up regardless of Flutter Scene's default
+    final upVector = vm.Vector3(0, 0, 1);  // Z-up
+    try {
+      // Try to set up vector if the property exists
+      (camera as dynamic).up = upVector;
+    } catch (e) {
+      AppLogger.warning('Camera up vector not settable: $e');
+    }
+    
+    AppLogger.info('Camera orbit initialized: radius=${_orbitRadius.toStringAsFixed(1)}, target=$_orbitTarget');
   }
 
   @override

@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../utils/logger.dart';
 import 'package:vector_math/vector_math.dart' as vm;
@@ -37,8 +38,8 @@ class SceneManager {
       final worldAxes = _createWorldOriginAxes();
       final allObjects = [...gcodeObjects, ...worldAxes];
       
-      // Create camera configuration optimized for G-code visualization
-      final cameraConfig = GCodeSceneGenerator.calculateCamera(gcodePath);
+      // Create camera configuration independent of G-code content
+      final cameraConfig = _createCameraConfiguration(gcodePath);
     
       // Create lighting configuration
       final lightConfig = LightingConfiguration(
@@ -76,6 +77,30 @@ class SceneManager {
   
   /// Get all lines in the scene (includes coordinate axes)
   List<SceneObject> get lines => getObjectsByType(SceneObjectType.line);
+  
+  /// Create camera configuration optimized for the scene bounds
+  CameraConfiguration _createCameraConfiguration(GCodePath gcodePath) {
+    // Calculate scene bounds and center
+    final center = (gcodePath.minBounds + gcodePath.maxBounds) * 0.5;
+    final size = gcodePath.maxBounds - gcodePath.minBounds;
+    final maxDimension = max(max(size.x, size.y), size.z);
+    
+    // Position camera to view the entire part with some margin
+    final cameraDistance = maxDimension * 2.0;
+    final cameraHeight = maxDimension * 0.8;
+    
+    // Standard CNC viewing angle - elevated and diagonal for good visibility
+    return CameraConfiguration(
+      position: vm.Vector3(
+        center.x + cameraDistance * 0.7, 
+        center.y + cameraDistance * 0.7, 
+        center.z + cameraHeight
+      ),
+      target: center,
+      up: vm.Vector3(0, 0, 1), // Z-up for CNC coordinate system
+      fov: 45.0,
+    );
+  }
   
   /// Create world origin coordinate axes for debugging
   List<SceneObject> _createWorldOriginAxes() {
