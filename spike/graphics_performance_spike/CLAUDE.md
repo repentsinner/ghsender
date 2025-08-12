@@ -11,26 +11,10 @@ Flutter graphics performance comparison spike comparing GPU batching vs individu
 3. **Shaders are Required**: Conceptual GPU rendering without shaders provides no performance benefit
 4. **True Batching**: Must render all 120,000 triangles in 1 draw call, not 10,000 shortcuts
 
-### Flutter GPU vs Flutter Scene Performance
-- **GPU Renderer (Batched)**: 120,000 triangles in 1 draw call
-- **Flutter Scene Renderer**: 120,000 triangles in 10,000 draw calls  
-- **10,000× difference in draw call efficiency**
 
 ## Current Implementation Status
 
 ### Completed Components
-1. **Scene Configuration** (`lib/scene.dart`): Shared 3D cube positioning and coloring
-2. **GPU Batch Renderer** (`lib/renderers/gpu_batch_renderer.dart`): 
-   - Creates GPU buffers with vertex data (position + color)
-   - Vertex format: 6 floats per vertex (x,y,z,r,g,b)
-   - True geometry batching: 10k cubes → 80k vertices → 360k indices
-3. **Flutter Scene Renderer** (`lib/renderers/flutter_scene_batch_renderer.dart`): Individual node rendering
-4. **Interactive Controls**: Click-drag rotation, renderer switching, wireframe toggle
-5. **Shader Files Created**:
-   - `shaders/cube.vert`: MVP transformation vertex shader
-   - `shaders/cube.frag`: Distance-based fog fragment shader  
-   - `shaders/wireframe.frag`: Wireframe-specific fragment shader
-   - `.shaderbundle.json`: Shader compilation config
 
 ### Current Status: GPU Shaders Implementation
 ✅ **flutter_gpu_shaders setup complete**: Dependencies resolved, build hook created

@@ -1,46 +1,28 @@
 /*
- * Adapted from Three.js LineMaterial Fragment Shader
- * Original source: https://github.com/mrdoob/three.js/blob/master/examples/jsm/lines/LineMaterial.js
- * Date extracted: 2025-01-11
- * License: MIT
+ * Flutter Scene UnlitMaterial Fragment Shader (Exact Copy)
  * 
- * Modifications for Flutter Scene compatibility:
- * - Adapted uniform naming conventions for flutter_gpu
- * - Simplified for screen-space rendering (no world units initially)
- * - Removed conditional compilation for initial implementation
- * - Core anti-aliasing algorithm unchanged
+ * This is the exact fragment shader used by flutter_scene's UnlitMaterial.
+ * Source: https://github.com/bdero/flutter_scene/blob/master/shaders/flutter_scene_unlit.frag
  */
 
-// Standard flutter_scene UnlitMaterial uniforms (must match UnlitMaterial.dart)
 uniform FragInfo {
-  vec4 base_color_factor;
+  vec4 color;
   float vertex_color_weight;
-} frag_info;
+}
+frag_info;
 
-// Inputs from vertex shader
-in vec2 vUv;
-in vec4 vColor;
+uniform sampler2D base_color_texture;
 
-// Output
-out vec4 fragColor;
+in vec3 v_position;
+in vec3 v_normal;
+in vec3 v_viewvector;
+in vec2 v_texture_coords;
+in vec4 v_color;
+
+out vec4 frag_color;
 
 void main() {
-	// Use UnlitMaterial's baseColorFactor (RGBA)
-	vec4 diffuseColor = frag_info.base_color_factor;
-
-	// Screen-space anti-aliasing (adapted from Three.js non-world-units path)
-	// This is the core anti-aliasing algorithm from Three.js
-	if ( abs( vUv.y ) > 1.0 ) {
-		float a = vUv.x;
-		float b = ( vUv.y > 0.0 ) ? vUv.y - 1.0 : vUv.y + 1.0;
-		float len2 = a * a + b * b;
-
-		if ( len2 > 1.0 ) discard;
-	}
-
-	// Apply vertex color modulation
-	diffuseColor.rgb *= vColor.rgb;
-	diffuseColor.a *= vColor.a;
-
-	fragColor = diffuseColor;
+  vec4 vertex_color = mix(vec4(1), v_color, frag_info.vertex_color_weight);
+  frag_color = texture(base_color_texture, v_texture_coords) * vertex_color *
+               frag_info.color;
 }

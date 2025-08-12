@@ -6,7 +6,7 @@
  */
 
 import 'dart:math' as math;
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' as flutter;
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:flutter_scene/scene.dart';
 import '../scene/scene_manager.dart';
@@ -44,7 +44,7 @@ class LineMeshFactory {
   static Mesh createPolyline(
     List<vm.Vector3> points, {
     double lineWidth = 1.0,
-    Color color = Colors.white,
+    flutter.Color color = flutter.Colors.white,
     double opacity = 1.0,
     vm.Vector2? resolution,
   }) {
@@ -74,7 +74,7 @@ class LineMeshFactory {
   static Mesh createSegments(
     List<vm.Vector3> points, {
     double lineWidth = 1.0,
-    Color color = Colors.white,
+    flutter.Color color = flutter.Colors.white,
     double opacity = 1.0,
     vm.Vector2? resolution,
   }) {
@@ -97,7 +97,7 @@ class LineMeshFactory {
   static LineMeshResult createLinesFromSceneData(
     SceneData sceneData, {
     double lineWidth = 1.0,
-    Color? defaultColor,
+    flutter.Color? defaultColor,
     bool enablePolylineGrouping = true,
   }) {
     final nodes = <Node>[];
@@ -295,5 +295,6 @@ class LineMeshFactory {
     if (material is LineMaterial) {
       material.updateResolution(width, height);
     }
+    // For other material types, resolution update is not supported
   }
 }
