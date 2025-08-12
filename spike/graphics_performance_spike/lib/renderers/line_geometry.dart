@@ -28,8 +28,8 @@ class LineGeometry extends UnskinnedGeometry {
 
   // Private constructor
   LineGeometry._(this.mode, this.points) {
-    // Use standard flutter_scene vertex shader (not instanced)
-    _generateTraditionalGeometry();
+    // Use modified flutter_scene vertex shader (not instanced)
+    _generateParametricGeometry();
 
     // Attempt to load custom shaders if not already attempted
     if (!_shaderLoadingAttempted) {
@@ -54,7 +54,7 @@ class LineGeometry extends UnskinnedGeometry {
     return LineGeometry._(LineGeometryMode.segments, points);
   }
 
-  void _generateTraditionalGeometry() {
+  void _generateParametricGeometry() {
     // Generate line segments based on mode
     final segments = _generateLineSegments();
 
@@ -89,31 +89,27 @@ class LineGeometry extends UnskinnedGeometry {
       ).normalized();
       final halfWidth = 0.5; // Will be scaled by lineWidth uniform
 
-      // Generate 4 corner positions
-      final corners = [
-        start - perpendicular * halfWidth, // Bottom-left
-        start + perpendicular * halfWidth, // Top-left
-        end + perpendicular * halfWidth, // Top-right
-        end - perpendicular * halfWidth, // Bottom-right
-      ];
-
       // Add vertex data: position (3) + normal (3) + uv (2) + color (4) = 12 floats per vertex
       // This matches UnskinnedGeometry's expected format: kUnskinnedPerVertexSize = 48 bytes = 12 floats
+      // Repurpose attributes to carry line segment data instead of pre-calculated corners
       for (int j = 0; j < 4; j++) {
-        final corner = corners[j];
         vertices.addAll([
-          corner.x, corner.y, corner.z, // position (3 floats)
-          0.0, 0.0, 1.0, // normal (3 floats, pointing up)
-          j % 2 == 0 ? 0.0 : 1.0, // u (1 float, 0 for left, 1 for right)
-          j < 2 ? 0.0 : 1.0, // v (1 float, 0 for start, 1 for end)
-          1.0, 1.0, 1.0, 1.0, // color (4 floats, white RGBA)
+          start.x, start.y, start.z, // position -> line start point (3 floats)
+          end.x, end.y, end.z, // normal -> line end point (3 floats)
+          j % 2 == 0
+              ? -1.0
+              : 1.0, // uv.x -> side direction (1 float: -1 = left, +1 = right)
+          j < 2
+              ? 0.0
+              : 1.0, // uv.y -> u coordinate (1 float: 0 = start, 1 = end)
+          1.0, 1.0, 1.0, 1.0, // color -> keep as white (4 floats)
         ]);
       }
 
-      // Add quad indices (2 triangles)
+      // Add quad indices (2 triangles) with correct winding (clockwise)
       indices.addAll([
-        vertexOffset + 0, vertexOffset + 1, vertexOffset + 2, // Triangle 1
-        vertexOffset + 0, vertexOffset + 2, vertexOffset + 3, // Triangle 2
+        vertexOffset + 0, vertexOffset + 2, vertexOffset + 1, // Triangle 1
+        vertexOffset + 1, vertexOffset + 2, vertexOffset + 3, // Triangle 2
       ]);
     }
 
@@ -214,12 +210,13 @@ class LineGeometry extends UnskinnedGeometry {
     }
 
     try {
+      // Use custom line vertex shader that handles screen-space expansion
       final customVertexShader = _shaderLibrary!['UnskinnedVertex'];
       if (customVertexShader != null) {
         return customVertexShader;
       } else {
         AppLogger.warning(
-          'Custom vertex shader not found in bundle, using flutter_scene default',
+          'Custom line vertex shader not found in bundle, using UnskinnedVertex default',
         );
         return baseShaderLibrary['UnskinnedVertex']!;
       }
