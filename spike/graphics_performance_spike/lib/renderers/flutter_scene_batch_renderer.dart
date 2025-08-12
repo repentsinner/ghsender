@@ -231,7 +231,7 @@ class FlutterSceneBatchRenderer implements Renderer {
           lighting: _sceneData!.lighting,
         ),
         lineWidth: _currentLineStyle.width,
-        defaultColor: _currentLineStyle.color,
+        // Don't override individual line colors - let each line use its own color
       );
 
       // Add all line nodes to the scene

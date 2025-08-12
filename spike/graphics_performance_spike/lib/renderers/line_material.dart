@@ -27,10 +27,11 @@ class LineMaterial extends UnlitMaterial {
        _opacity = opacity,
        _resolution = resolution ?? vm.Vector2(1024, 768) {
     // Set base color for UnlitMaterial (fallback when custom shader isn't available)
+    // Flutter Color properties are already normalized (0.0-1.0)
     baseColorFactor = vm.Vector4(
-      (color.r * 255.0).round().clamp(0, 255) / 255.0,
-      (color.g * 255.0).round().clamp(0, 255) / 255.0,  
-      (color.b * 255.0).round().clamp(0, 255) / 255.0,
+      color.red / 255.0,
+      color.green / 255.0,  
+      color.blue / 255.0,
       opacity,
     );
     
@@ -49,10 +50,11 @@ class LineMaterial extends UnlitMaterial {
   set color(Color value) {
     _color = value;
     // Update the base UnlitMaterial color as well
+    // Flutter Color properties are already normalized (0.0-1.0)
     baseColorFactor = vm.Vector4(
-      (value.r * 255.0).round().clamp(0, 255) / 255.0,
-      (value.g * 255.0).round().clamp(0, 255) / 255.0,
-      (value.b * 255.0).round().clamp(0, 255) / 255.0,
+      value.red / 255.0,
+      value.green / 255.0,
+      value.blue / 255.0,
       _opacity,
     );
   }
@@ -61,10 +63,11 @@ class LineMaterial extends UnlitMaterial {
   set opacity(double value) {
     _opacity = value.clamp(0.0, 1.0);
     // Update the base UnlitMaterial opacity as well
+    // Flutter Color properties are already normalized (0.0-1.0)
     baseColorFactor = vm.Vector4(
-      (_color.r * 255.0).round().clamp(0, 255) / 255.0,
-      (_color.g * 255.0).round().clamp(0, 255) / 255.0,
-      (_color.b * 255.0).round().clamp(0, 255) / 255.0,
+      _color.red / 255.0,
+      _color.green / 255.0,
+      _color.blue / 255.0,
       _opacity,
     );
   }

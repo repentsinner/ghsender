@@ -256,11 +256,13 @@ class LineMeshFactory {
         
         final distance = _calculateDistance(lastEnd, currentStart);
         
-        if (distance < tolerance) {
-          // Lines are consecutive - add to current group (like Three.js overlapping pairs)
+        // Only group lines if they are consecutive AND have the same color
+        // This prevents mixing blue rapids with green linear moves
+        if (distance < tolerance && lastInGroup.color == currentLine.color) {
+          // Lines are consecutive with same color - add to current group
           currentGroup.add(currentLine);
         } else {
-          // Gap detected - start new group (like Three.js would create new line segment)
+          // Gap detected or color changed - start new group
           groups.add(currentGroup);
           currentGroup = [currentLine];
         }
