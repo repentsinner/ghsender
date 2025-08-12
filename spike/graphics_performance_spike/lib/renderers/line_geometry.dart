@@ -2,8 +2,8 @@
  * LineGeometry implementation for Flutter Scene
  * Based on Three.js LineSegments2 and Line2 architecture
  * 
- * Provides both continuous polyline (Line2) and discrete segments (LineSegments2) modes
- * Uses instanced rendering with quad tessellation in vertex shader
+ * Provides both continuous polyline (Line2) and discrete segments
+ * (LineSegments2) modes
  */
 
 import 'dart:typed_data';
@@ -29,7 +29,6 @@ class LineGeometry extends UnskinnedGeometry {
   // Private constructor
   LineGeometry._(this.mode, this.points) {
     // Use standard flutter_scene vertex shader (not instanced)
-    // LineMaterial will set the correct fragment shader
     _generateTraditionalGeometry();
 
     // Attempt to load custom shaders if not already attempted

@@ -9,6 +9,8 @@
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:flutter_scene/scene.dart';
+import 'package:flutter_gpu/gpu.dart' as gpu;
+import '../utils/logger.dart';
 
 class LineMaterial extends UnlitMaterial {
   // Line properties (Three.js compatible)
@@ -16,6 +18,11 @@ class LineMaterial extends UnlitMaterial {
   Color _color = Colors.white;
   double _opacity = 1.0;
   vm.Vector2 _resolution = vm.Vector2(1024, 768); // Default resolution
+
+  // Shader loading
+  static gpu.ShaderLibrary? _shaderLibrary;
+  static bool _shadersLoaded = false;
+  static bool _shaderLoadingAttempted = false;
 
   LineMaterial({
     double lineWidth = 1.0,
@@ -28,14 +35,12 @@ class LineMaterial extends UnlitMaterial {
        _resolution = resolution ?? vm.Vector2(1024, 768) {
     // Set base color for UnlitMaterial (fallback when custom shader isn't available)
     // Flutter Color properties are already normalized (0.0-1.0)
-    baseColorFactor = vm.Vector4(
-      color.red / 255.0,
-      color.green / 255.0,  
-      color.blue / 255.0,
-      opacity,
-    );
-    
-    // Use standard UnlitMaterial shaders - custom line shaders removed due to instancing issues
+    baseColorFactor = vm.Vector4(color.r, color.g, color.b, opacity);
+
+    // Attempt to load custom shaders if not already attempted
+    if (!_shaderLoadingAttempted) {
+      _loadShaders();
+    }
   }
 
   // Three.js compatible getters/setters
@@ -51,12 +56,7 @@ class LineMaterial extends UnlitMaterial {
     _color = value;
     // Update the base UnlitMaterial color as well
     // Flutter Color properties are already normalized (0.0-1.0)
-    baseColorFactor = vm.Vector4(
-      value.red / 255.0,
-      value.green / 255.0,
-      value.blue / 255.0,
-      _opacity,
-    );
+    baseColorFactor = vm.Vector4(value.r, value.g, value.b, _opacity);
   }
 
   double get opacity => _opacity;
@@ -64,12 +64,7 @@ class LineMaterial extends UnlitMaterial {
     _opacity = value.clamp(0.0, 1.0);
     // Update the base UnlitMaterial opacity as well
     // Flutter Color properties are already normalized (0.0-1.0)
-    baseColorFactor = vm.Vector4(
-      _color.red / 255.0,
-      _color.green / 255.0,
-      _color.blue / 255.0,
-      _opacity,
-    );
+    baseColorFactor = vm.Vector4(_color.r, _color.g, _color.b, _opacity);
   }
 
   vm.Vector2 get resolution => _resolution;
@@ -97,10 +92,50 @@ class LineMaterial extends UnlitMaterial {
     if (resolution != null) this.resolution = resolution;
   }
 
-  // Custom shader loading removed - using standard UnlitMaterial shaders
+  /// Load custom fragment shaders matching flutter_scene's UnlitMaterial
+  static Future<void> _loadShaders() async {
+    _shaderLoadingAttempted = true;
+    try {
+      _shaderLibrary = gpu.ShaderLibrary.fromAsset(
+        'build/shaderbundles/graphics_performance_spike.shaderbundle',
+      );
+      _shadersLoaded = true;
+      AppLogger.info('Custom fragment shaders loaded successfully');
+    } catch (e) {
+      AppLogger.warning(
+        'Failed to load custom fragment shaders, falling back to default: $e',
+      );
+      // Fall back to UnlitMaterial behavior if shaders fail to load
+      _shadersLoaded = false;
+    }
+  }
+
+  /// Provide fragment shader for SceneEncoder to use in RenderPipeline creation
+  /// This follows flutter_scene's architecture where Material provides fragment shaders
+  @override
+  gpu.Shader get fragmentShader {
+    if (!_shadersLoaded || _shaderLibrary == null) {
+      // Fallback: use flutter_scene's base shader library directly
+      return baseShaderLibrary['UnlitFragment']!;
+    }
+
+    try {
+      final customFragmentShader = _shaderLibrary!['UnlitFragment'];
+      if (customFragmentShader != null) {
+        return customFragmentShader;
+      } else {
+        AppLogger.warning(
+          'Custom fragment shader not found in bundle, using flutter_scene default',
+        );
+        return baseShaderLibrary['UnlitFragment']!;
+      }
+    } catch (e) {
+      AppLogger.error('Failed to get custom fragment shader: $e');
+      return baseShaderLibrary['UnlitFragment']!;
+    }
+  }
 
   // Using standard UnlitMaterial binding - no custom uniforms needed for basic line rendering
-  
 
   /// Convert to string for debugging
   @override
