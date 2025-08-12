@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 import 'utils/logger.dart';
 import 'package:flutter/scheduler.dart';
-import 'renderers/gpu_batch_renderer.dart';
 import 'renderers/flutter_scene_batch_renderer.dart';
 import 'scene/scene_manager.dart';
 import 'renderers/renderer_interface.dart';
 import 'renderers/line_style.dart';
 
-enum RendererType { gpu, flutterSceneLines }
+enum RendererType { flutterSceneLines }
 
 void main() {
   runApp(const MyApp());
@@ -47,10 +46,9 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   Offset? _lastPanPosition;
 
   // Current active renderer
-  RendererType _currentRenderer = RendererType.gpu;
+  RendererType _currentRenderer = RendererType.flutterSceneLines;
 
   // Renderers implementing the common interface
-  late Renderer _gpuRenderer;
   late Renderer _flutterSceneRenderer;
 
   final List<double> _fpsSamples = [];
@@ -72,14 +70,7 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     await SceneManager.instance.initialize();
     AppLogger.info('Scene manager initialized');
 
-    // Initialize all renderers
-    _gpuRenderer = GpuBatchRenderer();
-    final gpuSuccess = await _gpuRenderer.initialize();
-    if (gpuSuccess) {
-      await _gpuRenderer.setupScene(SceneManager.instance.sceneData);
-    }
-    AppLogger.info('GPU renderer initialized: $gpuSuccess');
-
+    // Initialize renderer
     _flutterSceneRenderer = FlutterSceneBatchRenderer();
     final flutterSceneSuccess = await _flutterSceneRenderer.initialize();
     if (flutterSceneSuccess) {
@@ -98,14 +89,7 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
       final elapsed = now.difference(_lastFrameTime).inMilliseconds;
 
       // Update active renderer with current rotation
-      switch (_currentRenderer) {
-        case RendererType.gpu:
-          _gpuRenderer.updateRotation(_rotationX, _rotationY);
-          break;
-        case RendererType.flutterSceneLines:
-          _flutterSceneRenderer.updateRotation(_rotationX, _rotationY);
-          break;
-      }
+      _flutterSceneRenderer.updateRotation(_rotationX, _rotationY);
 
       setState(() {});
 
@@ -123,7 +107,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   void dispose() {
     _ticker?.dispose();
     if (_renderersInitialized) {
-      _gpuRenderer.dispose();
       _flutterSceneRenderer.dispose();
     }
     super.dispose();
@@ -131,40 +114,17 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
 
   Renderer? _getCurrentRenderer() {
     if (!_renderersInitialized) return null;
-    switch (_currentRenderer) {
-      case RendererType.gpu:
-        return _gpuRenderer;
-      case RendererType.flutterSceneLines:
-        return _flutterSceneRenderer;
-    }
+    return _flutterSceneRenderer;
   }
 
   String _getRendererDisplayName() {
-    switch (_currentRenderer) {
-      case RendererType.gpu:
-        return 'GPU RENDERER';
-      case RendererType.flutterSceneLines:
-        return 'FLUTTER_SCENE LINES RENDERER';
-    }
+    return 'FLUTTER_SCENE LINES RENDERER';
   }
 
   String _getRendererDetails() {
-    switch (_currentRenderer) {
-      case RendererType.gpu:
-        return 'flutter_gpu';
-      case RendererType.flutterSceneLines:
-        return 'flutter_scene_lines';
-    }
+    return 'flutter_scene_lines';
   }
 
-  String _getNextRendererName() {
-    switch (_currentRenderer) {
-      case RendererType.gpu:
-        return 'Flutter Scene Lines';
-      case RendererType.flutterSceneLines:
-        return 'GPU';
-    }
-  }
 
   Widget _buildRendererWidget() {
     if (!_renderersInitialized) {
@@ -174,47 +134,16 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
       );
     }
 
-    switch (_currentRenderer) {
-      case RendererType.gpu:
-      case RendererType.flutterSceneLines:
-        // Canvas-based renderers use CustomPaint
-        return CustomPaint(
-          painter: _currentRenderer == RendererType.gpu
-              ? GpuBatchPainter(
-                  renderer: _gpuRenderer as GpuBatchRenderer,
-                  rotationX: _rotationX,
-                  rotationY: _rotationY,
-                )
-              : FlutterSceneBatchPainter(
-                  renderer: _flutterSceneRenderer as FlutterSceneBatchRenderer,
-                  rotationX: _rotationX,
-                  rotationY: _rotationY,
-                ),
-        );
-    }
-  }
-
-  void _toggleRenderer() {
-    setState(() {
-      switch (_currentRenderer) {
-        case RendererType.gpu:
-          _currentRenderer = RendererType.flutterSceneLines;
-          break;
-        case RendererType.flutterSceneLines:
-          _currentRenderer = RendererType.gpu;
-          break;
-      }
-
-      // Reset FPS samples when switching renderers
-      _fpsSamples.clear();
-      _frameCount = 0;
-      _lastFrameTime = DateTime.now();
-    });
-
-    AppLogger.info(
-      'Switched to ${_currentRenderer.name.toUpperCase()} renderer',
+    // Canvas-based renderer uses CustomPaint
+    return CustomPaint(
+      painter: FlutterSceneBatchPainter(
+        renderer: _flutterSceneRenderer as FlutterSceneBatchRenderer,
+        rotationX: _rotationX,
+        rotationY: _rotationY,
+      ),
     );
   }
+
 
   void _updateLineWeight(double weight) {
     setState(() {
@@ -245,19 +174,14 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   void _refreshRenderers() async {
     if (!_renderersInitialized) return;
 
-    // Update line styles in both renderers
+    // Update line styles in renderer
     final currentStyle = _getCurrentLineStyle();
-    
-    if (_gpuRenderer is GpuBatchRenderer) {
-      (_gpuRenderer as GpuBatchRenderer).updateLineStyle(currentStyle);
-    }
     
     if (_flutterSceneRenderer is FlutterSceneBatchRenderer) {
       (_flutterSceneRenderer as FlutterSceneBatchRenderer).updateLineStyle(currentStyle);
     }
 
-    // Refresh both renderers with updated line styles
-    await _gpuRenderer.setupScene(SceneManager.instance.sceneData);
+    // Refresh renderer with updated line styles
     await _flutterSceneRenderer.setupScene(SceneManager.instance.sceneData);
   }
 
@@ -308,8 +232,7 @@ Polygons: ${(polygons / 1000).toStringAsFixed(1)}k
 Draw Calls: $drawCalls
 $rendererDetails
 
-Use floating button to switch renderers
-Click and drag to rotate the scene${_currentRenderer == RendererType.gpu ? '\nTop button toggles wireframe mode' : ''}''',
+Click and drag to rotate the scene''',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 14,
@@ -383,73 +306,11 @@ Click and drag to rotate the scene${_currentRenderer == RendererType.gpu ? '\nTo
           ),
         ],
       ),
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Wireframe toggle (only show for GPU renderer)
-          if (_currentRenderer == RendererType.gpu &&
-              _renderersInitialized &&
-              _gpuRenderer is GpuBatchRenderer) ...[
-            FloatingActionButton(
-              heroTag: "wireframe",
-              onPressed: () {
-                setState(() {
-                  (_gpuRenderer as GpuBatchRenderer).toggleWireframe();
-                });
-              },
-              tooltip: (_gpuRenderer as GpuBatchRenderer).wireframeMode
-                  ? 'Switch to Filled Mode'
-                  : 'Switch to Wireframe Mode',
-              child: Icon(
-                (_gpuRenderer as GpuBatchRenderer).wireframeMode
-                    ? Icons.crop_square
-                    : Icons.grid_on,
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-          // Renderer toggle
-          FloatingActionButton(
-            heroTag: "renderer",
-            onPressed: _toggleRenderer,
-            tooltip: 'Switch to ${_getNextRendererName()}',
-            child: const Icon(Icons.swap_horiz),
-          ),
-        ],
-      ),
+      // No floating action button needed since we only have one renderer
     );
   }
 }
 
-class GpuBatchPainter extends CustomPainter {
-  final GpuBatchRenderer? renderer;
-  final double rotationX;
-  final double rotationY;
-
-  GpuBatchPainter({
-    required this.renderer,
-    this.rotationX = 0.0,
-    this.rotationY = 0.0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (renderer == null) {
-      // Draw black background while waiting for renderer to initialize
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, size.width, size.height),
-        Paint()..color = Colors.black,
-      );
-      return;
-    }
-
-    // Use custom GPU rendering with batching
-    renderer!.render(canvas, size, rotationX, rotationY);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
-}
 
 class FlutterSceneBatchPainter extends CustomPainter {
   final FlutterSceneBatchRenderer? renderer;
