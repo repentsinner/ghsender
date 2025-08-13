@@ -24,7 +24,7 @@ NC='\033[0m' # No Color
 
 # Project paths to analyze (relative to git root)
 FLUTTER_PROJECTS=(
-    "spike/graphics_performance_spike"
+    "spike/ghsender"
     "spike/communication-spike"
 )
 

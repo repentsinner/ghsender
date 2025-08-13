@@ -1,4 +1,4 @@
-package com.example.graphics_performance_spike
+package com.example.ghsender
 
 import io.flutter.embedding.android.FlutterActivity
 
