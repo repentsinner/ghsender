@@ -6,8 +6,6 @@ import '../../bloc/bloc_exports.dart';
 /// Status Bar widget - bottom status information
 class StatusBar extends StatelessWidget {
   final String cameraInfo;
-  final double fps;
-  final int polygons;
   final bool isAutoMode;
   final VoidCallback onTogglePanel;
   final bool panelVisible;
@@ -15,8 +13,6 @@ class StatusBar extends StatelessWidget {
   const StatusBar({
     super.key,
     required this.cameraInfo,
-    required this.fps,
-    required this.polygons,
     required this.isAutoMode,
     required this.onTogglePanel,
     required this.panelVisible,
@@ -30,9 +26,13 @@ class StatusBar extends StatelessWidget {
       child: Row(
         children: [
           // Left section - Connection status
-          BlocBuilder<CncConnectionBloc, CncConnectionState>(
-            builder: (context, state) {
-              return _buildConnectionStatusItem(state);
+          BlocBuilder<ProfileBloc, ProfileState>(
+            builder: (context, profileState) {
+              return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
+                builder: (context, commState) {
+                  return _buildConnectionStatusItem(commState, profileState);
+                },
+              );
             },
           ),
 
@@ -45,21 +45,6 @@ class StatusBar extends StatelessWidget {
           ),
 
           const Spacer(),
-
-          // Right section - Performance info
-          _buildStatusItem(
-            icon: Icons.speed,
-            text: '${fps.toStringAsFixed(1)} FPS',
-          ),
-
-          _buildDivider(),
-
-          _buildStatusItem(
-            icon: Icons.account_tree,
-            text: '${(polygons / 1000).toStringAsFixed(1)}k polygons',
-          ),
-
-          _buildDivider(),
 
           // Panel toggle
           GestureDetector(
@@ -94,25 +79,47 @@ class StatusBar extends StatelessWidget {
     );
   }
 
-  Widget _buildConnectionStatusItem(CncConnectionState state) {
-    final (IconData icon, String text, Color iconColor) = switch (state) {
-      CncConnectionInitial() => (
+  Widget _buildConnectionStatusItem(
+    CncCommunicationState commState,
+    ProfileState profileState,
+  ) {
+    // Get current profile name for display
+    String? profileName;
+    if (profileState is ProfileLoaded) {
+      profileName = profileState.currentProfile.name;
+    }
+
+    final (IconData icon, String text, Color iconColor) = switch (commState) {
+      CncCommunicationInitial() => (
         Icons.portable_wifi_off,
         'Not connected',
         Colors.grey,
       ),
-      CncConnectionConnecting() => (Icons.wifi, 'Connecting...', Colors.orange),
-      CncConnectionConnected() => (
+      CncCommunicationConnecting() => (
         Icons.wifi,
-        state.statusMessage,
+        profileName != null ? 'Connecting to $profileName...' : 'Connecting...',
+        Colors.orange,
+      ),
+      CncCommunicationConnected() => (
+        Icons.wifi,
+        profileName != null ? 'Connected to $profileName' : 'Connected',
         Colors.green,
       ),
-      CncConnectionDisconnected() => (
+      CncCommunicationWithData() => (
+        Icons.wifi,
+        profileName ?? 'Active connection',
+        Colors.green,
+      ),
+      CncCommunicationDisconnected() => (
         Icons.portable_wifi_off,
-        state.statusMessage,
+        commState.statusMessage,
         Colors.red,
       ),
-      CncConnectionError() => (Icons.error, state.statusMessage, Colors.red),
+      CncCommunicationError() => (
+        Icons.error,
+        commState.statusMessage,
+        Colors.red,
+      ),
       _ => (Icons.help, 'Unknown', Colors.grey),
     };
 

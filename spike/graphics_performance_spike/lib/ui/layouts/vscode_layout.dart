@@ -11,7 +11,7 @@ enum ActivitySection {
   sessionInitialization,
   filesAndJobs,
   graphics,
-  renderer,
+  settings, // Renamed from 'renderer' to 'settings'
   performance,
   scene,
   debug,
@@ -75,7 +75,7 @@ class VSCodeLayout extends StatefulWidget {
 class _VSCodeLayoutState extends State<VSCodeLayout> {
   ActivitySection _activeSection = ActivitySection.sessionInitialization;
   bool _sidebarVisible = true;
-  bool _panelVisible = false;
+  bool _panelVisible = true;
   double _sidebarWidth = VSCodeTheme.sidebarDefaultWidth;
   double _panelHeight = VSCodeTheme.panelDefaultHeight;
   
@@ -170,6 +170,8 @@ class _VSCodeLayoutState extends State<VSCodeLayout> {
                           mPosX: widget.mPosX,
                           mPosY: widget.mPosY,
                           mPosZ: widget.mPosZ,
+                          fps: widget.fps,
+                          polygons: widget.polygons,
                           child: widget.graphicsRenderer,
                         ),
                       ),
@@ -194,8 +196,6 @@ class _VSCodeLayoutState extends State<VSCodeLayout> {
           // Status Bar
           StatusBar(
             cameraInfo: widget.cameraInfo,
-            fps: widget.fps,
-            polygons: widget.polygons,
             isAutoMode: widget.isAutoMode,
             onTogglePanel: _togglePanel,
             panelVisible: _panelVisible,

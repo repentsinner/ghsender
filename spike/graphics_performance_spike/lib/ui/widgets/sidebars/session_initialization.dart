@@ -3,9 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../../bloc/connection/cnc_connection_bloc.dart';
-import '../../../bloc/connection/cnc_connection_event.dart';
-import '../../../bloc/connection/cnc_connection_state.dart';
+import '../../../bloc/communication/cnc_communication_bloc.dart';
+import '../../../bloc/communication/cnc_communication_event.dart';
+import '../../../bloc/communication/cnc_communication_state.dart';
+import '../../../bloc/profile/profile_bloc.dart';
+import '../../../bloc/profile/profile_state.dart';
 
 /// Session Initialization section - CNC machine setup and control interface
 class SessionInitializationSection extends StatefulWidget {
@@ -79,48 +81,93 @@ class _SessionInitializationSectionState
   }
 
   Widget _buildDeviceConnection() {
-    return BlocBuilder<CncConnectionBloc, CncConnectionState>(
-      builder: (context, state) {
-        final isConnected = state is CncConnectionConnected;
-        final isConnecting = state is CncConnectionConnecting;
+    return BlocBuilder<ProfileBloc, ProfileState>(
+      builder: (context, profileState) {
+        // Get current profile information
+        MachineProfile? currentProfile;
+        bool hasProfile = false;
 
-        return SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: isConnecting
-                ? null
-                : (isConnected
-                      ? () => _disconnectDevice(context)
-                      : () => _connectDevice(context)),
-            icon: Icon(
-              isConnecting
-                  ? Icons.hourglass_empty
-                  : (isConnected ? Icons.wifi_off : Icons.wifi),
-            ),
-            label: Text(
-              isConnecting
-                  ? 'Connecting...'
-                  : (isConnected
-                        ? 'Disconnect from CNC Router'
-                        : 'Connect to Default CNC Router'),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: isConnected
-                  ? VSCodeTheme.error
-                  : VSCodeTheme.focus,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            ),
-          ),
+        if (profileState is ProfileLoaded) {
+          currentProfile = profileState.currentProfile;
+          hasProfile = true;
+        }
+
+        return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
+          builder: (context, commState) {
+            final isConnected =
+                commState is CncCommunicationConnected ||
+                commState is CncCommunicationWithData;
+            final isConnecting = commState is CncCommunicationConnecting;
+            final hasError = commState is CncCommunicationError;
+
+            // Button should only be enabled if we have a profile and are not connecting
+            final isButtonEnabled = hasProfile && !isConnecting;
+
+            // Generate button text based on profile and connection state
+            String buttonText;
+            if (isConnecting && currentProfile != null) {
+              buttonText = 'Connecting to ${currentProfile.name}...';
+            } else if (isConnected && currentProfile != null) {
+              buttonText = 'Disconnect from ${currentProfile.name}';
+            } else if (hasProfile && currentProfile != null) {
+              buttonText = 'Connect to ${currentProfile.name}';
+            } else {
+              buttonText = 'No Profile Selected';
+            }
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Connection button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isButtonEnabled
+                        ? (isConnected
+                              ? () => _disconnectDevice(context)
+                              : () => _connectDevice(
+                                  context,
+                                  currentProfile!.controllerAddress,
+                                ))
+                        : null,
+                    icon: Icon(
+                      isConnecting
+                          ? Icons.hourglass_empty
+                          : (isConnected ? Icons.wifi_off : Icons.wifi),
+                    ),
+                    label: Text(buttonText),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: !hasProfile
+                          ? VSCodeTheme.secondaryText.withValues(alpha: 0.3)
+                          : (isConnected
+                                ? VSCodeTheme.error
+                                : (hasError
+                                      ? VSCodeTheme.warning
+                                      : VSCodeTheme.focus)),
+                      foregroundColor: hasProfile
+                          ? Colors.white
+                          : VSCodeTheme.secondaryText,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 12,
+                        horizontal: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );
   }
 
   Widget _buildMachineHoming() {
-    return BlocBuilder<CncConnectionBloc, CncConnectionState>(
+    return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
       builder: (context, state) {
-        final isConnected = state is CncConnectionConnected;
+        final isConnected =
+            state is CncCommunicationConnected ||
+            state is CncCommunicationWithData;
 
         return SizedBox(
           width: double.infinity,
@@ -143,9 +190,11 @@ class _SessionInitializationSectionState
   }
 
   Widget _buildManualJogControls() {
-    return BlocBuilder<CncConnectionBloc, CncConnectionState>(
+    return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
       builder: (context, state) {
-        final isConnected = state is CncConnectionConnected;
+        final isConnected =
+            state is CncCommunicationConnected ||
+            state is CncCommunicationWithData;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,9 +335,11 @@ class _SessionInitializationSectionState
   }
 
   Widget _buildWorkCoordinates() {
-    return BlocBuilder<CncConnectionBloc, CncConnectionState>(
+    return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
       builder: (context, state) {
-        final isConnected = state is CncConnectionConnected;
+        final isConnected =
+            state is CncCommunicationConnected ||
+            state is CncCommunicationWithData;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,9 +458,11 @@ class _SessionInitializationSectionState
 
         const SizedBox(height: 16),
 
-        BlocBuilder<CncConnectionBloc, CncConnectionState>(
+        BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
           builder: (context, state) {
-            final isConnected = state is CncConnectionConnected;
+            final isConnected =
+                state is CncCommunicationConnected ||
+                state is CncCommunicationWithData;
 
             return SizedBox(
               width: double.infinity,
@@ -547,16 +600,16 @@ class _SessionInitializationSectionState
     );
   }
 
-  // Action handlers (placeholders for actual CNC functionality)
-  void _connectDevice(BuildContext context) {
-    context.read<CncConnectionBloc>().add(
-      const CncConnectionConnectRequested(),
+  // Action handlers for actual CNC communication
+  void _connectDevice(BuildContext context, String controllerAddress) {
+    context.read<CncCommunicationBloc>().add(
+      CncCommunicationConnectRequested(controllerAddress),
     );
   }
 
   void _disconnectDevice(BuildContext context) {
-    context.read<CncConnectionBloc>().add(
-      const CncConnectionDisconnectRequested(),
+    context.read<CncCommunicationBloc>().add(
+      CncCommunicationDisconnectRequested(),
     );
   }
 
@@ -579,4 +632,5 @@ class _SessionInitializationSectionState
     // Placeholder for probing functionality
     debugPrint('Probing work surface...');
   }
+
 }

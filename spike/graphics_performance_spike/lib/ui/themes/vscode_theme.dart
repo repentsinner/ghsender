@@ -23,6 +23,11 @@ class VSCodeTheme {
   static const Color hover = Color(0xFF2A2D2E);
   static const Color selection = Color(0xFF094771);
   static const Color focus = Color(0xFF007ACC);
+  static const Color accent = Color(0xFF007ACC);
+  
+  // Input Colors
+  static const Color inputBackground = Color(0xFF3C3C3C);
+  static const Color dropdownBackground = Color(0xFF3C3C3C);
 
   // Activity Bar Icon Colors
   static const Color activeIcon = Color(0xFFFFFFFF);

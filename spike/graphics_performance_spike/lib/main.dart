@@ -48,14 +48,42 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (context) => CncConnectionBloc()),
+        BlocProvider(create: (context) => CncCommunicationBloc()),
         BlocProvider(create: (context) => FileManagerBloc()),
+        BlocProvider(
+          create: (context) => ProfileBloc()..add(const ProfileLoadRequested()),
+        ),
       ],
       child: MaterialApp(
         title: 'Graphics Performance Spike',
         theme: ThemeData(primarySwatch: Colors.blue),
-        home: const GraphicsPerformanceScreen(),
+        home: const ProfileIntegratedApp(),
       ),
+    );
+  }
+}
+
+/// Wrapper widget that integrates ProfileBloc with CncCommunicationBloc
+class ProfileIntegratedApp extends StatelessWidget {
+  const ProfileIntegratedApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocListener<ProfileBloc, ProfileState>(
+      listener: (context, profileState) {
+        // When profile is loaded or changed, configure the CNC communication controller address
+        if (profileState is ProfileLoaded) {
+          final profile = profileState.currentProfile;
+          AppLogger.info(
+            'Profile loaded/changed: ${profile.name}, setting controller address: ${profile.controllerAddress}',
+          );
+
+          context.read<CncCommunicationBloc>().add(
+            CncCommunicationSetControllerAddress(profile.controllerAddress),
+          );
+        }
+      },
+      child: const GraphicsPerformanceScreen(),
     );
   }
 }

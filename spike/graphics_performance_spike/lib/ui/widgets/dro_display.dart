@@ -26,29 +26,10 @@ class DRODisplay extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: VSCodeTheme.sideBarBackground.withValues(alpha: 0.9),
-        border: Border.all(
-          color: VSCodeTheme.border,
-          width: 1,
-        ),
-        borderRadius: BorderRadius.circular(4),
-      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
-          Text(
-            'DRO',
-            style: GoogleFonts.inconsolata(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: VSCodeTheme.secondaryText,
-            ),
-          ),
-          const SizedBox(height: 8),
-          
           // WPos (Work Position) - Primary display
           _buildPositionSection(
             label: 'WPos',
@@ -57,9 +38,9 @@ class DRODisplay extends StatelessWidget {
             z: wPosZ,
             isPrimary: true,
           ),
-          
+
           const SizedBox(height: 6),
-          
+
           // MPos (Machine Position) - Muted display
           _buildPositionSection(
             label: 'MPos',
@@ -80,8 +61,8 @@ class DRODisplay extends StatelessWidget {
     required double z,
     required bool isPrimary,
   }) {
-    final textColor = isPrimary 
-        ? VSCodeTheme.primaryText 
+    final textColor = isPrimary
+        ? VSCodeTheme.primaryText
         : VSCodeTheme.secondaryText;
     final fontSize = isPrimary ? 14.0 : 12.0;
     final fontWeight = isPrimary ? FontWeight.w500 : FontWeight.w400;

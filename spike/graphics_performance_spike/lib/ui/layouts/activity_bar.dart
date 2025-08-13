@@ -68,8 +68,8 @@ class _ActivityBarState extends State<ActivityBar> {
           // Bottom settings
           _buildActivityIcon(
             Icons.settings,
-            'Renderer Settings',
-            ActivitySection.renderer,
+            'Settings',
+            ActivitySection.settings,
           ),
         ],
       ),

@@ -4,7 +4,7 @@ import 'vscode_layout.dart';
 import '../widgets/sidebars/session_initialization.dart';
 import '../widgets/sidebars/files_and_jobs.dart';
 import '../widgets/sidebars/graphics.dart';
-import '../widgets/sidebars/renderer.dart';
+import '../widgets/sidebars/settings.dart';
 import '../widgets/sidebars/performance.dart';
 import '../widgets/sidebars/scene.dart';
 import '../widgets/sidebars/debug.dart';
@@ -85,8 +85,8 @@ class PrimarySidebar extends StatelessWidget {
         title = 'Graphics';
         icon = Icons.palette;
         break;
-      case ActivitySection.renderer:
-        title = 'Renderer Settings';
+      case ActivitySection.settings:
+        title = 'Settings';
         icon = Icons.settings;
         break;
       case ActivitySection.performance:
@@ -138,8 +138,8 @@ class PrimarySidebar extends StatelessWidget {
           isAutoMode: isAutoMode,
           onCameraToggle: onCameraToggle,
         );
-      case ActivitySection.renderer:
-        return RendererSection(
+      case ActivitySection.settings:
+        return SettingsSection(
           lineWeight: lineWeight,
           lineSmoothness: lineSmoothness,
           lineOpacity: lineOpacity,

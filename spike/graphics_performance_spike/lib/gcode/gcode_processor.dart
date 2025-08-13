@@ -30,7 +30,7 @@ class GCodeProcessor {
   /// Process a selected G-code file
   Future<void> processFile(GCodeFile file) async {
     if (_isProcessing) {
-      AppLogger.warning('G-code processor is already processing a file');
+      AppLogger.gcodeWarning('G-code processor is already processing a file');
       return;
     }
 
@@ -38,7 +38,7 @@ class GCodeProcessor {
     _currentFile = file;
     
     _eventController.add(GCodeProcessingEvent.started(file));
-    AppLogger.info('Starting G-code processing for: ${file.name}');
+    AppLogger.gcodeInfo('Starting G-code processing for: ${file.name}');
 
     try {
       // Validate file exists and is readable
@@ -49,14 +49,14 @@ class GCodeProcessor {
 
       // Parse the G-code file
       _eventController.add(GCodeProcessingEvent.parsing(file));
-      AppLogger.info('Parsing G-code file: ${file.path}');
+      AppLogger.gcodeInfo('Parsing G-code file: ${file.path}');
 
       final parser = GCodeParser();
       _currentParsedData = await parser.parseFile(file.path);
 
-      AppLogger.info('G-code parsing completed:');
-      AppLogger.info('- Total operations: ${_currentParsedData!.totalOperations}');
-      AppLogger.info('- Bounds: ${_currentParsedData!.minBounds} to ${_currentParsedData!.maxBounds}');
+      AppLogger.gcodeInfo('G-code parsing completed:');
+      AppLogger.gcodeInfo('- Total operations: ${_currentParsedData!.totalOperations}');
+      AppLogger.gcodeInfo('- Bounds: ${_currentParsedData!.minBounds} to ${_currentParsedData!.maxBounds}');
 
       // Validate parsed data
       if (_currentParsedData!.totalOperations == 0) {
@@ -65,10 +65,10 @@ class GCodeProcessor {
 
       // Notify consumers that processing is complete
       _eventController.add(GCodeProcessingEvent.completed(file, _currentParsedData!));
-      AppLogger.info('G-code processing completed successfully');
+      AppLogger.gcodeInfo('G-code processing completed successfully');
 
     } catch (e) {
-      AppLogger.error('G-code processing failed', e);
+      AppLogger.gcodeError('G-code processing failed', e);
       _currentParsedData = null;
       _eventController.add(GCodeProcessingEvent.failed(file, e.toString()));
       rethrow;
@@ -80,7 +80,7 @@ class GCodeProcessor {
   /// Clear the current file and parsed data
   void clearCurrentFile() {
     if (_isProcessing) {
-      AppLogger.warning('Cannot clear file while processing');
+      AppLogger.gcodeWarning('Cannot clear file while processing');
       return;
     }
 
@@ -90,7 +90,7 @@ class GCodeProcessor {
 
     if (previousFile != null) {
       _eventController.add(GCodeProcessingEvent.cleared(previousFile));
-      AppLogger.info('Cleared current G-code file: ${previousFile.name}');
+      AppLogger.gcodeInfo('Cleared current G-code file: ${previousFile.name}');
     }
   }
 
