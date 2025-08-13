@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../themes/vscode_theme.dart';
+import '../sidebar_sections/sidebar_components.dart';
 
 /// Scene section in the sidebar - G-code file info and scene hierarchy
 class SceneSection extends StatelessWidget {
@@ -14,131 +15,102 @@ class SceneSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Scene Information Section
-          _buildSectionTitle('Scene Information'),
-          const SizedBox(height: 16),
-          
-          _buildInfoCard(
-            title: 'G-code File',
-            content: 'Loaded: Sample CNC toolpath\n7,612 operations processed\n5,412 optimized segments',
-          ),
-          
-          const SizedBox(height: 12),
-          
-          _buildInfoCard(
-            title: 'Scene Bounds',
-            content: 'X: 0.0 → 179.9mm\nY: 0.0 → 171.7mm\nZ: -1.0 → 25.0mm',
-          ),
-          
-          const SizedBox(height: 12),
-          
-          _buildInfoCard(
-            title: 'Camera Target',
-            content: 'Center: [89.96, 85.83, 12.0]\nOptimal viewing distance calculated',
+          SidebarComponents.buildSectionWithInfo(
+            title: 'Scene Information',
+            infoTooltip: 'Basic information about the loaded G-code file and scene setup',
+            child: Column(
+              children: [
+                SidebarComponents.buildInfoCard(
+                  title: 'G-code File',
+                  content: 'Loaded: Sample CNC toolpath\n7,612 operations processed\n5,412 optimized segments',
+                ),
+                
+                const SizedBox(height: 12),
+                
+                SidebarComponents.buildInfoCard(
+                  title: 'Scene Bounds',
+                  content: 'X: 0.0 → 179.9mm\nY: 0.0 → 171.7mm\nZ: -1.0 → 25.0mm',
+                ),
+                
+                const SizedBox(height: 12),
+                
+                SidebarComponents.buildInfoCard(
+                  title: 'Camera Target',
+                  content: 'Center: [89.96, 85.83, 12.0]\nOptimal viewing distance calculated',
+                ),
+              ],
+            ),
           ),
           
           const SizedBox(height: 24),
           
           // Scene Objects Section
-          _buildSectionTitle('Scene Objects'),
-          const SizedBox(height: 12),
-          
-          _buildObjectItem(
-            icon: Icons.timeline,
-            name: 'G-code Paths',
-            count: '5,412 segments',
-            color: VSCodeTheme.success,
-          ),
-          
-          const SizedBox(height: 8),
-          
-          _buildObjectItem(
-            icon: Icons.navigation,
-            name: 'Rapid Moves',
-            count: '22 segments',
-            color: VSCodeTheme.info,
-          ),
-          
-          const SizedBox(height: 8),
-          
-          _buildObjectItem(
-            icon: Icons.control_camera,
-            name: 'World Axes',
-            count: '3 axes',
-            color: VSCodeTheme.warning,
+          SidebarComponents.buildSectionWithInfo(
+            title: 'Scene Objects',
+            infoTooltip: 'All objects currently loaded and rendered in the 3D scene',
+            child: Column(
+              children: [
+                _buildObjectItem(
+                  icon: Icons.timeline,
+                  name: 'G-code Paths',
+                  count: '5,412 segments',
+                  color: VSCodeTheme.success,
+                ),
+                
+                const SizedBox(height: 8),
+                
+                _buildObjectItem(
+                  icon: Icons.navigation,
+                  name: 'Rapid Moves',
+                  count: '22 segments',
+                  color: VSCodeTheme.info,
+                ),
+                
+                const SizedBox(height: 8),
+                
+                _buildObjectItem(
+                  icon: Icons.control_camera,
+                  name: 'World Axes',
+                  count: '3 axes',
+                  color: VSCodeTheme.warning,
+                ),
+              ],
+            ),
           ),
           
           const SizedBox(height: 24),
           
           // Processing Information Section
-          _buildSectionTitle('Processing Stats'),
-          const SizedBox(height: 12),
-          
-          _buildStatCard(
-            icon: Icons.compress,
-            label: 'Segment Optimization',
-            value: '29% reduction',
-            description: '7,611 → 5,412 segments',
-          ),
-          
-          const SizedBox(height: 12),
-          
-          _buildStatCard(
-            icon: Icons.memory,
-            label: 'Tessellation',
-            value: '10.8k triangles',
-            description: '21,660 vertices generated',
-          ),
-          
-          const SizedBox(height: 12),
-          
-          _buildStatCard(
-            icon: Icons.batch_prediction,
-            label: 'Batching Efficiency',
-            value: '24 mesh nodes',
-            description: 'Optimized for GPU rendering',
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: GoogleFonts.inconsolata(
-        color: VSCodeTheme.primaryText,
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-  
-  Widget _buildInfoCard({required String title, required String content}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: VSCodeTheme.editorBackground,
-        borderRadius: VSCodeTheme.containerRadius,
-        border: Border.all(color: VSCodeTheme.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: GoogleFonts.inconsolata(
-              color: VSCodeTheme.accentText,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            content,
-            style: GoogleFonts.inconsolata(
-              color: VSCodeTheme.secondaryText,
-              fontSize: 11,
+          SidebarComponents.buildSectionWithInfo(
+            title: 'Processing Stats',
+            infoTooltip: 'Performance metrics from G-code processing and optimization',
+            child: Column(
+              children: [
+                _buildStatCard(
+                  icon: Icons.compress,
+                  label: 'Segment Optimization',
+                  value: '29% reduction',
+                  description: '7,611 → 5,412 segments',
+                ),
+                
+                const SizedBox(height: 12),
+                
+                _buildStatCard(
+                  icon: Icons.memory,
+                  label: 'Tessellation',
+                  value: '10.8k triangles',
+                  description: '21,660 vertices generated',
+                ),
+                
+                const SizedBox(height: 12),
+                
+                _buildStatCard(
+                  icon: Icons.batch_prediction,
+                  label: 'Batching Efficiency',
+                  value: '24 mesh nodes',
+                  description: 'Optimized for GPU rendering',
+                ),
+              ],
             ),
           ),
         ],

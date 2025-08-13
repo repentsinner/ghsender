@@ -32,6 +32,11 @@ class _ActivityBarState extends State<ActivityBar> {
             child: Column(
               children: [
                 _buildActivityIcon(
+                  Icons.power_settings_new,
+                  'Session Initialization',
+                  ActivitySection.sessionInitialization,
+                ),
+                _buildActivityIcon(
                   Icons.palette,
                   'Graphics',
                   ActivitySection.graphics,

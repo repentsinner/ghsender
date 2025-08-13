@@ -91,13 +91,10 @@ class LineGeometry extends UnskinnedGeometry {
 
       direction.normalize();
 
-      // Create perpendicular vector (assuming 2D-ish for now - can enhance later)
-      final perpendicular = vm.Vector3(
-        -direction.y,
-        direction.x,
-        0.0,
-      ).normalized();
-      final halfWidth = 0.5; // Will be scaled by lineWidth uniform
+      // Note: perpendicular vector calculation removed as it was unused
+      // (shader handles line expansion in screen space instead)
+      // Note: halfWidth variable removed as it was unused
+      // (line width is handled by shader uniforms instead)
 
       // Add vertex data: position (3) + normal (3) + uv (2) + color (4) = 12 floats per vertex
       // This matches UnskinnedGeometry's expected format: kUnskinnedPerVertexSize = 48 bytes = 12 floats

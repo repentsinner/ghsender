@@ -10,15 +10,16 @@ import 'renderers/renderer_interface.dart';
 import 'renderers/line_style.dart';
 import 'camera_director.dart';
 import 'ui/layouts/vscode_layout.dart';
+import 'bloc/bloc_exports.dart';
 
 enum RendererType { flutterSceneLines }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Configure window manager for desktop platforms
   await windowManager.ensureInitialized();
-  
+
   WindowOptions windowOptions = const WindowOptions(
     size: Size(1400, 900),
     minimumSize: Size(800, 600),
@@ -27,15 +28,15 @@ void main() async {
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.normal,
   );
-  
+
   windowManager.waitUntilReadyToShow(windowOptions, () async {
     await windowManager.show();
     await windowManager.focus();
   });
-  
+
   // Inconsolata fonts are now loaded from local assets
   GoogleFonts.config.allowRuntimeFetching = false;
-  
+
   runApp(const MyApp());
 }
 
@@ -44,10 +45,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Graphics Performance Spike',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: const GraphicsPerformanceScreen(),
+    return BlocProvider(
+      create: (context) => CncConnectionBloc(),
+      child: MaterialApp(
+        title: 'Graphics Performance Spike',
+        theme: ThemeData(primarySwatch: Colors.blue),
+        home: const GraphicsPerformanceScreen(),
+      ),
     );
   }
 }
@@ -156,10 +160,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   Renderer? _getCurrentRenderer() {
     if (!_renderersInitialized) return null;
     return _flutterSceneRenderer;
-  }
-
-  String _getRendererDisplayName() {
-    return 'FLUTTER_SCENE LINES RENDERER';
   }
 
   String _getCameraInfo() {
@@ -286,7 +286,7 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
         onScaleUpdate: (details) {
           if (_lastPanPosition != null) {
             final scaleDelta = (details.scale - _lastScale).abs();
-            
+
             // If scale changed significantly, treat as zoom gesture
             if (scaleDelta > 0.05) {
               _cameraDirector.processPinchZoom(details.scale / _lastScale);
@@ -297,7 +297,7 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
               _cameraDirector.processPanGesture(delta.dx, delta.dy);
               _lastPanPosition = details.localFocalPoint;
             }
-            
+
             setState(() {});
           }
         },
@@ -315,7 +315,6 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
       polygons: polygons,
       drawCalls: drawCalls,
       cameraInfo: _getCameraInfo(),
-      rendererName: _getRendererDisplayName(),
       onLineWeightChanged: _updateLineWeight,
       onLineSmoothnessChanged: _updateLineSmoothness,
       onLineOpacityChanged: _updateLineOpacity,

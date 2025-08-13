@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../themes/vscode_theme.dart';
+import '../sidebar_sections/sidebar_components.dart';
 
 /// Performance section in the sidebar - FPS, polygons, draw calls metrics
 class PerformanceSection extends StatelessWidget {
@@ -23,97 +24,101 @@ class PerformanceSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Real-time Metrics Section
-          _buildSectionTitle('Real-time Metrics'),
-          const SizedBox(height: 16),
-          
-          // FPS Metric
-          _buildMetricCard(
-            icon: Icons.speed,
-            label: 'Frame Rate',
-            value: '${fps.toStringAsFixed(2)} FPS',
-            color: _getFpsColor(fps),
-            status: _getFpsStatus(fps),
-          ),
-          
-          const SizedBox(height: 12),
-          
-          // Polygons Metric
-          _buildMetricCard(
-            icon: Icons.account_tree,
-            label: 'Polygons',
-            value: '${(polygons / 1000).toStringAsFixed(1)}k',
-            color: VSCodeTheme.info,
-            status: '${polygons.toString()} triangles',
-          ),
-          
-          const SizedBox(height: 12),
-          
-          // Draw Calls Metric
-          _buildMetricCard(
-            icon: Icons.call_split,
-            label: 'Draw Calls',
-            value: drawCalls.toString(),
-            color: _getDrawCallColor(drawCalls),
-            status: _getDrawCallStatus(drawCalls),
+          SidebarComponents.buildSectionWithInfo(
+            title: 'Real-time Metrics',
+            infoTooltip: 'Live performance metrics updated every frame for monitoring',
+            child: Column(
+              children: [
+                // FPS Metric
+                _buildMetricCard(
+                  icon: Icons.speed,
+                  label: 'Frame Rate',
+                  value: '${fps.toStringAsFixed(2)} FPS',
+                  color: _getFpsColor(fps),
+                  status: _getFpsStatus(fps),
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Polygons Metric
+                _buildMetricCard(
+                  icon: Icons.account_tree,
+                  label: 'Polygons',
+                  value: '${(polygons / 1000).toStringAsFixed(1)}k',
+                  color: VSCodeTheme.info,
+                  status: '${polygons.toString()} triangles',
+                ),
+                
+                const SizedBox(height: 12),
+                
+                // Draw Calls Metric
+                _buildMetricCard(
+                  icon: Icons.call_split,
+                  label: 'Draw Calls',
+                  value: drawCalls.toString(),
+                  color: _getDrawCallColor(drawCalls),
+                  status: _getDrawCallStatus(drawCalls),
+                ),
+              ],
+            ),
           ),
           
           const SizedBox(height: 24),
           
           // Performance Tips Section
-          _buildSectionTitle('Performance Tips'),
-          const SizedBox(height: 12),
-          
-          _buildTipCard(
-            icon: Icons.lightbulb_outline,
-            title: 'Optimal Frame Rate',
-            description: 'Target 60 FPS for smooth interaction. Values below 30 FPS may feel sluggish.',
-          ),
-          
-          const SizedBox(height: 12),
-          
-          _buildTipCard(
-            icon: Icons.memory,
-            title: 'Polygon Count',
-            description: 'Current scene efficiently renders ${(polygons / 1000).toStringAsFixed(1)}k triangles in real-time.',
-          ),
-          
-          const SizedBox(height: 12),
-          
-          _buildTipCard(
-            icon: Icons.flash_on,
-            title: 'Draw Call Efficiency',
-            description: 'Lower draw calls indicate better batching. Current: $drawCalls calls.',
+          SidebarComponents.buildSectionWithInfo(
+            title: 'Performance Tips',
+            infoTooltip: 'Guidelines and recommendations for optimal rendering performance',
+            child: Column(
+              children: [
+                _buildTipCard(
+                  icon: Icons.lightbulb_outline,
+                  title: 'Optimal Frame Rate',
+                  description: 'Target 60 FPS for smooth interaction. Values below 30 FPS may feel sluggish.',
+                ),
+                
+                const SizedBox(height: 12),
+                
+                _buildTipCard(
+                  icon: Icons.memory,
+                  title: 'Polygon Count',
+                  description: 'Current scene efficiently renders ${(polygons / 1000).toStringAsFixed(1)}k triangles in real-time.',
+                ),
+                
+                const SizedBox(height: 12),
+                
+                _buildTipCard(
+                  icon: Icons.flash_on,
+                  title: 'Draw Call Efficiency',
+                  description: 'Lower draw calls indicate better batching. Current: $drawCalls calls.',
+                ),
+              ],
+            ),
           ),
           
           const SizedBox(height: 24),
           
           // System Information Section
-          _buildSectionTitle('System Information'),
-          const SizedBox(height: 12),
-          
-          _buildInfoCard(
-            title: 'Graphics Backend',
-            content: 'Flutter Impeller (Metal)\nHardware-accelerated rendering',
-          ),
-          
-          const SizedBox(height: 12),
-          
-          _buildInfoCard(
-            title: 'Renderer',
-            content: 'Flutter Scene Batch Renderer\nCustom shader-based line rendering',
+          SidebarComponents.buildSectionWithInfo(
+            title: 'System Information',
+            infoTooltip: 'System capabilities and current rendering backend information',
+            child: Column(
+              children: [
+                _buildInfoCard(
+                  title: 'Graphics Backend',
+                  content: 'Flutter Impeller (Metal)\nHardware-accelerated rendering',
+                ),
+                
+                const SizedBox(height: 12),
+                
+                _buildInfoCard(
+                  title: 'Renderer',
+                  content: 'Flutter Scene Batch Renderer\nCustom shader-based line rendering',
+                ),
+              ],
+            ),
           ),
         ],
-      ),
-    );
-  }
-  
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: GoogleFonts.inconsolata(
-        color: VSCodeTheme.primaryText,
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
       ),
     );
   }

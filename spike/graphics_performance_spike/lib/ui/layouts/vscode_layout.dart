@@ -8,6 +8,7 @@ import 'status_bar.dart';
 
 /// Activity bar sections
 enum ActivitySection {
+  sessionInitialization,
   graphics,
   renderer,
   performance,
@@ -22,7 +23,6 @@ class VSCodeLayout extends StatefulWidget {
   final int polygons;
   final int drawCalls;
   final String cameraInfo;
-  final String rendererName;
   
   // Line control callbacks
   final ValueChanged<double> onLineWeightChanged;
@@ -51,7 +51,6 @@ class VSCodeLayout extends StatefulWidget {
     required this.polygons,
     required this.drawCalls,
     required this.cameraInfo,
-    required this.rendererName,
     required this.onLineWeightChanged,
     required this.onLineSmoothnessChanged,
     required this.onLineOpacityChanged,
@@ -73,7 +72,7 @@ class VSCodeLayout extends StatefulWidget {
 }
 
 class _VSCodeLayoutState extends State<VSCodeLayout> {
-  ActivitySection _activeSection = ActivitySection.graphics;
+  ActivitySection _activeSection = ActivitySection.sessionInitialization;
   bool _sidebarVisible = true;
   bool _panelVisible = false;
   double _sidebarWidth = VSCodeTheme.sidebarDefaultWidth;
@@ -193,7 +192,6 @@ class _VSCodeLayoutState extends State<VSCodeLayout> {
           
           // Status Bar
           StatusBar(
-            rendererName: widget.rendererName,
             cameraInfo: widget.cameraInfo,
             fps: widget.fps,
             polygons: widget.polygons,

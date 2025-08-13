@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../themes/vscode_theme.dart';
 import 'vscode_layout.dart';
-import '../widgets/sidebar_sections/graphics_section.dart';
-import '../widgets/sidebar_sections/renderer_section.dart';
-import '../widgets/sidebar_sections/performance_section.dart';
-import '../widgets/sidebar_sections/scene_section.dart';
-import '../widgets/sidebar_sections/debug_section.dart';
+import '../widgets/sidebars/session_initialization.dart';
+import '../widgets/sidebars/graphics.dart';
+import '../widgets/sidebars/renderer.dart';
+import '../widgets/sidebars/performance.dart';
+import '../widgets/sidebars/scene.dart';
+import '../widgets/sidebars/debug.dart';
 
 /// Primary Sidebar widget - collapsible content area
 class PrimarySidebar extends StatelessWidget {
@@ -15,13 +16,13 @@ class PrimarySidebar extends StatelessWidget {
   final int polygons;
   final int drawCalls;
   final String cameraInfo;
-  
+
   // Line control callbacks
   final ValueChanged<double> onLineWeightChanged;
   final ValueChanged<double> onLineSmoothnessChanged;
   final ValueChanged<double> onLineOpacityChanged;
   final VoidCallback onCameraToggle;
-  
+
   // Current line values
   final double lineWeight;
   final double lineSmoothness;
@@ -57,22 +58,24 @@ class PrimarySidebar extends StatelessWidget {
           children: [
             // Section header
             _buildSectionHeader(),
-            
+
             // Section content
-            Expanded(
-              child: _buildSectionContent(),
-            ),
+            Expanded(child: _buildSectionContent()),
           ],
         ),
       ),
     );
   }
-  
+
   Widget _buildSectionHeader() {
     String title;
     IconData icon;
-    
+
     switch (activeSection) {
+      case ActivitySection.sessionInitialization:
+        title = 'Session Initialization';
+        icon = Icons.power_settings_new;
+        break;
       case ActivitySection.graphics:
         title = 'Graphics';
         icon = Icons.palette;
@@ -94,22 +97,16 @@ class PrimarySidebar extends StatelessWidget {
         icon = Icons.bug_report;
         break;
     }
-    
+
     return Container(
       height: 35,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: VSCodeTheme.border),
-        ),
+        border: Border(bottom: BorderSide(color: VSCodeTheme.border)),
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: VSCodeTheme.primaryText,
-            size: 16,
-          ),
+          Icon(icon, color: VSCodeTheme.primaryText, size: 16),
           const SizedBox(width: 8),
           Text(
             title,
@@ -123,9 +120,11 @@ class PrimarySidebar extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildSectionContent() {
     switch (activeSection) {
+      case ActivitySection.sessionInitialization:
+        return const SessionInitializationSection();
       case ActivitySection.graphics:
         return GraphicsSection(
           cameraInfo: cameraInfo,
