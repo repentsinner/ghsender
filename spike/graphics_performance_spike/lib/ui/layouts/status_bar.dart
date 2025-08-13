@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../themes/vscode_theme.dart';
+import '../widgets/problem_item.dart';
 import '../../bloc/bloc_exports.dart';
 
 /// Status Bar widget - bottom status information
@@ -42,6 +43,32 @@ class StatusBar extends StatelessWidget {
           _buildStatusItem(
             icon: isAutoMode ? Icons.play_circle : Icons.pause_circle,
             text: isAutoMode ? 'Auto' : 'Manual',
+          ),
+
+          _buildDivider(),
+
+          // Problems indicator
+          BlocBuilder<ProblemsBloc, ProblemsState>(
+            builder: (context, problemsState) {
+              return GestureDetector(
+                onTap: onTogglePanel, // Open panel to show problems
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  height: VSCodeTheme.statusBarHeight,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ProblemSummary(
+                        errorCount: problemsState.errorCount,
+                        warningCount: problemsState.warningCount,
+                        infoCount: problemsState.infoCount,
+                        onTap: onTogglePanel,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
 
           const Spacer(),

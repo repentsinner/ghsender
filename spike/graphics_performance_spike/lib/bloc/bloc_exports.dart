@@ -16,3 +16,8 @@ export 'communication/cnc_communication_state.dart';
 export 'profile/profile_bloc.dart';
 export 'profile/profile_event.dart';
 export 'profile/profile_state.dart';
+
+// Problems BLoC
+export 'problems/problems_bloc.dart';
+export 'problems/problems_event.dart';
+export 'problems/problems_state.dart';

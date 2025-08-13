@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import '../themes/vscode_theme.dart';
-import '../../bloc/communication/cnc_communication_bloc.dart';
-import '../../bloc/communication/cnc_communication_state.dart';
+import '../widgets/problem_item.dart';
+import '../../bloc/bloc_exports.dart';
+import '../../utils/logger.dart';
 
 /// Bottom Panel widget - tabbed interface for console, problems, output
 class BottomPanel extends StatefulWidget {
@@ -49,15 +49,51 @@ class _BottomPanelState extends State<BottomPanel>
                 children: [
                   // Tabs
                   Expanded(
-                    child: TabBar(
-                      controller: _tabController,
-                      isScrollable: true,
-                      tabAlignment: TabAlignment.start,
-                      tabs: const [
-                        Tab(text: 'Problems'),
-                        Tab(text: 'Console'),
-                        Tab(text: 'Output'),
-                      ],
+                    child: BlocBuilder<ProblemsBloc, ProblemsState>(
+                      builder: (context, problemsState) {
+                        return TabBar(
+                          controller: _tabController,
+                          isScrollable: true,
+                          tabAlignment: TabAlignment.start,
+                          tabs: [
+                            Tab(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text('Problems'),
+                                  if (problemsState.hasProblems) ...[
+                                    const SizedBox(width: 4),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: problemsState.hasErrors
+                                            ? VSCodeTheme.error
+                                            : problemsState.hasWarnings
+                                            ? VSCodeTheme.warning
+                                            : VSCodeTheme.info,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        '${problemsState.totalCount}',
+                                        style: GoogleFonts.inconsolata(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                            const Tab(text: 'Console'),
+                            const Tab(text: 'Output'),
+                          ],
+                        );
+                      },
                     ),
                   ),
 
@@ -93,228 +129,205 @@ class _BottomPanelState extends State<BottomPanel>
     );
   }
 
-  Widget _buildConsoleTab() {
-    return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
-      builder: (context, commState) {
-        // Build console content based on communication state
-        String consoleContent = _buildConsoleContent(commState);
-
-        return Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: VSCodeTheme.editorBackground,
-            border: Border.all(color: VSCodeTheme.border),
-          ),
-          child: Column(
-            children: [
-              // Console header with connection status
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: VSCodeTheme.panelBackground,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: VSCodeTheme.border.withValues(alpha: 0.3),
+  Widget _buildProblemsTab() {
+    return BlocBuilder<ProblemsBloc, ProblemsState>(
+      builder: (context, problemsState) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(12),
+          child: SizedBox(
+            width: double.infinity,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Problem list or status message
+                if (problemsState.hasProblems) ...[
+                  // Display all problems sorted by severity
+                  ...problemsState.sortedProblems.map(
+                    (problem) => ProblemItem(
+                      problem: problem,
+                      onTap: () {
+                        // Could add problem-specific actions here
+                        AppLogger.info('Problem tapped: ${problem.id}');
+                      },
                     ),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _getConnectionIcon(commState),
-                      color: _getConnectionColor(commState),
-                      size: 14,
+                ] else ...[
+                  // No problems message
+                  Text(
+                    'No problems detected',
+                    style: GoogleFonts.inconsolata(
+                      color: VSCodeTheme.secondaryText,
+                      fontSize: 11,
                     ),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Communication Console - ${_getConnectionStatus(commState)}',
-                      style: GoogleFonts.inconsolata(
-                        color: VSCodeTheme.accentText,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const Spacer(),
-                    if (commState is CncCommunicationWithData &&
-                        commState.performanceData != null)
-                      Text(
-                        '${commState.performanceData!.averageLatencyMs.toStringAsFixed(1)}ms avg',
-                        style: GoogleFonts.inconsolata(
-                          color:
-                              commState.performanceData!.meetsLatencyRequirement
-                              ? VSCodeTheme.success
-                              : VSCodeTheme.warning,
-                          fontSize: 10,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+                  ),
+                ],
 
-              // Console content area
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(12),
-                  child: SizedBox(
+                // Debug info for development
+                if (problemsState.isInitialized) ...[
+                  const SizedBox(height: 16),
+                  Container(
                     width: double.infinity,
-                    child: SelectableText(
-                      consoleContent,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: VSCodeTheme.inputBackground,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    child: Text(
+                      'Debug: ${problemsState.toString()}',
                       style: GoogleFonts.inconsolata(
-                        color: VSCodeTheme.secondaryText,
-                        fontSize: 11,
-                        height: 1.4,
+                        color: VSCodeTheme.secondaryText.withValues(alpha: 0.7),
+                        fontSize: 9,
                       ),
                     ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _buildProblemsTab() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: VSCodeTheme.editorBackground,
-        border: Border.all(color: VSCodeTheme.border),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: SizedBox(
-          width: double.infinity,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Problems header
-              Row(
+  Widget _buildConsoleTab() {
+    return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
+      builder: (context, commState) {
+        // Build console content based on communication state
+        String consoleContent = _buildConsoleContent(commState);
+
+        return Column(
+          children: [
+            // Console header with connection status
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: VSCodeTheme.panelBackground,
+                border: Border(
+                  bottom: BorderSide(
+                    color: VSCodeTheme.border.withValues(alpha: 0.3),
+                  ),
+                ),
+              ),
+              child: Row(
                 children: [
                   Icon(
-                    Icons.check_circle,
-                    color: VSCodeTheme.success,
-                    size: 16,
+                    _getConnectionIcon(commState),
+                    color: _getConnectionColor(commState),
+                    size: 14,
                   ),
                   const SizedBox(width: 8),
-                  SelectableText(
-                    'No problems detected',
+                  Text(
+                    'Communication Console - ${_getConnectionStatus(commState)}',
                     style: GoogleFonts.inconsolata(
-                      color: VSCodeTheme.success,
+                      color: VSCodeTheme.accentText,
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  const Spacer(),
+                  if (commState is CncCommunicationWithData &&
+                      commState.performanceData != null)
+                    Text(
+                      '${commState.performanceData!.averageLatencyMs.toStringAsFixed(1)}ms avg',
+                      style: GoogleFonts.inconsolata(
+                        color:
+                            commState.performanceData!.meetsLatencyRequirement
+                            ? VSCodeTheme.success
+                            : VSCodeTheme.warning,
+                        fontSize: 10,
+                      ),
+                    ),
                 ],
               ),
+            ),
 
-              const SizedBox(height: 12),
-
-              // Example problem entries (placeholder)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: VSCodeTheme.panelBackground,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: VSCodeTheme.border.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: SelectableText(
-                  'All systems operational\n'
-                  '• Graphics renderer: OK\n'
-                  '• Communication system: Ready\n'
-                  '• G-code processor: Ready',
-                  style: GoogleFonts.inconsolata(
-                    color: VSCodeTheme.secondaryText,
-                    fontSize: 10,
-                    height: 1.4,
+            // Console content area
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: SelectableText(
+                    consoleContent,
+                    style: GoogleFonts.inconsolata(
+                      color: VSCodeTheme.secondaryText,
+                      fontSize: 11,
+                      height: 1.4,
+                    ),
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
+            ),
+          ],
+        );
+      },
     );
   }
 
   Widget _buildOutputTab() {
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: VSCodeTheme.editorBackground,
-        border: Border.all(color: VSCodeTheme.border),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
-        child: SizedBox(
-          width: double.infinity,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Output header
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                decoration: BoxDecoration(
-                  color: VSCodeTheme.panelBackground,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: VSCodeTheme.border.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: SelectableText(
-                  'Application Output Log',
-                  style: GoogleFonts.inconsolata(
-                    color: VSCodeTheme.accentText,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: SizedBox(
+        width: double.infinity,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Output header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+              decoration: BoxDecoration(
+                color: VSCodeTheme.panelBackground,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: VSCodeTheme.border.withValues(alpha: 0.3),
                 ),
               ),
-
-              const SizedBox(height: 12),
-
-              // Log entries with timestamps
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(8),
-                child: SelectableText(
-                  '[${DateTime.now().toIso8601String()}] Application started\n'
-                  '[${DateTime.now().toIso8601String()}] Graphics renderer initialized\n'
-                  '[${DateTime.now().toIso8601String()}] Scene manager ready\n'
-                  '[${DateTime.now().toIso8601String()}] Communication system standby\n'
-                  '[${DateTime.now().toIso8601String()}] File manager initialized\n'
-                  '[${DateTime.now().toIso8601String()}] UI components loaded\n'
-                  '[${DateTime.now().toIso8601String()}] System ready for G-code processing\n'
-                  '\n'
-                  'Renderer Information:\n'
-                  '• Engine: Flutter Scene Lines Renderer\n'
-                  '• Hardware acceleration: Enabled\n'
-                  '• GPU shaders: Compiled successfully\n'
-                  '• Performance monitoring: Active\n'
-                  '\n'
-                  'Communication Status:\n'
-                  '• WebSocket support: Available\n'
-                  '• Network permissions: Granted\n'
-                  '• Test server: Ready (ws://localhost:8080)\n'
-                  '• GRBL protocol: Supported',
-                  style: GoogleFonts.inconsolata(
-                    color: VSCodeTheme.secondaryText,
-                    fontSize: 10,
-                    height: 1.4,
-                  ),
+              child: SelectableText(
+                'Application Output Log',
+                style: GoogleFonts.inconsolata(
+                  color: VSCodeTheme.accentText,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-            ],
-          ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Log entries with timestamps
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              child: SelectableText(
+                '[${DateTime.now().toIso8601String()}] Application started\n'
+                '[${DateTime.now().toIso8601String()}] Graphics renderer initialized\n'
+                '[${DateTime.now().toIso8601String()}] Scene manager ready\n'
+                '[${DateTime.now().toIso8601String()}] Communication system standby\n'
+                '[${DateTime.now().toIso8601String()}] File manager initialized\n'
+                '[${DateTime.now().toIso8601String()}] UI components loaded\n'
+                '[${DateTime.now().toIso8601String()}] System ready for G-code processing\n'
+                '\n'
+                'Renderer Information:\n'
+                '• Engine: Flutter Scene Lines Renderer\n'
+                '• Hardware acceleration: Enabled\n'
+                '• GPU shaders: Compiled successfully\n'
+                '• Performance monitoring: Active\n'
+                '\n'
+                'Communication Status:\n'
+                '• WebSocket support: Available\n'
+                '• Network permissions: Granted\n'
+                '• Test server: Ready (ws://localhost:8080)\n'
+                '• GRBL protocol: Supported',
+                style: GoogleFonts.inconsolata(
+                  color: VSCodeTheme.secondaryText,
+                  fontSize: 10,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

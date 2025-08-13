@@ -53,6 +53,7 @@ class MyApp extends StatelessWidget {
         BlocProvider(
           create: (context) => ProfileBloc()..add(const ProfileLoadRequested()),
         ),
+        BlocProvider(create: (context) => ProblemsBloc()),
       ],
       child: MaterialApp(
         title: 'Graphics Performance Spike',
@@ -64,25 +65,84 @@ class MyApp extends StatelessWidget {
 }
 
 /// Wrapper widget that integrates ProfileBloc with CncCommunicationBloc
-class ProfileIntegratedApp extends StatelessWidget {
+/// and monitors all BLoC states for problems
+class ProfileIntegratedApp extends StatefulWidget {
   const ProfileIntegratedApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return BlocListener<ProfileBloc, ProfileState>(
-      listener: (context, profileState) {
-        // When profile is loaded or changed, configure the CNC communication controller address
-        if (profileState is ProfileLoaded) {
-          final profile = profileState.currentProfile;
-          AppLogger.info(
-            'Profile loaded/changed: ${profile.name}, setting controller address: ${profile.controllerAddress}',
-          );
+  State<ProfileIntegratedApp> createState() => _ProfileIntegratedAppState();
+}
 
-          context.read<CncCommunicationBloc>().add(
-            CncCommunicationSetControllerAddress(profile.controllerAddress),
-          );
-        }
-      },
+class _ProfileIntegratedAppState extends State<ProfileIntegratedApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Trigger initial state analysis after the widget is built
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _triggerInitialStateAnalysis();
+    });
+  }
+
+  void _triggerInitialStateAnalysis() {
+    final profileBloc = context.read<ProfileBloc>();
+    final commBloc = context.read<CncCommunicationBloc>();
+    final fileBloc = context.read<FileManagerBloc>();
+    final problemsBloc = context.read<ProblemsBloc>();
+    
+    AppLogger.info('Triggering initial state analysis for all BLoCs');
+    
+    // Analyze current states
+    problemsBloc.add(ProfileStateAnalyzed(profileBloc.state));
+    problemsBloc.add(CncCommunicationStateAnalyzed(commBloc.state));
+    problemsBloc.add(FileManagerStateAnalyzed(fileBloc.state));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiBlocListener(
+      listeners: [
+        // Profile state integration
+        BlocListener<ProfileBloc, ProfileState>(
+          listener: (context, profileState) {
+            // When profile is loaded or changed, configure the CNC communication controller address
+            if (profileState is ProfileLoaded) {
+              final profile = profileState.currentProfile;
+              AppLogger.info(
+                'Profile loaded/changed: ${profile.name}, setting controller address: ${profile.controllerAddress}',
+              );
+
+              context.read<CncCommunicationBloc>().add(
+                CncCommunicationSetControllerAddress(profile.controllerAddress),
+              );
+            }
+            
+            // Monitor profile state for problems
+            context.read<ProblemsBloc>().add(
+              ProfileStateAnalyzed(profileState),
+            );
+          },
+        ),
+        
+        // CNC Communication state monitoring
+        BlocListener<CncCommunicationBloc, CncCommunicationState>(
+          listener: (context, commState) {
+            AppLogger.debug('CNC state changed to: ${commState.runtimeType}');
+            context.read<ProblemsBloc>().add(
+              CncCommunicationStateAnalyzed(commState),
+            );
+          },
+        ),
+        
+        // File Manager state monitoring
+        BlocListener<FileManagerBloc, FileManagerState>(
+          listener: (context, fileState) {
+            AppLogger.debug('File manager state changed');
+            context.read<ProblemsBloc>().add(
+              FileManagerStateAnalyzed(fileState),
+            );
+          },
+        ),
+      ],
       child: const GraphicsPerformanceScreen(),
     );
   }
