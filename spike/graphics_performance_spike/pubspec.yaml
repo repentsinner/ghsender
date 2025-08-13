@@ -50,6 +50,8 @@ dependencies:
   logger: ^2.4.0
   # Google Fonts package for custom fonts
   google_fonts: ^6.2.1
+  # Window management for desktop platforms
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:

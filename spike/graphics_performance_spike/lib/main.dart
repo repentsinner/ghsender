@@ -3,16 +3,37 @@ import 'package:flutter/gestures.dart';
 import 'utils/logger.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:window_manager/window_manager.dart';
 import 'renderers/flutter_scene_batch_renderer.dart';
 import 'scene/scene_manager.dart';
 import 'renderers/renderer_interface.dart';
 import 'renderers/line_style.dart';
 import 'camera_director.dart';
+import 'ui/layouts/vscode_layout.dart';
 
 enum RendererType { flutterSceneLines }
 
-void main() {
-  // Configure Google Fonts to use local assets only (no network requests)
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Configure window manager for desktop platforms
+  await windowManager.ensureInitialized();
+  
+  WindowOptions windowOptions = const WindowOptions(
+    size: Size(1400, 900),
+    minimumSize: Size(800, 600),
+    center: true,
+    backgroundColor: Colors.transparent,
+    skipTaskbar: false,
+    titleBarStyle: TitleBarStyle.normal,
+  );
+  
+  windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+  
+  // Inconsolata fonts are now loaded from local assets
   GoogleFonts.config.allowRuntimeFetching = false;
   
   runApp(const MyApp());
@@ -246,185 +267,63 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
         ? currentRenderer.actualPolygons
         : 0;
 
-    return Scaffold(
-      //appBar: AppBar(title: Text('Graphics Performance Spike - $rendererName')),
-      body: Stack(
-        children: [
-          // Active Renderer with Pan Gesture, Pinch Zoom, and Mouse Scroll
-          Listener(
-            // Mouse scroll wheel zoom
-            onPointerSignal: (event) {
-              if (event is PointerScrollEvent) {
-                // Delegate scroll zoom to CameraDirector
-                _cameraDirector.processScrollZoom(event.scrollDelta.dy);
-                setState(() {});
-              }
-            },
-            child: GestureDetector(
-              // Use scale gesture only (handles both pan and pinch)
-              onScaleStart: (details) {
-                _lastPanPosition = details.localFocalPoint;
-                _lastScale = 1.0;
-              },
-              onScaleUpdate: (details) {
-                if (_lastPanPosition != null) {
-                  final scaleDelta = (details.scale - _lastScale).abs();
-                  
-                  // If scale changed significantly, treat as zoom gesture
-                  if (scaleDelta > 0.05) {
-                    _cameraDirector.processPinchZoom(details.scale / _lastScale);
-                    _lastScale = details.scale;
-                  } else {
-                    // Otherwise treat as pan gesture
-                    final delta = details.localFocalPoint - _lastPanPosition!;
-                    _cameraDirector.processPanGesture(delta.dx, delta.dy);
-                    _lastPanPosition = details.localFocalPoint;
-                  }
-                  
-                  setState(() {});
-                }
-              },
-              onScaleEnd: (details) {
-                _lastPanPosition = null;
-                _lastScale = 1.0;
-              },
-              child: SizedBox.expand(child: _buildRendererWidget()),
-            ),
-          ),
-          // Performance Info
-          Positioned(
-            top: 16,
-            left: 16,
-            child: Opacity(
-              opacity: 0.4,
-              child: Text(
-                '''FPS: ${_fps.toStringAsFixed(2)}
-Polygons: ${(polygons / 1000).toStringAsFixed(1)}k
-Draw Calls: $drawCalls
-${_getCameraInfo()}''',
-                style: GoogleFonts.inconsolata(
-                  color: Colors.white,
-                  fontSize: 14,
-                  shadows: const [
-                    Shadow(
-                      offset: Offset(1, 1),
-                      blurRadius: 2,
-                      color: Colors.black,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          // Line Controls
-          Positioned(
-            top: 16,
-            right: 16,
-            child: Container(
-              width: 250,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white24),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Line Settings',
-                    style: GoogleFonts.inconsolata(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.normal,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Line Weight Control
-                  Text(
-                    'Weight: ${_lineWeight.toStringAsFixed(1)}',
-                    style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 12),
-                  ),
-                  Slider(
-                    value: _lineWeight,
-                    min: 0.1,
-                    max: 5.0,
-                    divisions: 49,
-                    onChanged: _updateLineWeight,
-                    activeColor: Colors.blue,
-                    inactiveColor: Colors.white30,
-                  ),
-                  const SizedBox(height: 8),
-                  // Line Smoothness Control
-                  Text(
-                    'Smoothness: ${_lineSmoothness.toStringAsFixed(2)} ${_lineSmoothness < 0.3
-                        ? '(soft)'
-                        : _lineSmoothness > 0.7
-                        ? '(sharp)'
-                        : '(medium)'}',
-                    style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 12),
-                  ),
-                  Slider(
-                    value: _lineSmoothness,
-                    min: 0.0,
-                    max: 1.0,
-                    divisions: 20,
-                    onChanged: _updateLineSmoothness,
-                    activeColor: Colors.green,
-                    inactiveColor: Colors.white30,
-                  ),
-                  const SizedBox(height: 8),
-                  // Line Opacity Control
-                  Text(
-                    'Opacity: ${_lineOpacity.toStringAsFixed(2)} ${_lineOpacity < 0.3
-                        ? '(transparent)'
-                        : _lineOpacity > 0.7
-                        ? '(solid)'
-                        : '(translucent)'}',
-                    style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 12),
-                  ),
-                  Slider(
-                    value: _lineOpacity,
-                    min: 0.0,
-                    max: 1.0,
-                    divisions: 20,
-                    onChanged: _updateLineOpacity,
-                    activeColor: Colors.orange,
-                    inactiveColor: Colors.white30,
-                  ),
-                  const SizedBox(height: 12),
-                  // Camera Animation Toggle
-                  ElevatedButton(
-                    onPressed: _toggleCameraAnimation,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _cameraDirector.isAutoMode
-                          ? Colors.orange
-                          : Colors.green,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(36),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _cameraDirector.isAutoMode ? '⏸️ ' : '▶️ ',
-                          style: GoogleFonts.inconsolata(fontSize: 16),
-                        ),
-                        Text(
-                          _cameraDirector.isAutoMode ? 'Manual' : 'Auto',
-                          style: GoogleFonts.inconsolata(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
+    // Create the graphics renderer widget with gesture controls
+    final graphicsRenderer = Listener(
+      // Mouse scroll wheel zoom
+      onPointerSignal: (event) {
+        if (event is PointerScrollEvent) {
+          // Delegate scroll zoom to CameraDirector
+          _cameraDirector.processScrollZoom(event.scrollDelta.dy);
+          setState(() {});
+        }
+      },
+      child: GestureDetector(
+        // Use scale gesture only (handles both pan and pinch)
+        onScaleStart: (details) {
+          _lastPanPosition = details.localFocalPoint;
+          _lastScale = 1.0;
+        },
+        onScaleUpdate: (details) {
+          if (_lastPanPosition != null) {
+            final scaleDelta = (details.scale - _lastScale).abs();
+            
+            // If scale changed significantly, treat as zoom gesture
+            if (scaleDelta > 0.05) {
+              _cameraDirector.processPinchZoom(details.scale / _lastScale);
+              _lastScale = details.scale;
+            } else {
+              // Otherwise treat as pan gesture
+              final delta = details.localFocalPoint - _lastPanPosition!;
+              _cameraDirector.processPanGesture(delta.dx, delta.dy);
+              _lastPanPosition = details.localFocalPoint;
+            }
+            
+            setState(() {});
+          }
+        },
+        onScaleEnd: (details) {
+          _lastPanPosition = null;
+          _lastScale = 1.0;
+        },
+        child: SizedBox.expand(child: _buildRendererWidget()),
       ),
-      // No floating action button needed since we only have one renderer
+    );
+
+    return VSCodeLayout(
+      graphicsRenderer: graphicsRenderer,
+      fps: _fps,
+      polygons: polygons,
+      drawCalls: drawCalls,
+      cameraInfo: _getCameraInfo(),
+      rendererName: _getRendererDisplayName(),
+      onLineWeightChanged: _updateLineWeight,
+      onLineSmoothnessChanged: _updateLineSmoothness,
+      onLineOpacityChanged: _updateLineOpacity,
+      onCameraToggle: _toggleCameraAnimation,
+      lineWeight: _lineWeight,
+      lineSmoothness: _lineSmoothness,
+      lineOpacity: _lineOpacity,
+      isAutoMode: _cameraDirector.isAutoMode,
     );
   }
 }
