@@ -17,7 +17,9 @@ class LineMaterial extends UnlitMaterial {
   double _lineWidth = 1.0;
   Color _color = Colors.white;
   double _opacity = 1.0;
+  double _sharpness = 0.5;
   vm.Vector2 _resolution = vm.Vector2(1024, 768); // Default resolution
+  int _depthWriteLogCount = 0; // Debug counter for depth write logging
 
   // Shader loading
   static gpu.ShaderLibrary? _shaderLibrary;
@@ -26,16 +28,21 @@ class LineMaterial extends UnlitMaterial {
 
   LineMaterial({
     double lineWidth = 1.0,
-    Color color = Colors.white,
+    Color color = Colors.green,
     double opacity = 1.0,
+    double sharpness = 0.5,
     vm.Vector2? resolution,
   }) : _lineWidth = lineWidth,
        _color = color,
        _opacity = opacity,
+       _sharpness = sharpness,
        _resolution = resolution ?? vm.Vector2(1024, 768) {
     // Set base color for UnlitMaterial (fallback when custom shader isn't available)
     // Flutter Color properties are already normalized (0.0-1.0)
     baseColorFactor = vm.Vector4(color.r, color.g, color.b, opacity);
+
+    // Repurpose vertex_color_weight to pass sharpness to fragment shader
+    vertexColorWeight = _sharpness;
 
     // Attempt to load custom shaders if not already attempted
     if (!_shaderLoadingAttempted) {
@@ -67,6 +74,14 @@ class LineMaterial extends UnlitMaterial {
     baseColorFactor = vm.Vector4(_color.r, _color.g, _color.b, _opacity);
   }
 
+  double get sharpness => _sharpness;
+  set sharpness(double value) {
+    if (_sharpness == value) return; // Avoid unnecessary updates
+    _sharpness = value.clamp(0.0, 1.0);
+    // Update vertex_color_weight to pass sharpness to fragment shader
+    vertexColorWeight = _sharpness;
+  }
+
   vm.Vector2 get resolution => _resolution;
   set resolution(vm.Vector2 value) {
     if (_resolution == value) return; // Avoid unnecessary updates
@@ -84,11 +99,13 @@ class LineMaterial extends UnlitMaterial {
     double? lineWidth,
     Color? color,
     double? opacity,
+    double? sharpness,
     vm.Vector2? resolution,
   }) {
     if (lineWidth != null) this.lineWidth = lineWidth;
     if (color != null) this.color = color;
     if (opacity != null) this.opacity = opacity;
+    if (sharpness != null) this.sharpness = sharpness;
     if (resolution != null) this.resolution = resolution;
   }
 
@@ -135,11 +152,57 @@ class LineMaterial extends UnlitMaterial {
     }
   }
 
-  // Using standard UnlitMaterial binding - no custom uniforms needed for basic line rendering
+  // Enable alpha blending for anti-aliased lines
+  @override
+  bool isOpaque() {
+    // IMPORTANT: Return true to render in opaque pass where depth writing is enabled
+    // We still get alpha blending because we override bind() to enable it manually
+    // This allows gl_FragDepth to work properly for z-order correction
+    return true; // Render in opaque pass to enable depth writing
+  }
+
+  /// Override bind() to enable depth writing for per-pixel depth testing
+  /// This allows anti-aliased lines to achieve Three.js-style depth sorting
+  @override
+  void bind(
+    gpu.RenderPass pass,
+    gpu.HostBuffer transientsBuffer,
+    Environment environment,
+  ) {
+    // Call parent bind first to handle uniforms and textures
+    super.bind(pass, transientsBuffer, environment);
+
+    // Enable alpha blending for anti-aliased lines (since we're in opaque pass)
+    pass.setColorBlendEnable(true);
+
+    // Set up proper alpha blending for anti-aliased lines
+    // Use same blending as flutter_scene's translucent pass
+    pass.setColorBlendEquation(
+      gpu.ColorBlendEquation(
+        colorBlendOperation: gpu.BlendOperation.add,
+        sourceColorBlendFactor: gpu.BlendFactor.one,
+        destinationColorBlendFactor: gpu.BlendFactor.oneMinusSourceAlpha,
+        alphaBlendOperation: gpu.BlendOperation.add,
+        sourceAlphaBlendFactor: gpu.BlendFactor.one,
+        destinationAlphaBlendFactor: gpu.BlendFactor.oneMinusSourceAlpha,
+      ),
+    );
+
+    // Keep depth writing enabled (this is the opaque pass default)
+    // This allows gl_FragDepth to work for per-pixel depth testing
+
+    // Debug: Log alpha blending and depth writing state (but throttle to avoid spam)
+    if (_depthWriteLogCount < 3) {
+      AppLogger.info(
+        'LineMaterial: Alpha blending + depth writing enabled for anti-aliased lines (call ${_depthWriteLogCount + 1})',
+      );
+      _depthWriteLogCount++;
+    }
+  }
 
   /// Convert to string for debugging
   @override
   String toString() {
-    return 'LineMaterial(lineWidth: $_lineWidth, color: $_color, opacity: $_opacity, resolution: $_resolution)';
+    return 'LineMaterial(lineWidth: $_lineWidth, color: $_color, opacity: $_opacity, sharpness: $_sharpness, resolution: $_resolution)';
   }
 }

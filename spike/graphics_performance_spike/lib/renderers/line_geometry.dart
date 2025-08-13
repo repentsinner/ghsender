@@ -112,7 +112,7 @@ class LineGeometry extends UnskinnedGeometry {
           j < 2
               ? 0.0
               : 1.0, // uv.y -> u coordinate (1 float: 0 = start, 1 = end)
-          resolution.x, resolution.y, lineWidth, 1.0, // color -> repurposed as lineInfo (resolution.x, resolution.y, lineWidth, opacity)
+          resolution.x, resolution.y, lineWidth, 1.0, // color -> repurposed as lineInfo (resolution.x, resolution.y, lineWidth, 1.0)
         ]);
       }
 

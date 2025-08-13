@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'utils/logger.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'renderers/flutter_scene_batch_renderer.dart';
 import 'scene/scene_manager.dart';
 import 'renderers/renderer_interface.dart';
 import 'renderers/line_style.dart';
+import 'camera_director.dart';
 
 enum RendererType { flutterSceneLines }
 
 void main() {
+  // Configure Google Fonts to use local assets only (no network requests)
+  GoogleFonts.config.allowRuntimeFetching = false;
+  
   runApp(const MyApp());
 }
 
@@ -40,13 +45,12 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   Ticker? _ticker;
   bool _renderersInitialized = false;
 
-  // Interactive rotation control
-  double _rotationX = 0.0;
-  double _rotationY = 0.0;
+  // Camera control system
+  late CameraDirector _cameraDirector;
   Offset? _lastPanPosition;
 
   // Current active renderer
-  RendererType _currentRenderer = RendererType.flutterSceneLines;
+  final RendererType _currentRenderer = RendererType.flutterSceneLines;
 
   // Renderers implementing the common interface
   late Renderer _flutterSceneRenderer;
@@ -55,11 +59,15 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
 
   // Line rendering controls
   double _lineWeight = 1.0; // Default line weight
-  double _lineSmoothness = 0.5; // Default smoothness (0.0 = very smooth, 1.0 = very sharp)
+  double _lineSmoothness =
+      0.5; // Default smoothness (0.0 = very smooth, 1.0 = very sharp)
+  double _lineOpacity =
+      0.5; // Default opacity (0.0 = transparent, 1.0 = opaque)
 
   @override
   void initState() {
     super.initState();
+    _cameraDirector = CameraDirector();
     _initializeBothRenderers();
   }
 
@@ -75,6 +83,10 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     final flutterSceneSuccess = await _flutterSceneRenderer.initialize();
     if (flutterSceneSuccess) {
       await _flutterSceneRenderer.setupScene(SceneManager.instance.sceneData);
+
+      // Initialize CameraDirector with scene data
+      final renderer = _flutterSceneRenderer as FlutterSceneBatchRenderer;
+      _cameraDirector.initializeFromSceneData(renderer.getOrbitTarget());
     }
     AppLogger.info('FlutterScene renderer initialized: $flutterSceneSuccess');
 
@@ -88,8 +100,14 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
       final now = DateTime.now();
       final elapsed = now.difference(_lastFrameTime).inMilliseconds;
 
-      // Update active renderer with current rotation
-      _flutterSceneRenderer.updateRotation(_rotationX, _rotationY);
+      // Get complete camera state from CameraDirector
+      final cameraState = _cameraDirector.getCameraState(now);
+
+      // Update renderer with complete camera state
+      if (_flutterSceneRenderer is FlutterSceneBatchRenderer) {
+        final renderer = _flutterSceneRenderer as FlutterSceneBatchRenderer;
+        renderer.setCameraState(cameraState.position, cameraState.target);
+      }
 
       setState(() {});
 
@@ -121,10 +139,18 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     return 'FLUTTER_SCENE LINES RENDERER';
   }
 
-  String _getRendererDetails() {
-    return 'flutter_scene_lines';
-  }
+  String _getCameraInfo() {
+    if (!_renderersInitialized || !_flutterSceneRenderer.initialized) {
+      return '';
+    }
 
+    // Get camera info from CameraDirector
+    final cameraState = _cameraDirector.getCameraState(DateTime.now());
+    final modeIcon = _cameraDirector.isAutoMode ? '🎬' : '🕹️';
+
+    return '''
+🎥 $modeIcon 🧭: ${cameraState.azimuthDegrees.toStringAsFixed(1)}° 📐: ${cameraState.elevationDegrees.toStringAsFixed(1)}° 📏: ${cameraState.distance.toStringAsFixed(1)}''';
+  }
 
   Widget _buildRendererWidget() {
     if (!_renderersInitialized) {
@@ -138,12 +164,11 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     return CustomPaint(
       painter: FlutterSceneBatchPainter(
         renderer: _flutterSceneRenderer as FlutterSceneBatchRenderer,
-        rotationX: _rotationX,
-        rotationY: _rotationY,
+        rotationX: 0.0, // Not used - renderer manages rotation internally
+        rotationY: 0.0, // Not used - renderer manages rotation internally
       ),
     );
   }
-
 
   void _updateLineWeight(double weight) {
     setState(() {
@@ -158,7 +183,17 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
       _lineSmoothness = smoothness;
     });
     _refreshRenderers();
-    AppLogger.info('Line smoothness updated to: ${smoothness.toStringAsFixed(2)}');
+    AppLogger.info(
+      'Line smoothness updated to: ${smoothness.toStringAsFixed(2)}',
+    );
+  }
+
+  void _updateLineOpacity(double opacity) {
+    setState(() {
+      _lineOpacity = opacity;
+    });
+    _refreshRenderers();
+    AppLogger.info('Line opacity updated to: ${opacity.toStringAsFixed(2)}');
   }
 
   LineStyle _getCurrentLineStyle() {
@@ -166,9 +201,17 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
       color: Colors.white,
       width: _lineWeight,
       sharpness: _lineSmoothness,
-      opacity: 1.0,
+      opacity: _lineOpacity,
       smoothed: true,
     );
+  }
+
+  /// Toggle camera animation mode through CameraDirector
+  void _toggleCameraAnimation() {
+    setState(() {
+      _cameraDirector.toggleMode();
+      AppLogger.info('Camera mode toggled to: ${_cameraDirector.currentMode}');
+    });
   }
 
   void _refreshRenderers() async {
@@ -176,13 +219,19 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
 
     // Update line styles in renderer
     final currentStyle = _getCurrentLineStyle();
-    
+
     if (_flutterSceneRenderer is FlutterSceneBatchRenderer) {
-      (_flutterSceneRenderer as FlutterSceneBatchRenderer).updateLineStyle(currentStyle);
+      (_flutterSceneRenderer as FlutterSceneBatchRenderer).updateLineStyle(
+        currentStyle,
+      );
     }
 
-    // Refresh renderer with updated line styles
-    await _flutterSceneRenderer.setupScene(SceneManager.instance.sceneData);
+    // Refresh renderer with updated line styles and pass current opacity
+    await (_flutterSceneRenderer as FlutterSceneBatchRenderer)
+        .setupSceneWithOpacity(
+          SceneManager.instance.sceneData,
+          currentStyle.opacity,
+        );
   }
 
   @override
@@ -194,11 +243,9 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     final polygons = _renderersInitialized && currentRenderer != null
         ? currentRenderer.actualPolygons
         : 0;
-    final rendererName = _getRendererDisplayName();
-    final rendererDetails = _getRendererDetails();
 
     return Scaffold(
-      appBar: AppBar(title: Text('Graphics Performance Spike - $rendererName')),
+      //appBar: AppBar(title: Text('Graphics Performance Spike - $rendererName')),
       body: Stack(
         children: [
           // Active Renderer with Pan Gesture
@@ -209,9 +256,27 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
             onPanUpdate: (details) {
               if (_lastPanPosition != null) {
                 final delta = details.localPosition - _lastPanPosition!;
+
+                // Get current camera position from CameraDirector (not renderer to avoid feedback loop)
+                final currentTime = DateTime.now();
+                final currentCameraPos = _cameraDirector.getCameraPosition(
+                  currentTime,
+                );
+
+                // Apply delta to current position
+                final newRotationX =
+                    currentCameraPos.rotationX + (delta.dy * 0.01);
+                final newRotationY =
+                    currentCameraPos.rotationY + (delta.dx * 0.01);
+
+                // Update CameraDirector with new manual position
+                _cameraDirector.updateManualPosition(
+                  newRotationX,
+                  newRotationY,
+                );
+                _cameraDirector.updateManualDistance(currentCameraPos.distance);
+
                 setState(() {
-                  _rotationY += delta.dx * 0.01; // Horizontal drag = Y rotation
-                  _rotationX += delta.dy * 0.01; // Vertical drag = X rotation
                   _lastPanPosition = details.localPosition;
                 });
               }
@@ -225,24 +290,24 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
           Positioned(
             top: 16,
             left: 16,
-            child: Text(
-              '''$rendererName
-FPS: ${_fps.toStringAsFixed(2)}
+            child: Opacity(
+              opacity: 0.4,
+              child: Text(
+                '''FPS: ${_fps.toStringAsFixed(2)}
 Polygons: ${(polygons / 1000).toStringAsFixed(1)}k
 Draw Calls: $drawCalls
-$rendererDetails
-
-Click and drag to rotate the scene''',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                shadows: [
-                  Shadow(
-                    offset: Offset(1, 1),
-                    blurRadius: 2,
-                    color: Colors.black,
-                  ),
-                ],
+${_getCameraInfo()}''',
+                style: GoogleFonts.inconsolata(
+                  color: Colors.white,
+                  fontSize: 14,
+                  shadows: const [
+                    Shadow(
+                      offset: Offset(1, 1),
+                      blurRadius: 2,
+                      color: Colors.black,
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -262,19 +327,19 @@ Click and drag to rotate the scene''',
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
+                  Text(
                     'Line Settings',
-                    style: TextStyle(
+                    style: GoogleFonts.inconsolata(
                       color: Colors.white,
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.normal,
                     ),
                   ),
                   const SizedBox(height: 12),
                   // Line Weight Control
                   Text(
                     'Weight: ${_lineWeight.toStringAsFixed(1)}',
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 12),
                   ),
                   Slider(
                     value: _lineWeight,
@@ -288,8 +353,12 @@ Click and drag to rotate the scene''',
                   const SizedBox(height: 8),
                   // Line Smoothness Control
                   Text(
-                    'Smoothness: ${_lineSmoothness.toStringAsFixed(2)} ${_lineSmoothness < 0.3 ? '(soft)' : _lineSmoothness > 0.7 ? '(sharp)' : '(medium)'}',
-                    style: const TextStyle(color: Colors.white, fontSize: 12),
+                    'Smoothness: ${_lineSmoothness.toStringAsFixed(2)} ${_lineSmoothness < 0.3
+                        ? '(soft)'
+                        : _lineSmoothness > 0.7
+                        ? '(sharp)'
+                        : '(medium)'}',
+                    style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 12),
                   ),
                   Slider(
                     value: _lineSmoothness,
@@ -299,6 +368,50 @@ Click and drag to rotate the scene''',
                     onChanged: _updateLineSmoothness,
                     activeColor: Colors.green,
                     inactiveColor: Colors.white30,
+                  ),
+                  const SizedBox(height: 8),
+                  // Line Opacity Control
+                  Text(
+                    'Opacity: ${_lineOpacity.toStringAsFixed(2)} ${_lineOpacity < 0.3
+                        ? '(transparent)'
+                        : _lineOpacity > 0.7
+                        ? '(solid)'
+                        : '(translucent)'}',
+                    style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 12),
+                  ),
+                  Slider(
+                    value: _lineOpacity,
+                    min: 0.0,
+                    max: 1.0,
+                    divisions: 20,
+                    onChanged: _updateLineOpacity,
+                    activeColor: Colors.orange,
+                    inactiveColor: Colors.white30,
+                  ),
+                  const SizedBox(height: 12),
+                  // Camera Animation Toggle
+                  ElevatedButton(
+                    onPressed: _toggleCameraAnimation,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _cameraDirector.isAutoMode
+                          ? Colors.orange
+                          : Colors.green,
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(36),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _cameraDirector.isAutoMode ? '⏸️ ' : '▶️ ',
+                          style: GoogleFonts.inconsolata(fontSize: 16),
+                        ),
+                        Text(
+                          _cameraDirector.isAutoMode ? 'Manual' : 'Auto',
+                          style: GoogleFonts.inconsolata(),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -310,7 +423,6 @@ Click and drag to rotate the scene''',
     );
   }
 }
-
 
 class FlutterSceneBatchPainter extends CustomPainter {
   final FlutterSceneBatchRenderer? renderer;
@@ -334,8 +446,8 @@ class FlutterSceneBatchPainter extends CustomPainter {
       return;
     }
 
-    // Use flutter_scene rendering with batched MeshPrimitives
-    renderer!.render(canvas, size, rotationX, rotationY);
+    // Use flutter_scene rendering - rotation is already managed by ticker updates
+    renderer!.render(canvas, size, 0.0, 0.0);
   }
 
   @override

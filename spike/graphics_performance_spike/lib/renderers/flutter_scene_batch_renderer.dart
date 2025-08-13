@@ -1,12 +1,21 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../utils/logger.dart';
 import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart' as vm;
+import 'package:google_fonts/google_fonts.dart';
 import '../scene/scene_manager.dart';
 import 'renderer_interface.dart';
 import 'line_mesh_factory.dart';
 import 'line_style.dart';
+
+/// Custom UnlitMaterial that supports transparency
+class TransparentUnlitMaterial extends UnlitMaterial {
+  @override
+  bool isOpaque() {
+    // Enable alpha blending for transparent cubes
+    return baseColorFactor.w >= 1.0; // Only opaque if alpha is 1.0
+  }
+}
 
 class FlutterSceneBatchRenderer implements Renderer {
   Scene scene = Scene();
@@ -30,14 +39,13 @@ class FlutterSceneBatchRenderer implements Renderer {
   // Dynamic line style settings
   LineStyle _currentLineStyle = LineStyles.technical;
 
-  // Interactive rotation state (now used for camera orbit)
-  double _rotationX = 0.0;
-  double _rotationY = 0.0;
-  
-  // Camera orbit parameters
-  double _orbitRadius = 100.0; // Distance from target
-  vm.Vector3 _orbitTarget = vm.Vector3.zero(); // Point the camera orbits around
-  
+  // Public getters for camera information (for UI display)
+  double get cameraAzimuth => 0.0; // Will be provided by CameraDirector
+  double get cameraElevation => 0.0; // Will be provided by CameraDirector  
+  double get cameraDistance => 0.0; // Will be provided by CameraDirector
+  vm.Vector3 get cameraTarget => camera.target;
+  vm.Vector3 get cameraPosition => camera.position;
+
   // Viewport resolution tracking for pixel-perfect line rendering
   Size? _lastViewportSize;
 
@@ -62,6 +70,15 @@ class FlutterSceneBatchRenderer implements Renderer {
 
   @override
   Future<void> setupScene(SceneData sceneData) async {
+    // Default implementation - use 0.5 opacity for backwards compatibility
+    await setupSceneWithOpacity(sceneData, 0.5);
+  }
+
+  /// Setup scene with dynamic opacity
+  Future<void> setupSceneWithOpacity(
+    SceneData sceneData,
+    double opacity,
+  ) async {
     _sceneData = sceneData;
 
     // Clear any existing scene objects
@@ -85,8 +102,8 @@ class FlutterSceneBatchRenderer implements Renderer {
     // Draw calls: 1 for all lines
     _actualDrawCalls = lineObjects.isNotEmpty ? 1 : 0;
 
-    // Setup camera positioning from scene data
-    _setupCamera();
+    // Initial camera setup - will be overridden by CameraDirector
+    _setupInitialCamera();
 
     _sceneInitialized = true;
     AppLogger.info(
@@ -100,42 +117,20 @@ class FlutterSceneBatchRenderer implements Renderer {
 
   @override
   void updateRotation(double rotationX, double rotationY) {
-    _rotationX = rotationX;
-    _rotationY = rotationY;
-
-    if (!_sceneInitialized) return;
-
-    // Update camera position using spherical coordinates (orbit around target)
-    _updateCameraOrbit();
+    // Legacy method - no longer used, camera state comes from CameraDirector
+    // This is kept for interface compatibility but does nothing
   }
-  
-  /// Calculate and update camera position to orbit around the target point
-  void _updateCameraOrbit() {
-    // Convert rotation inputs to spherical coordinates for Z-up system
-    // rotationY controls horizontal rotation around Z-axis (azimuth)
-    final azimuth = _rotationY;  // Horizontal rotation around Z axis
+
+  /// Set camera position and target directly from CameraDirector
+  void setCameraState(vm.Vector3 position, vm.Vector3 target) {
+    if (!_sceneInitialized) return;
     
-    // rotationX controls elevation angle from XY plane
-    // Invert Y-axis: positive mouse Y = look up, negative = look down
-    // Constrain elevation to prevent camera from going underground or flipping
-    final elevation = math.max(-math.pi * 0.4, math.min(math.pi * 0.4, _rotationX));
+    camera.position = position;
+    camera.target = target;
     
-    // Convert to spherical coordinates in Z-up system:
-    // - azimuth: rotation around Z axis (0 = +X direction)  
-    // - elevation: angle from XY plane (positive = above horizon)
-    final x = _orbitRadius * math.cos(elevation) * math.cos(azimuth);
-    final y = _orbitRadius * math.cos(elevation) * math.sin(azimuth);  
-    final z = _orbitRadius * math.sin(elevation);
-    
-    // Set camera position relative to orbit target
-    camera.position = _orbitTarget + vm.Vector3(x, y, z);
-    
-    // Always look at the target point
-    camera.target = _orbitTarget;
-    
-    // Ensure Z-up orientation is maintained during orbit
+    // Ensure Z-up orientation is maintained
     try {
-      (camera as dynamic).up = vm.Vector3(0, 0, 1);  // Z-up
+      (camera as dynamic).up = vm.Vector3(0, 0, 1); // Z-up
     } catch (e) {
       // Silently ignore if up vector can't be set
     }
@@ -143,14 +138,16 @@ class FlutterSceneBatchRenderer implements Renderer {
 
   @override
   void render(Canvas canvas, Size size, double rotationX, double rotationY) {
-    // Update rotation state
-    updateRotation(rotationX, rotationY);
+    // Camera state is now managed by CameraDirector and set via setCameraState()
+    // rotationX and rotationY parameters are ignored
     
     // Update resolution for pixel-perfect line rendering if viewport size changed
-    if (_sceneData != null && (size.width != _lastViewportSize?.width || size.height != _lastViewportSize?.height)) {
+    if (_sceneData != null &&
+        (size.width != _lastViewportSize?.width ||
+            size.height != _lastViewportSize?.height)) {
       _updateViewportResolution(size);
     }
-    
+
     if (!_sceneInitialized) return;
 
     // Clear the canvas with black background to match GPU renderer
@@ -169,54 +166,60 @@ class FlutterSceneBatchRenderer implements Renderer {
   @override
   bool get initialized => _initialized;
 
-  void _setupCamera() {
+  void _setupInitialCamera() {
     if (_sceneData == null) return;
 
-    // Initialize orbit parameters from scene data
+    // Set initial camera position and target from scene data
+    // This will be overridden by CameraDirector
     final initialCameraPos = vm.Vector3(
       _sceneData!.camera.position.x,
       _sceneData!.camera.position.y,
       _sceneData!.camera.position.z,
     );
-    _orbitTarget = vm.Vector3(
+    final initialTarget = vm.Vector3(
       _sceneData!.camera.target.x,
       _sceneData!.camera.target.y,
       _sceneData!.camera.target.z,
     );
-    
-    // Calculate initial orbit radius from camera to target distance
-    _orbitRadius = (initialCameraPos - _orbitTarget).length;
-    
-    // Set initial camera position and target
+
     camera.position = initialCameraPos;
-    camera.target = _orbitTarget;
-    
+    camera.target = initialTarget;
+
     // Explicitly set Z-up orientation for CNC coordinate system
-    // This should ensure Z points up regardless of Flutter Scene's default
-    final upVector = vm.Vector3(0, 0, 1);  // Z-up
+    final upVector = vm.Vector3(0, 0, 1); // Z-up
     try {
-      // Try to set up vector if the property exists
       (camera as dynamic).up = upVector;
     } catch (e) {
       AppLogger.warning('Camera up vector not settable: $e');
     }
-    
-    AppLogger.info('Camera orbit initialized: radius=${_orbitRadius.toStringAsFixed(1)}, target=$_orbitTarget');
+
+    AppLogger.info('Initial camera setup: position=$initialCameraPos, target=$initialTarget');
+  }
+  
+  /// Get the orbit target for CameraDirector initialization
+  vm.Vector3 getOrbitTarget() {
+    if (_sceneData == null) return vm.Vector3.zero();
+    return vm.Vector3(
+      _sceneData!.camera.target.x,
+      _sceneData!.camera.target.y,
+      _sceneData!.camera.target.z,
+    );
   }
 
   /// Update viewport resolution for pixel-perfect line rendering when window size changes
   void _updateViewportResolution(Size newSize) {
     _lastViewportSize = newSize;
-    final newResolution = vm.Vector2(newSize.width, newSize.height);
-    
+
     // Update all existing line meshes with new resolution
     // This requires regenerating the geometry since resolution is baked into vertex data
     if (_sceneData != null) {
       // Regenerate scene with new resolution
       setupScene(_sceneData!);
     }
-    
-    AppLogger.info('Viewport resolution updated: ${newSize.width.toInt()}x${newSize.height.toInt()}');
+
+    AppLogger.info(
+      'Viewport resolution updated: ${newSize.width.toInt()}x${newSize.height.toInt()}',
+    );
   }
 
   @override
@@ -224,10 +227,10 @@ class FlutterSceneBatchRenderer implements Renderer {
     // FlutterScene renderer uses CustomPaint, not its own widget
     return Container(
       color: Colors.black,
-      child: const Center(
+      child: Center(
         child: Text(
           'FlutterScene Renderer uses CustomPaint',
-          style: TextStyle(color: Colors.white),
+          style: GoogleFonts.inconsolata(color: Colors.white),
         ),
       ),
     );
@@ -248,7 +251,7 @@ class FlutterSceneBatchRenderer implements Renderer {
       );
 
       // Get current viewport resolution for pixel-perfect line rendering
-      final currentResolution = _lastViewportSize != null 
+      final currentResolution = _lastViewportSize != null
           ? vm.Vector2(_lastViewportSize!.width, _lastViewportSize!.height)
           : vm.Vector2(1024, 768); // Default resolution
 
@@ -260,6 +263,8 @@ class FlutterSceneBatchRenderer implements Renderer {
           lighting: _sceneData!.lighting,
         ),
         lineWidth: _currentLineStyle.width,
+        opacity: _currentLineStyle.opacity,
+        sharpness: _currentLineStyle.sharpness,
         resolution: currentResolution,
         // Don't override individual line colors - let each line use its own color
       );

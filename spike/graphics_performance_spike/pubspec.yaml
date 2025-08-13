@@ -48,6 +48,8 @@ dependencies:
   vector_math: ^2.1.4
   # Logging framework
   logger: ^2.4.0
+  # Google Fonts package for custom fonts
+  google_fonts: ^6.2.1
 
 dev_dependencies:
   flutter_test:
@@ -78,6 +80,7 @@ flutter:
   assets:
     - build/shaderbundles/
     - assets/
+    - assets/fonts/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
