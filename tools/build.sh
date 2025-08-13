@@ -373,6 +373,51 @@ main() {
                 exit 1
             fi
             ;;
+        "test-unit")
+            local project=${2:-""}
+            if [[ -z "$project" ]]; then
+                print_error "Please specify project: communication-spike, graphics_performance_spike, state_management_spike"
+                exit 1
+            fi
+            check_flutter
+            if [[ -d "spike/$project" ]]; then
+                print_status "Running unit tests for $project..."
+                (cd "spike/$project" && flutter test test/unit/ --timeout=60s)
+            else
+                print_error "Project spike/$project not found"
+                exit 1
+            fi
+            ;;
+        "test-widget")
+            local project=${2:-""}
+            if [[ -z "$project" ]]; then
+                print_error "Please specify project: communication-spike, graphics_performance_spike, state_management_spike"
+                exit 1
+            fi
+            check_flutter
+            if [[ -d "spike/$project" ]]; then
+                print_status "Running widget tests for $project..."
+                (cd "spike/$project" && flutter test test/widget/ --timeout=60s)
+            else
+                print_error "Project spike/$project not found"
+                exit 1
+            fi
+            ;;
+        "test-integration")
+            local project=${2:-""}
+            if [[ -z "$project" ]]; then
+                print_error "Please specify project: communication-spike, graphics_performance_spike, state_management_spike"
+                exit 1
+            fi
+            check_flutter
+            if [[ -d "spike/$project" ]]; then
+                print_status "Running integration tests for $project..."
+                (cd "spike/$project" && flutter test integration_test/ --timeout=120s)
+            else
+                print_error "Project spike/$project not found"
+                exit 1
+            fi
+            ;;
         "build")
             local platform=${2:-""}
             if [[ -z "$platform" ]]; then
@@ -459,7 +504,10 @@ main() {
             echo "  clean                    - Clean build artifacts for all projects"
             echo
             echo "🎯 Single Project Commands:"
-            echo "  test-single <project>              - Test specific project"
+            echo "  test-single <project>              - Test specific project (all tests)"
+            echo "  test-unit <project>                - Run unit tests only for specific project"
+            echo "  test-widget <project>              - Run widget tests only for specific project"  
+            echo "  test-integration <project>         - Run integration tests only for specific project"
             echo "  build-single <project> <platform>  - Build specific project for platform"
             echo
             echo "🔧 Shader/Native Assets Diagnostics:"

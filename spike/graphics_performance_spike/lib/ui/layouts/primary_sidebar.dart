@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../themes/vscode_theme.dart';
 import 'vscode_layout.dart';
 import '../widgets/sidebars/session_initialization.dart';
+import '../widgets/sidebars/files_and_jobs.dart';
 import '../widgets/sidebars/graphics.dart';
 import '../widgets/sidebars/renderer.dart';
 import '../widgets/sidebars/performance.dart';
@@ -76,6 +77,10 @@ class PrimarySidebar extends StatelessWidget {
         title = 'Session Initialization';
         icon = Icons.power_settings_new;
         break;
+      case ActivitySection.filesAndJobs:
+        title = 'Files & Jobs';
+        icon = Icons.description;
+        break;
       case ActivitySection.graphics:
         title = 'Graphics';
         icon = Icons.palette;
@@ -125,6 +130,8 @@ class PrimarySidebar extends StatelessWidget {
     switch (activeSection) {
       case ActivitySection.sessionInitialization:
         return const SessionInitializationSection();
+      case ActivitySection.filesAndJobs:
+        return const FilesAndJobsSection();
       case ActivitySection.graphics:
         return GraphicsSection(
           cameraInfo: cameraInfo,

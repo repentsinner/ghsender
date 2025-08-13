@@ -11,6 +11,7 @@ import 'renderers/line_style.dart';
 import 'camera_director.dart';
 import 'ui/layouts/vscode_layout.dart';
 import 'bloc/bloc_exports.dart';
+import 'dart:async';
 
 enum RendererType { flutterSceneLines }
 
@@ -45,8 +46,11 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => CncConnectionBloc(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (context) => CncConnectionBloc()),
+        BlocProvider(create: (context) => FileManagerBloc()),
+      ],
       child: MaterialApp(
         title: 'Graphics Performance Spike',
         theme: ThemeData(primarySwatch: Colors.blue),
@@ -75,6 +79,9 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   late CameraDirector _cameraDirector;
   Offset? _lastPanPosition;
   double _lastScale = 1.0;
+
+  // Scene update subscription
+  StreamSubscription<SceneData?>? _sceneUpdateSubscription;
 
   // Current active renderer
   final RendererType _currentRenderer = RendererType.flutterSceneLines;
@@ -108,14 +115,20 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     // Initialize renderer
     _flutterSceneRenderer = FlutterSceneBatchRenderer();
     final flutterSceneSuccess = await _flutterSceneRenderer.initialize();
-    if (flutterSceneSuccess) {
-      await _flutterSceneRenderer.setupScene(SceneManager.instance.sceneData);
+    if (flutterSceneSuccess && SceneManager.instance.sceneData != null) {
+      await _flutterSceneRenderer.setupScene(SceneManager.instance.sceneData!);
 
       // Initialize CameraDirector with scene data
       final renderer = _flutterSceneRenderer as FlutterSceneBatchRenderer;
       _cameraDirector.initializeFromSceneData(renderer.getOrbitTarget());
     }
     AppLogger.info('FlutterScene renderer initialized: $flutterSceneSuccess');
+
+    // Set up scene update subscription
+    _sceneUpdateSubscription = SceneManager.instance.sceneUpdates.listen(
+      _onSceneUpdated,
+    );
+    AppLogger.info('Scene update listener established');
 
     _renderersInitialized = true;
     AppLogger.info(
@@ -148,9 +161,39 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     _ticker?.start();
   }
 
+  /// Handle scene updates from SceneManager
+  void _onSceneUpdated(SceneData? newSceneData) async {
+    if (!_renderersInitialized || newSceneData == null) {
+      AppLogger.info(
+        'Ignoring scene update - renderer not ready or no scene data',
+      );
+      return;
+    }
+
+    AppLogger.info('Scene updated, refreshing renderer');
+
+    try {
+      // Update the renderer with new scene data
+      await (_flutterSceneRenderer as FlutterSceneBatchRenderer)
+          .setupSceneWithOpacity(newSceneData, LineStyles.technical.opacity);
+
+      // Update camera if needed
+      final renderer = _flutterSceneRenderer as FlutterSceneBatchRenderer;
+      _cameraDirector.initializeFromSceneData(renderer.getOrbitTarget());
+
+      AppLogger.info('Renderer updated with new scene data');
+
+      // Trigger a rebuild
+      setState(() {});
+    } catch (e) {
+      AppLogger.error('Failed to update renderer with new scene data', e);
+    }
+  }
+
   @override
   void dispose() {
     _ticker?.dispose();
+    _sceneUpdateSubscription?.cancel();
     if (_renderersInitialized) {
       _flutterSceneRenderer.dispose();
     }
@@ -250,11 +293,13 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
     }
 
     // Refresh renderer with updated line styles and pass current opacity
-    await (_flutterSceneRenderer as FlutterSceneBatchRenderer)
-        .setupSceneWithOpacity(
-          SceneManager.instance.sceneData,
-          currentStyle.opacity,
-        );
+    if (SceneManager.instance.sceneData != null) {
+      await (_flutterSceneRenderer as FlutterSceneBatchRenderer)
+          .setupSceneWithOpacity(
+            SceneManager.instance.sceneData!,
+            currentStyle.opacity,
+          );
+    }
   }
 
   @override

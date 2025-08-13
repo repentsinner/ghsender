@@ -1,0 +1,9 @@
+; Arc movement test fixture
+G90 G21
+G0 X0.0 Y0.0 Z1.0
+G1 Z-1.0 F300
+G1 X5.0 Y0.0 F1000
+G2 X10.0 Y5.0 I0.0 J5.0
+G3 X5.0 Y10.0 I-5.0 J0.0
+G1 X0.0 Y10.0
+G0 Z1.0

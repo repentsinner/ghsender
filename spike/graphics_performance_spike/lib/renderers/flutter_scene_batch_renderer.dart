@@ -41,7 +41,7 @@ class FlutterSceneBatchRenderer implements Renderer {
 
   // Public getters for camera information (for UI display)
   double get cameraAzimuth => 0.0; // Will be provided by CameraDirector
-  double get cameraElevation => 0.0; // Will be provided by CameraDirector  
+  double get cameraElevation => 0.0; // Will be provided by CameraDirector
   double get cameraDistance => 0.0; // Will be provided by CameraDirector
   vm.Vector3 get cameraTarget => camera.target;
   vm.Vector3 get cameraPosition => camera.position;
@@ -124,10 +124,10 @@ class FlutterSceneBatchRenderer implements Renderer {
   /// Set camera position and target directly from CameraDirector
   void setCameraState(vm.Vector3 position, vm.Vector3 target) {
     if (!_sceneInitialized) return;
-    
+
     camera.position = position;
     camera.target = target;
-    
+
     // Ensure Z-up orientation is maintained
     try {
       (camera as dynamic).up = vm.Vector3(0, 0, 1); // Z-up
@@ -140,7 +140,7 @@ class FlutterSceneBatchRenderer implements Renderer {
   void render(Canvas canvas, Size size, double rotationX, double rotationY) {
     // Camera state is now managed by CameraDirector and set via setCameraState()
     // rotationX and rotationY parameters are ignored
-    
+
     // Update resolution for pixel-perfect line rendering if viewport size changed
     if (_sceneData != null &&
         (size.width != _lastViewportSize?.width ||
@@ -153,7 +153,7 @@ class FlutterSceneBatchRenderer implements Renderer {
     // Clear the canvas with black background to match GPU renderer
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
-      Paint()..color = Colors.black,
+      Paint()..color = const Color.fromARGB(255, 26, 26, 26),
     );
 
     scene.render(camera, canvas, viewport: Offset.zero & size);
@@ -193,9 +193,11 @@ class FlutterSceneBatchRenderer implements Renderer {
       AppLogger.warning('Camera up vector not settable: $e');
     }
 
-    AppLogger.info('Initial camera setup: position=$initialCameraPos, target=$initialTarget');
+    AppLogger.info(
+      'Initial camera setup: position=$initialCameraPos, target=$initialTarget',
+    );
   }
-  
+
   /// Get the orbit target for CameraDirector initialization
   vm.Vector3 getOrbitTarget() {
     if (_sceneData == null) return vm.Vector3.zero();

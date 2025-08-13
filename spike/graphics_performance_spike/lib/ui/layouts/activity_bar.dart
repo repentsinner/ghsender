@@ -37,6 +37,11 @@ class _ActivityBarState extends State<ActivityBar> {
                   ActivitySection.sessionInitialization,
                 ),
                 _buildActivityIcon(
+                  Icons.description,
+                  'Files & Jobs',
+                  ActivitySection.filesAndJobs,
+                ),
+                _buildActivityIcon(
                   Icons.palette,
                   'Graphics',
                   ActivitySection.graphics,

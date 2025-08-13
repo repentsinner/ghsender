@@ -6,16 +6,27 @@ for performance testing of 3D rendering
 import math
 import random
 
+def get_random_spindle_speed():
+    """Generate a random spindle speed between 15000 and 24000 RPM"""
+    return random.randint(15000, 24000)
+
 def write_header(f):
     f.write("; Complex CNC Router Job - 10K Operations Performance Test\n")
     f.write("; Generated for graphics rendering performance testing\n")
-    f.write("; Work Area: 200x200mm\n\n")
-    f.write("G17 G21 G90 G64 P0.025 M3 S18000\n")
+    f.write("; Work Area: 200x200mm\n")
+    f.write("; Includes multiple toolchanges and spindle speed variations\n\n")
+    f.write("G17 G21 G90 G64 P0.025\n")
+    f.write("G0 Z25.000\n")
+    f.write("T1 M6  ; Load Tool 1 - 6mm End Mill\n")
     f.write("G0 Z10.000\n\n")
 
 def generate_spiral_pattern(f, center_x, center_y, radius, turns, operations_count):
     """Generate a spiral pattern with many operations"""
+    spindle_speed = get_random_spindle_speed()
     f.write(f"; ===== SPIRAL PATTERN - {operations_count} operations =====\n")
+    f.write(f"M3 S{spindle_speed}  ; Start spindle at {spindle_speed} RPM\n")
+    f.write("G4 P2.0  ; Wait 2 seconds for spindle to reach speed\n")
+    
     angle_step = (turns * 2 * math.pi) / operations_count
     radius_step = radius / operations_count
     
@@ -32,11 +43,16 @@ def generate_spiral_pattern(f, center_x, center_y, radius, turns, operations_cou
         else:
             f.write(f"G1 X{x:.3f} Y{y:.3f} F1000\n")
     
-    f.write("G0 Z10.000\n\n")
+    f.write("G0 Z25.000\n")
+    f.write("M5  ; Stop spindle\n\n")
 
 def generate_grid_pattern(f, start_x, start_y, size, count, operations_count):
     """Generate a grid pattern with arcs and lines"""
+    spindle_speed = get_random_spindle_speed()
     f.write(f"; ===== GRID PATTERN - {operations_count} operations =====\n")
+    f.write(f"M3 S{spindle_speed}  ; Start spindle at {spindle_speed} RPM\n")
+    f.write("G4 P2.0  ; Wait 2 seconds for spindle to reach speed\n")
+    
     step = size / count
     
     op_count = 0
@@ -90,17 +106,25 @@ def generate_grid_pattern(f, start_x, start_y, size, count, operations_count):
             if op_count >= operations_count:
                 break
     
-    f.write("G0 Z10.000\n\n")
+    f.write("G0 Z25.000\n")
+    f.write("M5  ; Stop spindle\n\n")
 
 def generate_text_engraving(f, text, start_x, start_y, char_size, operations_count):
     """Generate text engraving with many small line segments"""
+    spindle_speed = get_random_spindle_speed()
     f.write(f"; ===== TEXT ENGRAVING '{text}' - {operations_count} operations =====\n")
+    f.write(f"M3 S{spindle_speed}  ; Start spindle at {spindle_speed} RPM\n")
+    f.write("G4 P2.0  ; Wait 2 seconds for spindle to reach speed\n")
     
-    # Simple character patterns (very basic)
+    # Simple character patterns (flipped Y coordinates to read correctly from top)
     char_patterns = {
-        'C': [(0,1), (0,0.8), (0,0.6), (0,0.4), (0,0.2), (0,0), (0.2,0), (0.4,0), (0.4,0.2), (0.2,1), (0.4,1), (0.4,0.8)],
-        'N': [(0,0), (0,1), (0.4,0), (0.4,1)],
-        'G': [(0.4,0.8), (0.4,1), (0.2,1), (0,0.8), (0,0.2), (0,0), (0.2,0), (0.4,0), (0.4,0.4), (0.2,0.4)]
+        'g': [(0.4,0.4), (0.4,0.2), (0.2,0.2), (0,0.4), (0,0.6), (0,0.8), (0.2,1), (0.4,1), (0.4,0.8), (0.4,1.2), (0.2,1.2), (0,1.2)],  # lowercase g with descender
+        'h': [(0,1), (0,0), (0,0.5), (0.2,0.5), (0.4,0.5), (0.4,1)],  # lowercase h
+        's': [(0.4,0.2), (0.2,0.2), (0,0.4), (0,0.5), (0.2,0.6), (0.4,0.6), (0.4,0.8), (0.2,1), (0,1)],  # lowercase s
+        'e': [(0,0.6), (0.4,0.6), (0.4,0.4), (0.2,0.2), (0,0.4), (0,0.8), (0.2,1), (0.4,1)],  # lowercase e
+        'n': [(0,1), (0,0.2), (0,0.5), (0.2,0.2), (0.4,0.2), (0.4,1)],  # lowercase n
+        'd': [(0.4,1), (0.4,0), (0.4,0.2), (0.2,0.2), (0,0.4), (0,0.8), (0.2,1), (0.4,1)],  # lowercase d
+        'r': [(0,1), (0,0.2), (0,0.5), (0.2,0.2), (0.4,0.4)]  # lowercase r
     }
     
     op_count = 0
@@ -129,11 +153,15 @@ def generate_text_engraving(f, text, start_x, start_y, char_size, operations_cou
             f.write("G0 Z2.000\n")
             char_x += char_size * 1.2
     
-    f.write("G0 Z10.000\n\n")
+    f.write("G0 Z25.000\n")
+    f.write("M5  ; Stop spindle\n\n")
 
 def generate_fractal_pattern(f, x, y, size, depth, operations_count):
     """Generate a fractal-like pattern with recursive structure"""
+    spindle_speed = get_random_spindle_speed()
     f.write(f"; ===== FRACTAL PATTERN - {operations_count} operations =====\n")
+    f.write(f"M3 S{spindle_speed}  ; Start spindle at {spindle_speed} RPM\n")
+    f.write("G4 P2.0  ; Wait 2 seconds for spindle to reach speed\n")
     
     def koch_snowflake_segment(start_x, start_y, end_x, end_y, iteration, max_iter):
         if iteration >= max_iter:
@@ -180,7 +208,18 @@ def generate_fractal_pattern(f, x, y, size, depth, operations_count):
         ops = koch_snowflake_segment(x, y, end_x, end_y, 0, max_depth)
         total_ops += ops
     
-    f.write("G0 Z10.000\n\n")
+    f.write("G0 Z25.000\n")
+    f.write("M5  ; Stop spindle\n\n")
+
+def add_tool_change(f, tool_number, tool_description):
+    """Add a tool change sequence"""
+    f.write(f"; ===== TOOL CHANGE TO T{tool_number} =====\n")
+    f.write("G0 Z25.000  ; Raise to safe height\n")
+    f.write("G0 X0 Y0  ; Move to tool change position\n")
+    f.write("M5  ; Stop spindle\n")
+    f.write("G4 P3.0  ; Wait for spindle to stop\n")
+    f.write(f"T{tool_number} M6  ; Change to Tool {tool_number} - {tool_description}\n")
+    f.write("G4 P5.0  ; Tool change delay\n\n")
 
 def main():
     filename = "/Users/ritchie/development/ghsender/spike/graphics_performance_spike/assets/complex_10k.nc"
@@ -188,27 +227,45 @@ def main():
     with open(filename, 'w') as f:
         write_header(f)
         
-        # Generate different patterns with specific operation counts
+        # Generate different patterns with toolchanges between them
         generate_spiral_pattern(f, 50, 50, 40, 20, 2000)
+        
+        add_tool_change(f, 2, "3mm Ball End Mill")
         generate_grid_pattern(f, 10, 10, 80, 20, 3000)
+        
+        add_tool_change(f, 3, "1/8 V-Bit")  
         generate_spiral_pattern(f, 150, 50, 30, 15, 1500)
-        generate_text_engraving(f, "CNCGCODE", 20, 120, 10, 1000)
+        
+        add_tool_change(f, 4, "0.5mm Engraving Bit")
+        generate_text_engraving(f, "ghsender", 20, 120, 10, 1000)
+        
+        add_tool_change(f, 5, "2mm End Mill")
         generate_fractal_pattern(f, 150, 150, 25, 4, 1500)
+        
+        add_tool_change(f, 6, "4mm Compression Bit")
         generate_grid_pattern(f, 120, 10, 60, 15, 1000)
         
         # Add finishing operations
         f.write("; ===== FINISHING =====\n")
         f.write("G0 Z25.000\n")
-        f.write("M5\n")
-        f.write("M30\n")
+        f.write("G0 X0 Y0  ; Return to home\n")
+        f.write("M5  ; Stop spindle\n")
+        f.write("M30  ; End program\n")
     
     print(f"Generated G-code file: {filename}")
     
-    # Count operations
+    # Count operations and toolchanges
     with open(filename, 'r') as f:
         lines = f.readlines()
         g_lines = [line for line in lines if line.strip().startswith('G') and any(cmd in line for cmd in ['G0', 'G1', 'G2', 'G3'])]
+        m_lines = [line for line in lines if 'M6' in line or 'M3' in line or 'M5' in line]
+        tool_changes = [line for line in lines if 'M6' in line]
+        spindle_commands = [line for line in lines if 'M3 S' in line]
+        
         print(f"Total G-code operations: {len(g_lines)}")
+        print(f"Total tool changes: {len(tool_changes)}")
+        print(f"Total spindle start commands: {len(spindle_commands)}")
+        print(f"Spindle speed range: 15000-24000 RPM")
 
 if __name__ == "__main__":
     main()

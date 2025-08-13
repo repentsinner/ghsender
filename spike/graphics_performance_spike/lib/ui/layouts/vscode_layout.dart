@@ -9,6 +9,7 @@ import 'status_bar.dart';
 /// Activity bar sections
 enum ActivitySection {
   sessionInitialization,
+  filesAndJobs,
   graphics,
   renderer,
   performance,
