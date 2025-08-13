@@ -32,6 +32,11 @@ class CameraDirector {
   late double _distanceRangeMin;
   late double _distanceRangeMax;
   
+  // Phase offsets to start animation cycles from user's position
+  double _elevationPhaseOffset = 0.0;
+  double _azimuthPhaseOffset = 0.0;
+  double _distancePhaseOffset = 0.0;
+  
   // Control states
   bool _isAutoMode = true;  // Start in auto mode by default
   bool _isTransitioning = false;
@@ -75,7 +80,10 @@ class CameraDirector {
     _transitionFromRotationY = _manualRotationY;
     _transitionFromDistance = _manualDistance;
     
-    AppLogger.info('CameraDirector: Starting auto mode with smooth transition');
+    // Create new animation cycle centered around user's last position
+    _createAnimationCycleFromPosition(_manualRotationX, _manualRotationY, _manualDistance);
+    
+    AppLogger.info('CameraDirector: Starting auto mode with smooth transition from user position');
   }
   
   /// Stop automatic camera animation  
@@ -85,8 +93,14 @@ class CameraDirector {
     // Capture current auto position as the starting point for manual control
     final currentTime = DateTime.now();
     final currentAutoPos = _calculateAutomaticPosition(currentTime);
-    _manualRotationX = currentAutoPos.rotationX;
-    _manualRotationY = currentAutoPos.rotationY;
+    
+    // Apply elevation limits when capturing auto position for manual mode
+    _manualRotationX = math.max(
+      -math.pi * 0.4,  // About -72 degrees (don't go below horizon too much)
+      math.min(math.pi * 0.4, currentAutoPos.rotationX),  // About +72 degrees (don't go too high)
+    );
+    // Normalize azimuth when transitioning from auto to manual
+    _manualRotationY = _normalizeAzimuth(currentAutoPos.rotationY);
     _manualDistance = currentAutoPos.distance;
     
     _isAutoMode = false;
@@ -98,8 +112,14 @@ class CameraDirector {
   
   /// Update manual camera position (from user input)
   void updateManualPosition(double rotationX, double rotationY) {
-    _manualRotationX = rotationX;
-    _manualRotationY = rotationY;
+    // Apply elevation limits immediately to prevent camera from going underground or flipping
+    _manualRotationX = math.max(
+      -math.pi * 0.4,  // About -72 degrees (don't go below horizon too much)
+      math.min(math.pi * 0.4, rotationX),  // About +72 degrees (don't go too high)
+    );
+    
+    // Normalize azimuth angle to 0-360 degrees (0 to 2π radians) with seamless wrapping
+    _manualRotationY = _normalizeAzimuth(rotationY);
     _lastUserInteraction = DateTime.now();
     
     // If we were in auto mode, switch to manual
@@ -157,22 +177,22 @@ class CameraDirector {
   CameraPosition _calculateAutomaticPosition(DateTime currentTime) {
     final elapsed = currentTime.difference(_animationStartTime).inMilliseconds / 1000.0;
     
-    // Calculate elevation animation (true pendulum motion)
-    final elevationPhase = 2 * math.pi * elapsed / _elevationCycleDuration;
+    // Calculate elevation animation (true pendulum motion with phase offset)
+    final elevationPhase = 2 * math.pi * elapsed / _elevationCycleDuration + _elevationPhaseOffset;
     final elevationOscillation = math.sin(elevationPhase); // -1 to +1
     final elevationMid = (_elevationRangeMin + _elevationRangeMax) / 2.0;
     final elevationAmplitude = (_elevationRangeMax - _elevationRangeMin) / 2.0;
     final targetElevation = elevationMid + elevationAmplitude * elevationOscillation;
     
-    // Calculate azimuth animation (true pendulum motion)  
-    final azimuthPhase = 2 * math.pi * elapsed / _azimuthCycleDuration;
+    // Calculate azimuth animation (true pendulum motion with phase offset)  
+    final azimuthPhase = 2 * math.pi * elapsed / _azimuthCycleDuration + _azimuthPhaseOffset;
     final azimuthOscillation = math.sin(azimuthPhase); // -1 to +1
     final azimuthMid = (_azimuthRangeMin + _azimuthRangeMax) / 2.0;
     final azimuthAmplitude = (_azimuthRangeMax - _azimuthRangeMin) / 2.0;
     final targetAzimuth = azimuthMid + azimuthAmplitude * azimuthOscillation;
     
-    // Calculate distance animation (true pendulum motion)
-    final distancePhase = 2 * math.pi * elapsed / _distanceCycleDuration;
+    // Calculate distance animation (true pendulum motion with phase offset)
+    final distancePhase = 2 * math.pi * elapsed / _distanceCycleDuration + _distancePhaseOffset;
     final distanceOscillation = math.sin(distancePhase); // -1 to +1
     final distanceMid = (_distanceRangeMin + _distanceRangeMax) / 2.0;
     final distanceAmplitude = (_distanceRangeMax - _distanceRangeMin) / 2.0;
@@ -205,6 +225,128 @@ class CameraDirector {
     return a + (b - a) * t;
   }
   
+  /// Normalize azimuth angle to 0-360 degrees (0 to 2π radians) with seamless wrapping
+  double _normalizeAzimuth(double azimuthRadians) {
+    // Convert to 0-2π range using modulo operation
+    double normalized = azimuthRadians % (2 * math.pi);
+    
+    // Handle negative angles by adding 2π to get equivalent positive angle
+    if (normalized < 0) {
+      normalized += 2 * math.pi;
+    }
+    
+    return normalized;
+  }
+  
+  /// Create animation cycle centered around a specific position
+  void _createAnimationCycleFromPosition(double centerElevation, double centerAzimuth, double centerDistance) {
+    final random = math.Random();
+    
+    // Convert center position from radians to degrees for easier calculations
+    final centerElevationDeg = centerElevation * 180 / math.pi;
+    final centerAzimuthDeg = centerAzimuth * 180 / math.pi;
+    
+    // Randomize cycle durations (same as before)
+    _elevationCycleDuration = 25.0 + random.nextDouble() * 30.0;
+    _azimuthCycleDuration = 45.0 + random.nextDouble() * 30.0;
+    _distanceCycleDuration = 25.0 + random.nextDouble() * 30.0;
+    
+    // Create animation ranges centered around user's position
+    // but gently constrained to valid limits
+    
+    // Elevation: Create range around center, but ensure it's within global limits
+    double elevationRange = 15.0 + random.nextDouble() * 10.0; // 15-25 degree range
+    double targetElevationMin = centerElevationDeg - elevationRange / 2;
+    double targetElevationMax = centerElevationDeg + elevationRange / 2;
+    
+    // Gently constrain elevation to valid limits (-72° to +72°)
+    final elevationGlobalMin = -72.0;
+    final elevationGlobalMax = 72.0;
+    
+    if (targetElevationMin < elevationGlobalMin) {
+      final shift = elevationGlobalMin - targetElevationMin;
+      targetElevationMin = elevationGlobalMin;
+      targetElevationMax = math.min(targetElevationMax + shift, elevationGlobalMax);
+    }
+    if (targetElevationMax > elevationGlobalMax) {
+      final shift = targetElevationMax - elevationGlobalMax;
+      targetElevationMax = elevationGlobalMax;
+      targetElevationMin = math.max(targetElevationMin - shift, elevationGlobalMin);
+    }
+    
+    _elevationRangeMin = targetElevationMin;
+    _elevationRangeMax = targetElevationMax;
+    
+    // Azimuth: Create range around center (azimuth has no global limits, wraps around)
+    double azimuthRange = 60.0 + random.nextDouble() * 120.0; // 60-180 degree range
+    _azimuthRangeMin = centerAzimuthDeg - azimuthRange / 2;
+    _azimuthRangeMax = centerAzimuthDeg + azimuthRange / 2;
+    
+    // Distance: Create range around center, constrained to reasonable limits
+    double distanceRange = 100.0 + random.nextDouble() * 100.0; // 100-200 range
+    double targetDistanceMin = centerDistance - distanceRange / 2;
+    double targetDistanceMax = centerDistance + distanceRange / 2;
+    
+    // Constrain distance to global limits
+    final distanceGlobalMin = _baseDistanceMin;
+    final distanceGlobalMax = _baseDistanceMax;
+    
+    if (targetDistanceMin < distanceGlobalMin) {
+      final shift = distanceGlobalMin - targetDistanceMin;
+      targetDistanceMin = distanceGlobalMin;
+      targetDistanceMax = math.min(targetDistanceMax + shift, distanceGlobalMax);
+    }
+    if (targetDistanceMax > distanceGlobalMax) {
+      final shift = targetDistanceMax - distanceGlobalMax;
+      targetDistanceMax = distanceGlobalMax;
+      targetDistanceMin = math.max(targetDistanceMin - shift, distanceGlobalMin);
+    }
+    
+    _distanceRangeMin = targetDistanceMin;
+    _distanceRangeMax = targetDistanceMax;
+    
+    // Calculate phase offsets to start animation from user's current position
+    // This ensures smooth transition instead of jarring jumps
+    
+    // For elevation: find the phase that would produce the current elevation
+    final elevationMid = (_elevationRangeMin + _elevationRangeMax) / 2.0;
+    final elevationAmplitude = (_elevationRangeMax - _elevationRangeMin) / 2.0;
+    if (elevationAmplitude > 0) {
+      final normalizedElevation = (centerElevationDeg - elevationMid) / elevationAmplitude;
+      _elevationPhaseOffset = math.asin(math.max(-1.0, math.min(1.0, normalizedElevation)));
+    } else {
+      _elevationPhaseOffset = 0.0;
+    }
+    
+    // For azimuth: find the phase that would produce the current azimuth
+    final azimuthMid = (_azimuthRangeMin + _azimuthRangeMax) / 2.0;
+    final azimuthAmplitude = (_azimuthRangeMax - _azimuthRangeMin) / 2.0;
+    if (azimuthAmplitude > 0) {
+      final normalizedAzimuth = (centerAzimuthDeg - azimuthMid) / azimuthAmplitude;
+      _azimuthPhaseOffset = math.asin(math.max(-1.0, math.min(1.0, normalizedAzimuth)));
+    } else {
+      _azimuthPhaseOffset = 0.0;
+    }
+    
+    // For distance: find the phase that would produce the current distance
+    final distanceMid = (_distanceRangeMin + _distanceRangeMax) / 2.0;
+    final distanceAmplitude = (_distanceRangeMax - _distanceRangeMin) / 2.0;
+    if (distanceAmplitude > 0) {
+      final normalizedDistance = (centerDistance - distanceMid) / distanceAmplitude;
+      _distancePhaseOffset = math.asin(math.max(-1.0, math.min(1.0, normalizedDistance)));
+    } else {
+      _distancePhaseOffset = 0.0;
+    }
+    
+    // Reset animation start time to current time for smooth continuation
+    _animationStartTime = DateTime.now();
+    
+    AppLogger.info('CameraDirector: Created animation cycle centered on user position');
+    AppLogger.info('  Elevation: ${_elevationRangeMin.toStringAsFixed(1)}° - ${_elevationRangeMax.toStringAsFixed(1)}° (${_elevationCycleDuration.toStringAsFixed(1)}s)');
+    AppLogger.info('  Azimuth: ${_azimuthRangeMin.toStringAsFixed(1)}° - ${_azimuthRangeMax.toStringAsFixed(1)}° (${_azimuthCycleDuration.toStringAsFixed(1)}s)');
+    AppLogger.info('  Distance: ${_distanceRangeMin.toStringAsFixed(1)} - ${_distanceRangeMax.toStringAsFixed(1)} (${_distanceCycleDuration.toStringAsFixed(1)}s)');
+  }
+
   /// Randomize animation ranges for variety
   void _randomizeAnimationRanges() {
     final random = math.Random();
@@ -234,6 +376,11 @@ class CameraDirector {
     _distanceRangeMin = _baseDistanceMin + random.nextDouble() * (distanceRange - distanceSubRange);
     _distanceRangeMax = _distanceRangeMin + distanceSubRange;
     
+    // Reset phase offsets for initial random animation
+    _elevationPhaseOffset = 0.0;
+    _azimuthPhaseOffset = 0.0;
+    _distancePhaseOffset = 0.0;
+    
     AppLogger.info('CameraDirector: Animation ranges randomized');
     AppLogger.info('  Elevation: ${_elevationRangeMin.toStringAsFixed(1)}° - ${_elevationRangeMax.toStringAsFixed(1)}° (${_elevationCycleDuration.toStringAsFixed(1)}s)');
     AppLogger.info('  Azimuth: ${_azimuthRangeMin.toStringAsFixed(1)}° - ${_azimuthRangeMax.toStringAsFixed(1)}° (${_azimuthCycleDuration.toStringAsFixed(1)}s)');
@@ -248,6 +395,82 @@ class CameraDirector {
     if (_isAutoMode) {
       stopAutoMode();
     }
+  }
+  
+  /// Process pan gesture input and update camera position
+  /// Takes screen-space delta and converts to camera rotation
+  void processPanGesture(double deltaX, double deltaY) {
+    // Get current camera position for relative updates
+    final currentTime = DateTime.now();
+    final currentCameraPos = getCameraPosition(currentTime);
+    
+    // Convert screen-space delta to rotation delta
+    // Sensitivity factor: 0.01 radians per pixel seems to work well
+    const double rotationSensitivity = 0.01;
+    
+    // Apply delta to current position
+    final newRotationX = currentCameraPos.rotationX + (deltaY * rotationSensitivity);
+    final newRotationY = currentCameraPos.rotationY + (deltaX * rotationSensitivity);
+    
+    // Update camera position through existing method (handles limits and normalization)
+    updateManualPosition(newRotationX, newRotationY);
+    
+    // Maintain current distance (no zoom from pan gestures)
+    updateManualDistance(currentCameraPos.distance);
+  }
+  
+  /// Process pinch-to-zoom gesture input and update camera distance
+  /// Takes scale factor from gesture (1.0 = no change, >1.0 = zoom out, <1.0 = zoom in)
+  void processPinchZoom(double scaleFactor) {
+    // Get current camera position
+    final currentTime = DateTime.now();
+    final currentCameraPos = getCameraPosition(currentTime);
+    
+    // Convert scale factor to distance multiplier
+    // Invert the scale so pinch-in zooms in (decreases distance)
+    const double zoomSensitivity = 2.0; // Adjust sensitivity
+    final double zoomMultiplier = 1.0 / math.pow(scaleFactor, zoomSensitivity);
+    
+    // Apply zoom to current distance
+    final double newDistance = currentCameraPos.distance * zoomMultiplier;
+    
+    // Constrain distance to reasonable limits
+    final double constrainedDistance = _constrainDistance(newDistance);
+    
+    // Update camera position maintaining rotation
+    updateManualPosition(currentCameraPos.rotationX, currentCameraPos.rotationY);
+    updateManualDistance(constrainedDistance);
+  }
+  
+  /// Process mouse scroll wheel input and update camera distance
+  /// Takes scroll delta (positive = scroll up/zoom in, negative = scroll down/zoom out)
+  void processScrollZoom(double scrollDelta) {
+    // Get current camera position
+    final currentTime = DateTime.now();
+    final currentCameraPos = getCameraPosition(currentTime);
+    
+    // Convert scroll delta to distance change
+    // Positive scrollDelta = scroll up = zoom in (decrease distance)
+    // Negative scrollDelta = scroll down = zoom out (increase distance)
+    const double scrollSensitivity = 0.1; // Adjust for comfortable scrolling
+    final double distanceChange = -scrollDelta * scrollSensitivity;
+    final double newDistance = currentCameraPos.distance + distanceChange;
+    
+    // Constrain distance to reasonable limits
+    final double constrainedDistance = _constrainDistance(newDistance);
+    
+    // Update camera position maintaining rotation
+    updateManualPosition(currentCameraPos.rotationX, currentCameraPos.rotationY);
+    updateManualDistance(constrainedDistance);
+  }
+  
+  /// Constrain camera distance to reasonable limits
+  double _constrainDistance(double distance) {
+    // Define reasonable zoom limits
+    const double minDistance = 50.0;   // Close zoom limit
+    const double maxDistance = 1000.0; // Far zoom limit
+    
+    return math.max(minDistance, math.min(maxDistance, distance));
   }
   
   /// Get current mode for debugging
@@ -293,12 +516,7 @@ class CameraDirector {
   vm.Vector3 _calculateCameraPosition3D(double rotationX, double rotationY, double distance) {
     // Convert rotation inputs to spherical coordinates for Z-up system
     final azimuth = rotationY; // Horizontal rotation around Z axis
-    
-    // Constrain elevation to prevent camera from going underground or flipping
-    final elevation = math.max(
-      -math.pi * 0.4,
-      math.min(math.pi * 0.4, rotationX),
-    );
+    final elevation = rotationX; // Elevation limits are now applied in updateManualPosition()
     
     // Convert to spherical coordinates in Z-up system:
     // - azimuth: rotation around Z axis (0 = +X direction)

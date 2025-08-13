@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/gestures.dart';
 import 'utils/logger.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -48,6 +49,7 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
   // Camera control system
   late CameraDirector _cameraDirector;
   Offset? _lastPanPosition;
+  double _lastScale = 1.0;
 
   // Current active renderer
   final RendererType _currentRenderer = RendererType.flutterSceneLines;
@@ -248,43 +250,46 @@ class _GraphicsPerformanceScreenState extends State<GraphicsPerformanceScreen> {
       //appBar: AppBar(title: Text('Graphics Performance Spike - $rendererName')),
       body: Stack(
         children: [
-          // Active Renderer with Pan Gesture
-          GestureDetector(
-            onPanStart: (details) {
-              _lastPanPosition = details.localPosition;
-            },
-            onPanUpdate: (details) {
-              if (_lastPanPosition != null) {
-                final delta = details.localPosition - _lastPanPosition!;
-
-                // Get current camera position from CameraDirector (not renderer to avoid feedback loop)
-                final currentTime = DateTime.now();
-                final currentCameraPos = _cameraDirector.getCameraPosition(
-                  currentTime,
-                );
-
-                // Apply delta to current position
-                final newRotationX =
-                    currentCameraPos.rotationX + (delta.dy * 0.01);
-                final newRotationY =
-                    currentCameraPos.rotationY + (delta.dx * 0.01);
-
-                // Update CameraDirector with new manual position
-                _cameraDirector.updateManualPosition(
-                  newRotationX,
-                  newRotationY,
-                );
-                _cameraDirector.updateManualDistance(currentCameraPos.distance);
-
-                setState(() {
-                  _lastPanPosition = details.localPosition;
-                });
+          // Active Renderer with Pan Gesture, Pinch Zoom, and Mouse Scroll
+          Listener(
+            // Mouse scroll wheel zoom
+            onPointerSignal: (event) {
+              if (event is PointerScrollEvent) {
+                // Delegate scroll zoom to CameraDirector
+                _cameraDirector.processScrollZoom(event.scrollDelta.dy);
+                setState(() {});
               }
             },
-            onPanEnd: (details) {
-              _lastPanPosition = null;
-            },
-            child: SizedBox.expand(child: _buildRendererWidget()),
+            child: GestureDetector(
+              // Use scale gesture only (handles both pan and pinch)
+              onScaleStart: (details) {
+                _lastPanPosition = details.localFocalPoint;
+                _lastScale = 1.0;
+              },
+              onScaleUpdate: (details) {
+                if (_lastPanPosition != null) {
+                  final scaleDelta = (details.scale - _lastScale).abs();
+                  
+                  // If scale changed significantly, treat as zoom gesture
+                  if (scaleDelta > 0.05) {
+                    _cameraDirector.processPinchZoom(details.scale / _lastScale);
+                    _lastScale = details.scale;
+                  } else {
+                    // Otherwise treat as pan gesture
+                    final delta = details.localFocalPoint - _lastPanPosition!;
+                    _cameraDirector.processPanGesture(delta.dx, delta.dy);
+                    _lastPanPosition = details.localFocalPoint;
+                  }
+                  
+                  setState(() {});
+                }
+              },
+              onScaleEnd: (details) {
+                _lastPanPosition = null;
+                _lastScale = 1.0;
+              },
+              child: SizedBox.expand(child: _buildRendererWidget()),
+            ),
           ),
           // Performance Info
           Positioned(

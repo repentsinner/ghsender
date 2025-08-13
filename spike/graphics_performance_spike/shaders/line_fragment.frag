@@ -89,6 +89,8 @@ void main() {
   float correct_depth = clip_space_z * 0.5 + 0.5;
   
   // Set fragment depth for proper z-ordering
+  // TODO: fix this, the fragDepth is likely not being computed correctly
+  // causing depth tests to fail.
   gl_FragDepth = clamp(correct_depth, 0.0, 1.0);
 
   // Color-code the depth for visual debugging (optional - comment out if too distracting)
