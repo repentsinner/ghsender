@@ -9,18 +9,11 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [[ -f "$PROJECT_ROOT/tools/activate-env.sh" ]]; then
     source "$PROJECT_ROOT/tools/activate-env.sh"
 fi
-# Activate local toolchain environment
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-if [[ -f "$PROJECT_ROOT/tools/activate-env.sh" ]]; then
-    source "$PROJECT_ROOT/tools/activate-env.sh"
-fi
 cd "$PROJECT_ROOT"
 
-# Define Flutter projects in the monorepo
+# Define Flutter project (single root-level app)
 FLUTTER_PROJECTS=(
-    "spike/communication-spike"
-    "spike/graphics_performance_spike" 
-    "spike/state_management_spike"
+    "."
 )
 
 # Color output
@@ -362,59 +355,70 @@ main() {
         "test-single")
             local project=${2:-""}
             if [[ -z "$project" ]]; then
-                print_error "Please specify project: communication-spike, graphics_performance_spike, state_management_spike"
+                print_error "Please specify project name (use '.' for root project)"
                 exit 1
             fi
             check_flutter
-            if [[ -d "spike/$project" ]]; then
+            if [[ "$project" == "." ]]; then
+                flutter pub get && flutter analyze && flutter test --timeout=60s
+            elif [[ -d "spike/$project" ]]; then
                 (cd "spike/$project" && flutter pub get && flutter analyze && flutter test --timeout=60s)
             else
-                print_error "Project spike/$project not found"
+                print_error "Project $project not found"
                 exit 1
             fi
             ;;
         "test-unit")
             local project=${2:-""}
             if [[ -z "$project" ]]; then
-                print_error "Please specify project: communication-spike, graphics_performance_spike, state_management_spike"
+                print_error "Please specify project name (use '.' for root project)"
                 exit 1
             fi
             check_flutter
-            if [[ -d "spike/$project" ]]; then
+            if [[ "$project" == "." ]]; then
+                print_status "Running unit tests for root project..."
+                flutter test test/unit/ --timeout=60s
+            elif [[ -d "spike/$project" ]]; then
                 print_status "Running unit tests for $project..."
                 (cd "spike/$project" && flutter test test/unit/ --timeout=60s)
             else
-                print_error "Project spike/$project not found"
+                print_error "Project $project not found"
                 exit 1
             fi
             ;;
         "test-widget")
             local project=${2:-""}
             if [[ -z "$project" ]]; then
-                print_error "Please specify project: communication-spike, graphics_performance_spike, state_management_spike"
+                print_error "Please specify project name (use '.' for root project)"
                 exit 1
             fi
             check_flutter
-            if [[ -d "spike/$project" ]]; then
+            if [[ "$project" == "." ]]; then
+                print_status "Running widget tests for root project..."
+                flutter test test/widget/ --timeout=60s
+            elif [[ -d "spike/$project" ]]; then
                 print_status "Running widget tests for $project..."
                 (cd "spike/$project" && flutter test test/widget/ --timeout=60s)
             else
-                print_error "Project spike/$project not found"
+                print_error "Project $project not found"
                 exit 1
             fi
             ;;
         "test-integration")
             local project=${2:-""}
             if [[ -z "$project" ]]; then
-                print_error "Please specify project: communication-spike, graphics_performance_spike, state_management_spike"
+                print_error "Please specify project name (use '.' for root project)"
                 exit 1
             fi
             check_flutter
-            if [[ -d "spike/$project" ]]; then
+            if [[ "$project" == "." ]]; then
+                print_status "Running integration tests for root project..."
+                flutter test integration_test/ --timeout=120s
+            elif [[ -d "spike/$project" ]]; then
                 print_status "Running integration tests for $project..."
                 (cd "spike/$project" && flutter test integration_test/ --timeout=120s)
             else
-                print_error "Project spike/$project not found"
+                print_error "Project $project not found"
                 exit 1
             fi
             ;;
@@ -434,47 +438,37 @@ main() {
             local platform=${3:-""}
             if [[ -z "$project" || -z "$platform" ]]; then
                 print_error "Usage: $0 build-single <project> <platform>"
-                print_error "Projects: communication-spike, graphics_performance_spike, state_management_spike"
+                print_error "Project: . (root-level Flutter app)"
                 print_error "Platforms: macos, ios, android, linux"
                 exit 1
             fi
             check_flutter
-            if [[ -d "spike/$project" ]]; then
+            if [[ "$project" == "." ]]; then
+                flutter pub get && build_platform "$platform"
+            elif [[ -d "spike/$project" ]]; then
                 (cd "spike/$project" && flutter pub get && build_platform "$platform")
             else
-                print_error "Project spike/$project not found"
+                print_error "Project $project not found"
                 exit 1
             fi
             ;;
         "diagnose-shaders")
-            local project=${2:-"graphics_performance_spike"}
-            if [[ -d "spike/$project" ]]; then
-                print_status "Diagnosing shader compatibility for $project..."
-                (cd "spike/$project" && validate_shaders "$(pwd)")
-                if [[ -f "spike/$project/graphics_performance_spike.shaderbundle.json" ]]; then
-                    print_status "Shader bundle configuration:"
-                    cat "spike/$project/graphics_performance_spike.shaderbundle.json"
-                fi
-            else
-                print_error "Project spike/$project not found"
-                exit 1
+            print_status "Diagnosing shader compatibility for root project..."
+            validate_shaders "$(pwd)"
+            if [[ -f "shaders/ghsender.shaderbundle.json" ]]; then
+                print_status "Shader bundle configuration:"
+                cat "shaders/ghsender.shaderbundle.json"
             fi
             ;;
         "fix-shaders")
-            local project=${2:-"graphics_performance_spike"}
-            if [[ -d "spike/$project" ]]; then
-                print_status "Attempting to fix shader compatibility issues for $project..."
-                print_warning "This will modify shader files to use modern GLSL syntax"
-                read -p "Continue? (y/N): " -n 1 -r
-                echo
-                if [[ $REPLY =~ ^[Yy]$ ]]; then
-                    (cd "spike/$project" && fix_shader_syntax "$(pwd)")
-                else
-                    print_status "Shader fix cancelled"
-                fi
+            print_status "Attempting to fix shader compatibility issues for root project..."
+            print_warning "This will modify shader files to use modern GLSL syntax"
+            read -p "Continue? (y/N): " -n 1 -r
+            echo
+            if [[ $REPLY =~ ^[Yy]$ ]]; then
+                fix_shader_syntax "$(pwd)"
             else
-                print_error "Project spike/$project not found"
-                exit 1
+                print_status "Shader fix cancelled"
             fi
             ;;
         "all")
@@ -511,13 +505,13 @@ main() {
             echo "  build-single <project> <platform>  - Build specific project for platform"
             echo
             echo "🔧 Shader/Native Assets Diagnostics:"
-            echo "  diagnose-shaders [project]          - Check shader compatibility (default: graphics_performance_spike)"
-            echo "  fix-shaders [project]               - Attempt to fix common shader issues (default: graphics_performance_spike)"
+            echo "  diagnose-shaders                    - Check shader compatibility for root project"
+            echo "  fix-shaders                         - Attempt to fix common shader issues for root project"
             echo
-            echo "📁 Available Projects:"
-            echo "  • communication-spike      - WebSocket communication testing"
-            echo "  • graphics_performance_spike - Graphics and rendering performance (uses native assets)"
-            echo "  • state_management_spike  - State management patterns"
+            echo "📁 Project Structure:"
+            echo "  • Root-level Flutter app with graphics rendering and CNC communication"
+            echo "  • Uses native assets for shader compilation and GPU rendering"
+            echo "  • Integrated BLoC state management with real-time machine control"
             echo
             echo "🖥️  Available Platforms:"
             echo "  • macos    - macOS desktop application"
@@ -526,15 +520,15 @@ main() {
             echo "  • linux    - Linux desktop application (Linux only)"
             echo
             echo "Examples:"
-            echo "  $0 setup                                    # Setup all projects"
-            echo "  $0 test                                     # Test all projects"
-            echo "  $0 test-single communication-spike         # Test communication spike only"
-            echo "  $0 build macos                             # Build all projects for macOS"
-            echo "  $0 build-single graphics_performance_spike macos  # Build graphics spike for macOS"
+            echo "  $0 setup                                    # Setup project dependencies"
+            echo "  $0 test                                     # Test project"
+            echo "  $0 test-single .                           # Test root project"
+            echo "  $0 build macos                             # Build project for macOS"
+            echo "  $0 build-single . macos                       # Build root project for macOS"
             echo "  $0 diagnose-shaders                        # Check shader compatibility issues"
             echo "  $0 fix-shaders                             # Fix common shader syntax issues"
-            echo "  $0 all                                      # Build all projects for all platforms"
-            echo "  $0 clean                                    # Clean all projects"
+            echo "  $0 all                                      # Build project for all platforms"
+            echo "  $0 clean                                    # Clean project artifacts"
             ;;
     esac
 }

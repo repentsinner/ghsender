@@ -9,7 +9,7 @@ T1 M6  ; Load Tool 1 - 6mm End Mill
 G0 Z10.000
 
 ; ===== SPIRAL PATTERN - 2000 operations =====
-M3 S19371  ; Start spindle at 19371 RPM
+M3 S21695  ; Start spindle at 21695 RPM
 G4 P2.0  ; Wait 2 seconds for spindle to reach speed
 G0 X50.000 Y50.000
 G1 Z-0.500 F300
@@ -2024,7 +2024,7 @@ T2 M6  ; Change to Tool 2 - 3mm Ball End Mill
 G4 P5.0  ; Tool change delay
 
 ; ===== GRID PATTERN - 3000 operations =====
-M3 S18731  ; Start spindle at 18731 RPM
+M3 S20650  ; Start spindle at 20650 RPM
 G4 P2.0  ; Wait 2 seconds for spindle to reach speed
 G0 X10.000 Y10.000
 G1 Z-1.000 F300
@@ -3640,7 +3640,7 @@ T3 M6  ; Change to Tool 3 - 1/8 V-Bit
 G4 P5.0  ; Tool change delay
 
 ; ===== SPIRAL PATTERN - 1500 operations =====
-M3 S20591  ; Start spindle at 20591 RPM
+M3 S20966  ; Start spindle at 20966 RPM
 G4 P2.0  ; Wait 2 seconds for spindle to reach speed
 G0 X150.000 Y50.000
 G1 Z-0.500 F300
@@ -5155,7 +5155,7 @@ T4 M6  ; Change to Tool 4 - 0.5mm Engraving Bit
 G4 P5.0  ; Tool change delay
 
 ; ===== TEXT ENGRAVING 'ghsender' - 1000 operations =====
-M3 S17644  ; Start spindle at 17644 RPM
+M3 S16708  ; Start spindle at 16708 RPM
 G4 P2.0  ; Wait 2 seconds for spindle to reach speed
 G0 X24.000 Y124.000
 G1 Z-0.3 F200
@@ -5247,7 +5247,7 @@ T5 M6  ; Change to Tool 5 - 2mm End Mill
 G4 P5.0  ; Tool change delay
 
 ; ===== FRACTAL PATTERN - 1500 operations =====
-M3 S21298  ; Start spindle at 21298 RPM
+M3 S22867  ; Start spindle at 22867 RPM
 G4 P2.0  ; Wait 2 seconds for spindle to reach speed
 G0 X150.000 Y150.000
 G1 Z-1.0 F300
@@ -6799,7 +6799,7 @@ T6 M6  ; Change to Tool 6 - 4mm Compression Bit
 G4 P5.0  ; Tool change delay
 
 ; ===== GRID PATTERN - 1000 operations =====
-M3 S19515  ; Start spindle at 19515 RPM
+M3 S16559  ; Start spindle at 16559 RPM
 G4 P2.0  ; Wait 2 seconds for spindle to reach speed
 G0 X120.000 Y10.000
 G1 Z-1.000 F300

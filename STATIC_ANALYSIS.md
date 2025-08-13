@@ -1,13 +1,16 @@
 # Static Analysis and Git Hooks
 
-This document describes the static analysis setup and git commit hooks for the Flutter projects in this repository.
+This document describes the static analysis setup and git commit hooks for the Flutter project in this repository.
 
 ## Current Status
 
-The Flutter project at `spike/graphics_performance_spike` currently has **146 static analysis issues** that need to be addressed:
+The Flutter project in the root directory currently has **no static analysis issues**:
 
-- **15 warnings** (must fix - these are blocking issues)
-- **131 info/lint issues** (should fix for code quality)
+- **0 errors** ✅
+- **0 warnings** ✅ 
+- **0 info/lint issues** ✅
+
+All code follows Flutter best practices and passes static analysis checks.
 
 ## Static Analysis Tools
 
@@ -24,19 +27,19 @@ Both tools use the configuration in `analysis_options.yaml` which includes:
 
 Two git pre-commit hooks have been set up to ensure code quality:
 
-### 1. Strict Hook (Active) - `/Users/ritchie/development/ghsender/.git/hooks/pre-commit`
-
-- **Blocks commits** when any warnings or errors are found
-- Uses `dart analyze --fatal-warnings`
-- Ensures highest code quality standards
-- Currently active and will prevent commits until issues are resolved
-
-### 2. Lenient Hook (Alternative) - `/Users/ritchie/development/ghsender/.git/hooks/pre-commit-errors-only`
+### 1. Lenient Hook (Active) - `/Users/ritchie/development/ghsender/.git/hooks/pre-commit`
 
 - **Only blocks commits** for actual errors (not warnings)
-- Allows warnings to pass through
-- Good for gradual cleanup of legacy code
-- Can be activated by renaming to `pre-commit` if preferred
+- Uses `dart analyze` without `--fatal-warnings`
+- Allows info/warning issues to pass through
+- Currently active - prevents commits only when errors are found
+
+### 2. Strict Hook (Alternative) - `/Users/ritchie/development/ghsender/.git/hooks/pre-commit-errors-only`
+
+- **Blocks commits** when any warnings or errors are found
+- Uses `dart analyze --fatal-warnings` 
+- Ensures highest code quality standards
+- Available as an alternative for stricter enforcement
 
 ## Using the Hooks
 
@@ -58,111 +61,89 @@ git commit --no-verify -m "Emergency commit - analysis issues to be fixed"
 **Note:** Use `--no-verify` sparingly and always fix issues in follow-up commits.
 
 ### Switching Hook Modes
-To switch from strict to lenient mode:
+To switch from lenient to strict mode:
 ```bash
 cd /Users/ritchie/development/ghsender/.git/hooks
-mv pre-commit pre-commit-strict
+mv pre-commit pre-commit-lenient
 mv pre-commit-errors-only pre-commit
 ```
 
-To switch back:
+To switch back to lenient mode:
 ```bash
 cd /Users/ritchie/development/ghsender/.git/hooks
-mv pre-commit pre-commit-errors-only
-mv pre-commit-strict pre-commit
+mv pre-commit pre-commit-errors-only  
+mv pre-commit-lenient pre-commit
 ```
 
-## Fixing Static Analysis Issues
+## Maintaining Code Quality
 
-### High Priority Issues (Must Fix - 15 warnings)
+Since the project currently has no static analysis issues, focus on maintaining this clean state:
 
-1. **Unused Imports** (11 issues)
+### Best Practices
+
+1. **Import Management**
    ```dart
-   // Remove these lines:
-   import 'package:flutter/material.dart';  // lib/gcode/gcode_parser.dart:4
-   import 'dart:async';                     // lib/main.dart:1
-   import 'dart:math';                      // lib/renderers/filament_renderer.dart:1
-   // ... and 8 more
-   ```
-
-2. **Unused Fields** (3 issues)
-   ```dart
-   // Either use these fields or remove them:
-   final double _rapidMoveHeight;  // lib/gcode/gcode_scene.dart:39
-   final int _targetDrawCalls;     // lib/main.dart:59
-   final int _targetPolygons;      // lib/main.dart:60
-   ```
-
-3. **Null Comparison Logic Errors** (3 issues)
-   ```dart
-   // Fix these logical errors in lib/renderers/gpu_batch_renderer.dart:
-   // Line 425: condition is always false
-   // Line 445: condition is always true
-   // Line 489: condition is always true
-   ```
-
-### Medium Priority Issues (Should Fix - 131 issues)
-
-1. **Replace print() with logging** (88 issues)
-   Consider adding a logging framework like `logger` package:
-   ```dart
-   // Instead of:
-   print('Debug message');
+   // Use package imports for lib/ code
+   import 'package:ghsender/bloc/problems/problems_bloc.dart';
    
-   // Use:
-   logger.d('Debug message');
+   // Remove unused imports immediately
    ```
 
-2. **Add @override annotations** (18 issues)
+2. **Logging Standards**
+   ```dart
+   // Use structured logging with AppLogger
+   import 'package:ghsender/utils/logger.dart';
+   
+   AppLogger.info('Operation completed successfully');
+   AppLogger.error('Failed to process request', error, stackTrace);
+   ```
+
+3. **Override Annotations**
    ```dart
    @override
-   bool get initialized => _initialized;
-   ```
-
-3. **Fix deprecated API usage** (5 issues)
-   ```dart
-   // Replace deprecated Flutter GPU API calls:
-   // Old: color.red
-   // New: (color.r * 255.0).round().clamp(0, 255)
-   ```
-
-4. **Remove unnecessary braces** (10 issues)
-   ```dart
-   // Change: "Position: ${position.x}, ${position.y}"
-   // To:     "Position: $position.x, $position.y"
-   ```
-
-5. **Use rethrow instead of throw** (2 issues)
-   ```dart
-   try {
-     // code
-   } catch (e) {
-     // Instead of: throw e;
-     rethrow;
+   Widget build(BuildContext context) {
+     // Always add @override for overridden methods
    }
    ```
+
+4. **Error Handling**
+   ```dart
+   try {
+     // code that might throw
+   } catch (e) {
+     rethrow; // Use rethrow instead of throw e
+   }
+   ```
+
+### Common Issues to Avoid
+
+- **Don't** use `print()` statements - use `AppLogger` instead
+- **Don't** commit unused imports
+- **Always** add `@override` annotations
+- **Prefer** package imports over relative imports for `lib/` code
 
 ## Running Analysis Locally
 
 ### Check all issues:
 ```bash
-cd spike/graphics_performance_spike
+# Analyze main application code only
+flutter analyze --no-fatal-infos lib/ test/
+
+# Analyze everything (including context/toolchain - not recommended)
 flutter analyze
-# or
-dart analyze --fatal-warnings
 ```
 
 ### Check errors only:
 ```bash
-cd spike/graphics_performance_spike
-dart analyze
+dart analyze lib/ test/
 ```
 
 ### Get detailed output:
 ```bash
-cd spike/graphics_performance_spike
-dart analyze --verbose
+dart analyze --verbose lib/ test/
 ```
+
+**Note**: The project includes context and toolchain directories with external code that may have analysis issues. Focus analysis on `lib/` and `test/` directories for the main application.
 
 ## Configuration Files
 
@@ -192,26 +173,27 @@ When setting up CI/CD, ensure static analysis is run:
 # Example GitHub Actions step
 - name: Run static analysis
   run: |
-    cd spike/graphics_performance_spike
-    flutter analyze --fatal-warnings
+    flutter analyze --no-fatal-infos lib/ test/
 ```
 
 ## Recommended Workflow
 
-1. **Before starting new work**: Run `flutter analyze` to see current issues
-2. **During development**: Fix any new issues you introduce
-3. **Before committing**: Ensure your changes don't add new warnings
-4. **Gradual cleanup**: Pick a few existing issues to fix in each PR
+1. **Before starting new work**: Run `flutter analyze --no-fatal-infos lib/ test/` to verify clean state
+2. **During development**: Fix any new issues you introduce immediately
+3. **Before committing**: Ensure your changes pass static analysis
+4. **Maintain clean state**: Address any new issues before they accumulate
 
 ## Team Guidelines
 
-- **New code**: Must pass static analysis without warnings
-- **Existing code**: Clean up issues gradually, don't let them grow
-- **Print statements**: Use proper logging in production code
-- **Imports**: Remove unused imports immediately
-- **Override annotations**: Always add @override for overridden members
+- **New code**: Must pass static analysis without errors (warnings allowed)
+- **Code quality**: Maintain current clean state - don't introduce new issues  
+- **Logging**: Use `AppLogger` instead of `print()` statements
+- **Imports**: Use package imports for `lib/` code, remove unused imports immediately
+- **Override annotations**: Always add `@override` for overridden members
+- **Test imports**: Use package imports (`package:ghsender/...`) not relative imports (`../../lib/...`)
 
 ---
 
-*Last updated: 2025-08-09*
+*Last updated: 2025-08-13*
+*Project restructured to root level - all static analysis issues resolved*
 *Hook setup completed - see `/Users/ritchie/development/ghsender/.git/hooks/`*

@@ -6,7 +6,7 @@ void main(List<String> args) async {
     await buildShaderBundleJson(
       buildInput: config,
       buildOutput: output,
-      manifestFileName: 'graphics_performance_spike.shaderbundle.json',
+      manifestFileName: 'shaders/ghsender.shaderbundle.json',
     );
   });
 }

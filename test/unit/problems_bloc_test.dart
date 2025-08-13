@@ -1,11 +1,11 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bloc_test/bloc_test.dart';
-import '../../lib/bloc/problems/problems_bloc.dart';
-import '../../lib/bloc/problems/problems_event.dart';
-import '../../lib/bloc/problems/problems_state.dart';
-import '../../lib/bloc/machine_controller/machine_controller_state.dart';
-import '../../lib/models/problem.dart';
-import '../../lib/models/machine_controller.dart';
+import 'package:ghsender/bloc/problems/problems_bloc.dart';
+import 'package:ghsender/bloc/problems/problems_event.dart';
+import 'package:ghsender/bloc/problems/problems_state.dart';
+import 'package:ghsender/bloc/machine_controller/machine_controller_state.dart';
+import 'package:ghsender/models/problem.dart';
+import 'package:ghsender/models/machine_controller.dart';
 
 void main() {
   group('ProblemsBloc Door Open Detection', () {

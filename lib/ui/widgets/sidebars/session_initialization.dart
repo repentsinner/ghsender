@@ -198,62 +198,17 @@ class _SessionInitializationSectionState
     return BlocBuilder<MachineControllerBloc, MachineControllerState>(
       builder: (context, machineState) {
         // Check if jogging is allowed based on machine state
-        final canJog = (machineState.hasController) && 
-                       (machineState.isOnline) && 
-                       (machineState.grblHalDetected) &&
-                       (machineState.status == MachineStatus.idle ||
-                        machineState.status == MachineStatus.jogging ||
-                        machineState.status == MachineStatus.check);
-        
-        // Get status info for display
-        String statusInfo = 'Status: ${machineState.status.displayName}';
-        if (!(machineState.hasController)) {
-          statusInfo = 'No controller detected';
-        } else if (!(machineState.isOnline)) {
-          statusInfo = 'Controller offline';
-        } else if (!(machineState.grblHalDetected)) {
-          statusInfo = 'Waiting for grblHAL detection...';
-        }
+        final canJog =
+            (machineState.hasController) &&
+            (machineState.isOnline) &&
+            (machineState.grblHalDetected) &&
+            (machineState.status == MachineStatus.idle ||
+                machineState.status == MachineStatus.jogging ||
+                machineState.status == MachineStatus.check);
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Machine Status Indicator
-            Container(
-              padding: const EdgeInsets.all(8),
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: canJog 
-                    ? VSCodeTheme.success.withValues(alpha: 0.1)
-                    : VSCodeTheme.warning.withValues(alpha: 0.1),
-                border: Border.all(
-                  color: canJog 
-                      ? VSCodeTheme.success.withValues(alpha: 0.3)
-                      : VSCodeTheme.warning.withValues(alpha: 0.3),
-                ),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    canJog ? Icons.check_circle : Icons.warning,
-                    size: 14,
-                    color: canJog ? VSCodeTheme.success : VSCodeTheme.warning,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      statusInfo,
-                      style: GoogleFonts.inconsolata(
-                        fontSize: 11,
-                        color: canJog ? VSCodeTheme.success : VSCodeTheme.warning,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
             // Jog Distance Selector
             Text(
               'Jog Distance (mm)',
@@ -670,7 +625,7 @@ class _SessionInitializationSectionState
 
   void _homeMachine() {
     AppLogger.info('Homing machine request');
-    
+
     // Send homing command through CommunicationBloc (direct GRBL command)
     context.read<CncCommunicationBloc>().add(
       CncCommunicationSendCommand('\$H'), // GRBL homing command
@@ -679,7 +634,7 @@ class _SessionInitializationSectionState
 
   void _jogAxis(String axis, double distance) {
     AppLogger.info('Jog request: $axis axis by ${distance}mm');
-    
+
     // Send jog command through MachineControllerBloc
     context.read<MachineControllerBloc>().add(
       MachineControllerJogRequested(
@@ -692,7 +647,7 @@ class _SessionInitializationSectionState
 
   void _setWorkZero(String axes) {
     AppLogger.info('Setting work zero for $axes axes');
-    
+
     // Send work coordinate system commands through CommunicationBloc
     String command;
     switch (axes) {
@@ -712,21 +667,22 @@ class _SessionInitializationSectionState
         AppLogger.warning('Unknown axes for work zero: $axes');
         return;
     }
-    
+
     context.read<CncCommunicationBloc>().add(
       CncCommunicationSendCommand(command),
     );
   }
 
   void _probeWorkSurface() {
-    AppLogger.info('Probing work surface - distance: ${_probeDistance}mm, feed: ${_probeFeedRate}mm/min');
-    
+    AppLogger.info(
+      'Probing work surface - distance: ${_probeDistance}mm, feed: ${_probeFeedRate}mm/min',
+    );
+
     // Send GRBL probe command: G38.2 Z-10 F100 (probe toward workpiece in negative Z direction)
     final probeCommand = 'G38.2 Z-$_probeDistance F${_probeFeedRate.toInt()}';
-    
+
     context.read<CncCommunicationBloc>().add(
       CncCommunicationSendCommand(probeCommand),
     );
   }
-
 }

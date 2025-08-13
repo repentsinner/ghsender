@@ -33,7 +33,7 @@ shaders/
 ├── line_fragment.frag      # Anti-aliased line fragment shader
 └── line.shaderbundle.json  # Line shader bundle configuration
 
-spike/graphics_performance_spike.shaderbundle.json  # Updated with line shaders
+shaders/ghsender.shaderbundle.json                  # Updated with line shaders
 ```
 
 ## API Design (Option B - Single class with modes)

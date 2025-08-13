@@ -194,7 +194,7 @@ class LineGeometry extends UnskinnedGeometry {
     _shaderLoadingAttempted = true;
     try {
       _shaderLibrary = gpu.ShaderLibrary.fromAsset(
-        'build/shaderbundles/graphics_performance_spike.shaderbundle',
+        'build/shaderbundles/ghsender.shaderbundle',
       );
       _shadersLoaded = true;
       AppLogger.info('Custom vertex shaders loaded successfully');

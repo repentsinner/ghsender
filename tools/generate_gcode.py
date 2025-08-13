@@ -222,7 +222,11 @@ def add_tool_change(f, tool_number, tool_description):
     f.write("G4 P5.0  ; Tool change delay\n\n")
 
 def main():
-    filename = "/Users/ritchie/development/ghsender/spike/graphics_performance_spike/assets/complex_10k.nc"
+    # Get the project root directory (parent of tools/)
+    import os
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    filename = os.path.join(project_root, "assets", "complex_10k.nc")
     
     with open(filename, 'w') as f:
         write_header(f)

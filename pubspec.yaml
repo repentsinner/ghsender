@@ -55,7 +55,7 @@ dependencies:
   # Value equality for state comparison
   equatable: ^2.0.7
   # File picker for uploading G-code files
-  file_picker: ^8.1.2
+  file_picker: ^10.3.1
   # WebSocket communication for CNC control
   web_socket_channel: ^3.0.3
   # Persistent storage for machine profiles

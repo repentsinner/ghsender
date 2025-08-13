@@ -114,7 +114,7 @@ class LineMaterial extends UnlitMaterial {
     _shaderLoadingAttempted = true;
     try {
       _shaderLibrary = gpu.ShaderLibrary.fromAsset(
-        'build/shaderbundles/graphics_performance_spike.shaderbundle',
+        'build/shaderbundles/ghsender.shaderbundle',
       );
       _shadersLoaded = true;
       AppLogger.info('Custom fragment shaders loaded successfully');
