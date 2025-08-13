@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
+import '../../../bloc/machine_controller/machine_controller_bloc.dart';
+import '../../../bloc/machine_controller/machine_controller_state.dart';
+import '../../../models/machine_controller.dart';
 
 /// Debug section in the sidebar - system information and debugging tools
 class DebugSection extends StatelessWidget {
@@ -134,6 +138,15 @@ class DebugSection extends StatelessWidget {
           
           const SizedBox(height: 24),
           
+          // Machine Input States Section
+          SidebarComponents.buildSectionWithInfo(
+            title: 'Machine Input States',
+            infoTooltip: 'Real-time machine input status and polarity settings',
+            child: _buildMachineInputStates(context),
+          ),
+          
+          const SizedBox(height: 24),
+          
           // Log Levels Section
           SidebarComponents.buildSectionWithInfo(
             title: 'Log Configuration',
@@ -141,6 +154,221 @@ class DebugSection extends StatelessWidget {
             child: SidebarComponents.buildInfoCard(
               title: 'Current Log Level',
               content: 'INFO level logging\nReal-time application events\nPerformance monitoring active',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  Widget _buildMachineInputStates(BuildContext context) {
+    return BlocBuilder<MachineControllerBloc, MachineControllerState>(
+      builder: (context, machineState) {
+        if (!machineState.hasController || !machineState.isOnline) {
+          return SidebarComponents.buildInfoCard(
+            title: 'Machine Offline',
+            content: 'Connect to machine to view input states',
+          );
+        }
+
+        return Column(
+          children: [
+            // Current machine status
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: VSCodeTheme.editorBackground,
+                borderRadius: VSCodeTheme.containerRadius,
+                border: Border.all(color: VSCodeTheme.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.settings_input_component,
+                        color: VSCodeTheme.focus,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Current Status',
+                        style: GoogleFonts.inconsolata(
+                          color: VSCodeTheme.primaryText,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildInputStateRow('Machine Status', machineState.status.displayName, machineState.status.icon),
+                  const SizedBox(height: 4),
+                  if (machineState.workPosition != null)
+                    _buildInputStateRow('Work Position', '${machineState.workPosition!.x.toStringAsFixed(2)}, ${machineState.workPosition!.y.toStringAsFixed(2)}, ${machineState.workPosition!.z.toStringAsFixed(2)}', '📍'),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // Input states from machine status
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: VSCodeTheme.editorBackground,
+                borderRadius: VSCodeTheme.containerRadius,
+                border: Border.all(color: VSCodeTheme.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.input,
+                        color: VSCodeTheme.warning,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Input States',
+                        style: GoogleFonts.inconsolata(
+                          color: VSCodeTheme.primaryText,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildInputStatesFromStatus(machineState),
+                ],
+              ),
+            ),
+            
+            const SizedBox(height: 12),
+            
+            // grblHAL Configuration Info
+            if (machineState.grblHalDetected)
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: VSCodeTheme.editorBackground,
+                  borderRadius: VSCodeTheme.containerRadius,
+                  border: Border.all(color: VSCodeTheme.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.settings,
+                          color: VSCodeTheme.success,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'grblHAL Configuration',
+                          style: GoogleFonts.inconsolata(
+                            color: VSCodeTheme.primaryText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildInputStateRow('Firmware', machineState.grblHalVersion ?? 'Unknown', '⚙️'),
+                    const SizedBox(height: 4),
+                    _buildInputStateRow('Auto Reporting', machineState.autoReportingConfigured ? 'Enabled (60Hz)' : 'Disabled', machineState.autoReportingConfigured ? '✅' : '❌'),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: VSCodeTheme.warning.withValues(alpha: 0.1),
+                        border: Border.all(color: VSCodeTheme.warning.withValues(alpha: 0.3)),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info, size: 14, color: VSCodeTheme.warning),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Input polarity settings require \$ config query to be parsed',
+                              style: GoogleFonts.inconsolata(
+                                fontSize: 11,
+                                color: VSCodeTheme.warning,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+  
+  Widget _buildInputStatesFromStatus(MachineControllerState machineState) {
+    // Parse input states from the machine status
+    final status = machineState.status;
+    List<Widget> inputRows = [];
+    
+    // Door state
+    if (status == MachineStatus.door) {
+      inputRows.add(_buildInputStateRow('Door Switch', 'Open', '🚪'));
+    } else {
+      inputRows.add(_buildInputStateRow('Door Switch', 'Closed', '🔒'));
+    }
+    
+    // Alarm/Error states indicate potential limit switch activation
+    if (status == MachineStatus.alarm) {
+      inputRows.add(_buildInputStateRow('Limit Switches', 'ALARM - Possible activation', '⚠️'));
+    } else {
+      inputRows.add(_buildInputStateRow('Limit Switches', 'Normal', '✅'));
+    }
+    
+    // If no specific input state info is available
+    if (inputRows.isEmpty) {
+      inputRows.add(_buildInputStateRow('Input Detection', 'Status parsing active', 'ℹ️'));
+    }
+    
+    return Column(children: inputRows);
+  }
+  
+  Widget _buildInputStateRow(String label, String value, String icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Text(
+            icon,
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              style: GoogleFonts.inconsolata(
+                color: VSCodeTheme.secondaryText,
+                fontSize: 11,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: GoogleFonts.inconsolata(
+              color: VSCodeTheme.primaryText,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],

@@ -68,3 +68,10 @@ shaders/
 - flutter_scene proves flutter_gpu works (it's built on top of it)
 - Sample code exists in flutter_gpu showing proper usage patterns
 - Must use actual GPU shaders for meaningful performance comparison
+
+## Critical Test Management Rules
+- **NEVER DELETE UNIT TESTS**: Unit tests are sacred and must never be removed
+- **ALWAYS COMMIT TESTS**: When you create tests, immediately commit them to git
+- **TEST-DRIVEN DEVELOPMENT**: Write tests first, then implementation
+- **VERIFY TESTS EXIST**: Before marking any task complete, verify all tests are committed
+- **NO EXCEPTIONS**: There is never a valid reason to delete working unit tests

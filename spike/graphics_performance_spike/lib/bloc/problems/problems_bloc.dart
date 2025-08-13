@@ -6,6 +6,7 @@ import 'problems_event.dart';
 import 'problems_state.dart';
 import '../communication/cnc_communication_state.dart';
 import '../profile/profile_state.dart';
+import '../../models/machine_controller.dart';
 
 /// BLoC for managing system-wide problems and issues
 class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
@@ -26,6 +27,7 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
     on<CncCommunicationStateAnalyzed>(_onCncCommunicationStateAnalyzed);
     on<FileManagerStateAnalyzed>(_onFileManagerStateAnalyzed);
     on<ProfileStateAnalyzed>(_onProfileStateAnalyzed);
+    on<MachineControllerStateAnalyzed>(_onMachineControllerStateAnalyzed);
 
     // Note: Removed stale cleanup functionality
 
@@ -277,6 +279,38 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
 
       // Other states (Loading, OperationInProgress, OperationSuccess) are transitional
     }
+
+    if (newProblems.length != state.problems.length ||
+        !_problemListsEqual(newProblems, state.problems)) {
+      emit(state.copyWith(problems: newProblems));
+    }
+  }
+
+  /// Analyze Machine Controller state for problems
+  void _onMachineControllerStateAnalyzed(
+    MachineControllerStateAnalyzed event,
+    Emitter<ProblemsState> emit,
+  ) {
+    AppLogger.debug('Analyzing Machine Controller state');
+
+    // Clear existing machine state problems
+    final nonMachineProblems = state.problems
+        .where((p) => p.source != 'Machine State')
+        .toList();
+
+    final newProblems = List<Problem>.from(nonMachineProblems);
+
+    // Check for door open state
+    if (event.state.hasController && event.state.status == MachineStatus.door) {
+      newProblems.add(ProblemFactory.cncDoorOpen());
+      AppLogger.warning('Machine door is open - added problem');
+    }
+
+    // Could add other machine state problems here:
+    // - Alarm states
+    // - Limit switch activation
+    // - Emergency stop
+    // - etc.
 
     if (newProblems.length != state.problems.length ||
         !_problemListsEqual(newProblems, state.problems)) {

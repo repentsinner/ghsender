@@ -62,7 +62,7 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     MachineControllerCommunicationReceived event, 
     Emitter<MachineControllerState> emit,
   ) {
-    // Reduced logging for frequent status updates
+    AppLogger.debug('[MACHINE] Received communication state: ${event.communicationState.runtimeType}');
     
     final now = DateTime.now();
     
@@ -74,6 +74,7 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
         
       case const (CncCommunicationWithData):
         final dataState = event.communicationState as CncCommunicationWithData;
+        AppLogger.debug('[MACHINE] Processing WithData state with ${dataState.messages.length} messages');
         _handleDataState(dataState, emit, now);
         break;
         

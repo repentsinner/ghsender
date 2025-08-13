@@ -3,6 +3,7 @@ import '../../models/problem.dart';
 import '../../bloc/communication/cnc_communication_state.dart';
 import '../../bloc/file_manager/file_manager_state.dart';
 import '../../bloc/profile/profile_state.dart';
+import '../../bloc/machine_controller/machine_controller_state.dart';
 
 /// Events for the Problems BLoC
 abstract class ProblemsEvent extends Equatable {
@@ -90,6 +91,16 @@ class ProfileStateAnalyzed extends ProblemsEvent {
   final ProfileState state;
   
   const ProfileStateAnalyzed(this.state);
+  
+  @override
+  List<Object?> get props => [state];
+}
+
+/// Analyze Machine Controller state for problems
+class MachineControllerStateAnalyzed extends ProblemsEvent {
+  final MachineControllerState state;
+  
+  const MachineControllerStateAnalyzed(this.state);
   
   @override
   List<Object?> get props => [state];

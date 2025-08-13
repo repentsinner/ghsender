@@ -80,6 +80,7 @@ dev_dependencies:
   
   # Testing utilities
   mocktail: ^1.0.4
+  bloc_test: ^10.0.0
   
   # Native assets CLI for build hooks
   native_assets_cli: ^0.13.0

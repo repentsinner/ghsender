@@ -154,6 +154,7 @@ class ProblemIds {
   static const String cncConnectionUnstable = 'cnc_connection_unstable';
   static const String cncMachineAlarm = 'cnc_machine_alarm';
   static const String cncConnectionTimeout = 'cnc_connection_timeout';
+  static const String cncDoorOpen = 'cnc_door_open';
   
   static const String fileManagerError = 'file_manager_error';
   static const String fileManagerNoFiles = 'file_manager_no_files';
@@ -302,6 +303,19 @@ class ProblemFactory {
       title: 'No G-code File Selected',
       description: 'G-code files are loaded but none is selected for processing. '
           'Select a file from the File Manager to prepare for machining.',
+      timestamp: DateTime.now(),
+    );
+  }
+  
+  /// Create a door open problem
+  static Problem cncDoorOpen() {
+    return Problem(
+      id: ProblemIds.cncDoorOpen,
+      severity: ProblemSeverity.warning,
+      source: 'Machine State',
+      title: 'Safety Door Open',
+      description: 'The machine safety door is open. The machine will not run while the door is open. '
+          'Close the safety door to resume normal operation.',
       timestamp: DateTime.now(),
     );
   }
