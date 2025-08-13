@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../themes/vscode_theme.dart';
 import '../widgets/problem_item.dart';
+import '../widgets/log_output_panel.dart';
 import '../../bloc/bloc_exports.dart';
 import '../../utils/logger.dart';
 
@@ -18,11 +19,16 @@ class BottomPanel extends StatefulWidget {
 class _BottomPanelState extends State<BottomPanel>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _autoScroll = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    // Listen to tab changes to trigger UI updates for conditional controls
+    _tabController.addListener(() {
+      setState(() {});
+    });
   }
 
   @override
@@ -40,11 +46,11 @@ class _BottomPanelState extends State<BottomPanel>
         child: Column(
           children: [
             // Panel header with tabs and close button
-            Container(
+            SizedBox(
               height: 35,
-              decoration: const BoxDecoration(
-                border: Border(bottom: BorderSide(color: VSCodeTheme.border)),
-              ),
+              // decoration: const BoxDecoration(
+              //   border: Border(bottom: BorderSide(color: VSCodeTheme.border)),
+              // ),
               child: Row(
                 children: [
                   // Tabs
@@ -54,7 +60,7 @@ class _BottomPanelState extends State<BottomPanel>
                         return TabBar(
                           controller: _tabController,
                           isScrollable: true,
-                          indicatorColor: Colors.transparent,
+                          dividerColor: Colors.transparent,
                           tabAlignment: TabAlignment.start,
                           tabs: [
                             Tab(
@@ -97,6 +103,41 @@ class _BottomPanelState extends State<BottomPanel>
                       },
                     ),
                   ),
+
+                  // Output tab controls (only visible when Output tab is active)
+                  if (_tabController.index == 2) ...[
+                    // Auto-scroll toggle
+                    IconButton(
+                      onPressed: _toggleAutoScroll,
+                      icon: Icon(
+                        _autoScroll ? Icons.vertical_align_bottom : Icons.lock,
+                        size: 16,
+                      ),
+                      color: _autoScroll
+                          ? VSCodeTheme.info
+                          : VSCodeTheme.secondaryText,
+                      tooltip: _autoScroll
+                          ? 'Disable auto-scroll'
+                          : 'Enable auto-scroll',
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(
+                        minWidth: 24,
+                        minHeight: 24,
+                      ),
+                    ),
+                    // Clear button
+                    IconButton(
+                      onPressed: _clearLogs,
+                      icon: const Icon(Icons.clear_all, size: 16),
+                      color: VSCodeTheme.secondaryText,
+                      tooltip: 'Clear history',
+                      padding: const EdgeInsets.all(4),
+                      constraints: const BoxConstraints(
+                        minWidth: 24,
+                        minHeight: 24,
+                      ),
+                    ),
+                  ],
 
                   // Close button
                   IconButton(
@@ -257,71 +298,7 @@ class _BottomPanelState extends State<BottomPanel>
   }
 
   Widget _buildOutputTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(12),
-      child: SizedBox(
-        width: double.infinity,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Output header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-              decoration: BoxDecoration(
-                color: VSCodeTheme.panelBackground,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: VSCodeTheme.border.withValues(alpha: 0.3),
-                ),
-              ),
-              child: SelectableText(
-                'Application Output Log',
-                style: GoogleFonts.inconsolata(
-                  color: VSCodeTheme.accentText,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Log entries with timestamps
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              child: SelectableText(
-                '[${DateTime.now().toIso8601String()}] Application started\n'
-                '[${DateTime.now().toIso8601String()}] Graphics renderer initialized\n'
-                '[${DateTime.now().toIso8601String()}] Scene manager ready\n'
-                '[${DateTime.now().toIso8601String()}] Communication system standby\n'
-                '[${DateTime.now().toIso8601String()}] File manager initialized\n'
-                '[${DateTime.now().toIso8601String()}] UI components loaded\n'
-                '[${DateTime.now().toIso8601String()}] System ready for G-code processing\n'
-                '\n'
-                'Renderer Information:\n'
-                '• Engine: Flutter Scene Lines Renderer\n'
-                '• Hardware acceleration: Enabled\n'
-                '• GPU shaders: Compiled successfully\n'
-                '• Performance monitoring: Active\n'
-                '\n'
-                'Communication Status:\n'
-                '• WebSocket support: Available\n'
-                '• Network permissions: Granted\n'
-                '• Test server: Ready (ws://localhost:8080)\n'
-                '• GRBL protocol: Supported',
-                style: GoogleFonts.inconsolata(
-                  color: VSCodeTheme.secondaryText,
-                  fontSize: 10,
-                  height: 1.4,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return LogOutputPanel(autoScroll: _autoScroll);
   }
 
   // Helper methods for console integration
@@ -463,5 +440,18 @@ class _BottomPanelState extends State<BottomPanel>
       default:
         return VSCodeTheme.secondaryText;
     }
+  }
+
+  // Output tab control methods
+  void _toggleAutoScroll() {
+    setState(() {
+      _autoScroll = !_autoScroll;
+    });
+    // Note: The actual auto-scroll logic is handled by LogOutputPanel
+    // This just maintains the state for the UI toggle
+  }
+
+  void _clearLogs() {
+    AppLogger.clearLogHistory();
   }
 }

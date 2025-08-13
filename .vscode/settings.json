@@ -19,11 +19,13 @@
     "*.arb": "json"
   },
   "terminal.integrated.env.osx": {
-    "PATH": "${workspaceFolder}/toolchain/asdf-data/shims:${workspaceFolder}/toolchain/asdf/bin:${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
+    "PATH": "${workspaceFolder}/toolchain/bin:${workspaceFolder}/toolchain/asdf-data/shims:${workspaceFolder}/toolchain/asdf/bin:${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
     "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub",
     "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter",
     "ASDF_DIR": "${workspaceFolder}/toolchain/asdf",
-    "ASDF_DATA_DIR": "${workspaceFolder}/toolchain/asdf-data"
+    "ASDF_DATA_DIR": "${workspaceFolder}/toolchain/asdf-data",
+    "GEM_HOME": "${workspaceFolder}/toolchain/asdf-data/installs/ruby/3.4.5/lib/ruby/gems/3.4.0",
+    "GEM_PATH": "${workspaceFolder}/toolchain/asdf-data/installs/ruby/3.4.5/lib/ruby/gems/3.4.0"
   },
   "terminal.integrated.env.linux": {
     "PATH": "${workspaceFolder}/toolchain/asdf-data/shims:${workspaceFolder}/toolchain/asdf/bin:${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",

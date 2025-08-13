@@ -1,0 +1,78 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ghSender (Debug)",
+            "type": "dart",
+            "request": "launch",
+            "program": "lib/main.dart",
+            "cwd": "${workspaceFolder}",
+            "deviceId": "macos",
+            "flutterMode": "debug",
+            "args": [
+                "--enable-impeller"
+            ],
+            "env": {
+                "PATH": "${workspaceFolder}/toolchain/asdf-data/shims:${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
+                "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter",
+                "ASDF_DIR": "${workspaceFolder}/toolchain/asdf",
+                "ASDF_DATA_DIR": "${workspaceFolder}/toolchain/asdf-data",
+                "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub"
+            },
+            "console": "debugConsole",
+            "preLaunchTask": "activate-environment"
+        },
+        {
+            "name": "ghSender (Profile)",
+            "type": "dart", 
+            "request": "launch",
+            "program": "lib/main.dart",
+            "cwd": "${workspaceFolder}",
+            "deviceId": "macos",
+            "flutterMode": "profile",
+            "args": [
+                "--enable-impeller"
+            ],
+            "console": "debugConsole"
+        },
+        {
+            "name": "ghSender (Release)",
+            "type": "dart",
+            "request": "launch", 
+            "program": "lib/main.dart",
+            "cwd": "${workspaceFolder}",
+            "deviceId": "macos",
+            "flutterMode": "release",
+            "args": [
+                "--enable-impeller"
+            ],
+            "console": "debugConsole"
+        },
+        {
+            "name": "ghSender Tests",
+            "type": "dart",
+            "request": "launch",
+            "program": "test/",
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "--timeout=60s"
+            ],
+            "console": "debugConsole"
+        },
+        {
+            "name": "ghSender Integration Tests",
+            "type": "dart",
+            "request": "launch",
+            "program": "integration_test/",
+            "cwd": "${workspaceFolder}",
+            "deviceId": "macos",
+            "args": [
+                "--timeout=120s"
+            ],
+            "console": "debugConsole"
+        }
+    ]
+}

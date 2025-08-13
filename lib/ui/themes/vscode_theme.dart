@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 /// VS Code-inspired theme colors and styling for the graphics performance spike
 class VSCodeTheme {
@@ -158,4 +159,28 @@ class VSCodeTheme {
   static const List<BoxShadow> elevatedShadow = [
     BoxShadow(color: Color(0x20000000), blurRadius: 4, offset: Offset(0, 2)),
   ];
+
+  /// Log line text styles - consistent sizing and Inconsolata font
+  static TextStyle get loglineTime => GoogleFonts.inconsolata(
+    color: secondaryText,
+    fontSize: 11,
+    fontWeight: FontWeight.w400,
+  );
+
+  static TextStyle get loglineName => GoogleFonts.inconsolata(
+    color: const Color(0xFF4FC1FF), // VS Code cyan
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+  );
+
+  static TextStyle get loglineLevel => GoogleFonts.inconsolata(
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+  );
+
+  static TextStyle get loglineMessage => GoogleFonts.inconsolata(
+    color: primaryText,
+    fontSize: 11,
+    fontWeight: FontWeight.w400,
+  );
 }

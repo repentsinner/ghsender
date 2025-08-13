@@ -3,9 +3,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:window_manager/window_manager.dart';
 import 'bloc/bloc_exports.dart';
 import 'ui/app/app_integration.dart';
+import 'utils/logger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize logging system
+  AppLogger.initialize();
 
   // Configure window manager for desktop platforms
   await windowManager.ensureInitialized();
