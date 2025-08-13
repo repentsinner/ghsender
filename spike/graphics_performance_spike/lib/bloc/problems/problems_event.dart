@@ -95,12 +95,5 @@ class ProfileStateAnalyzed extends ProblemsEvent {
   List<Object?> get props => [state];
 }
 
-/// Periodic cleanup of stale problems
-class ProblemsStaleCleanup extends ProblemsEvent {
-  final Duration maxAge;
-  
-  const ProblemsStaleCleanup({this.maxAge = const Duration(minutes: 5)});
-  
-  @override
-  List<Object?> get props => [maxAge];
-}
+/// Note: Removed ProblemsStaleCleanup event
+/// Problems no longer automatically expire - they persist until resolved

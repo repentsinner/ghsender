@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../themes/vscode_theme.dart';
 import '../widgets/problem_item.dart';
 import '../../bloc/bloc_exports.dart';
+import '../../models/machine_controller.dart';
 
 /// Status Bar widget - bottom status information
 class StatusBar extends StatelessWidget {
@@ -34,6 +35,15 @@ class StatusBar extends StatelessWidget {
                   return _buildConnectionStatusItem(commState, profileState);
                 },
               );
+            },
+          ),
+
+          _buildDivider(),
+
+          // Machine status indicator  
+          BlocBuilder<MachineControllerBloc, MachineControllerState>(
+            builder: (context, machineState) {
+              return _buildMachineStatusItem(machineState);
             },
           ),
 
@@ -100,6 +110,43 @@ class StatusBar extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMachineStatusItem(MachineControllerState machineState) {
+    if (!machineState.hasController || !machineState.isOnline) {
+      return Container(); // Hide when no controller or offline
+    }
+
+    final status = machineState.status;
+    final (IconData icon, Color iconColor) = switch (status) {
+      MachineStatus.idle => (Icons.circle, Colors.green),
+      MachineStatus.running => (Icons.play_circle_filled, Colors.blue),
+      MachineStatus.paused => (Icons.pause_circle_filled, Colors.orange),
+      MachineStatus.alarm || MachineStatus.error => (Icons.error, Colors.red),
+      MachineStatus.homing => (Icons.home, Colors.yellow),
+      MachineStatus.jogging => (Icons.open_with, Colors.cyan),
+      MachineStatus.hold => (Icons.pause, Colors.orange),
+      MachineStatus.door => (Icons.door_front_door, Colors.purple),
+      MachineStatus.check => (Icons.check_circle, Colors.teal),
+      MachineStatus.sleep => (Icons.bedtime, Colors.grey),
+      _ => (Icons.help, Colors.grey),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      height: VSCodeTheme.statusBarHeight,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: iconColor, size: 14),
+          const SizedBox(width: 4),
+          Text(
+            status.displayName,
+            style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 11),
           ),
         ],
       ),

@@ -54,6 +54,7 @@ class _BottomPanelState extends State<BottomPanel>
                         return TabBar(
                           controller: _tabController,
                           isScrollable: true,
+                          indicatorColor: Colors.transparent,
                           tabAlignment: TabAlignment.start,
                           tabs: [
                             Tab(
@@ -226,18 +227,8 @@ class _BottomPanelState extends State<BottomPanel>
                     ),
                   ),
                   const Spacer(),
-                  if (commState is CncCommunicationWithData &&
-                      commState.performanceData != null)
-                    Text(
-                      '${commState.performanceData!.averageLatencyMs.toStringAsFixed(1)}ms avg',
-                      style: GoogleFonts.inconsolata(
-                        color:
-                            commState.performanceData!.meetsLatencyRequirement
-                            ? VSCodeTheme.success
-                            : VSCodeTheme.warning,
-                        fontSize: 10,
-                      ),
-                    ),
+                  // Note: Performance data display moved to MachineControllerBloc UI
+                  // Performance metrics are now handled by machine controller state
                 ],
               ),
             ),
@@ -374,25 +365,14 @@ class _BottomPanelState extends State<BottomPanel>
         buffer.writeln('🌐 URL: ${dataState.url}');
         buffer.writeln('📊 Messages: ${dataState.messages.length}');
 
-        if (dataState.performanceData != null) {
-          final perf = dataState.performanceData!;
-          buffer.writeln(
-            '⚡ Latency: ${perf.averageLatencyMs.toStringAsFixed(1)}ms avg (${perf.latencyStatus})',
-          );
-          buffer.writeln('📈 Total Messages: ${perf.totalMessages}');
-        }
+        // Note: Performance data display moved to MachineControllerBloc
+        // Performance metrics are now tracked in machine controller state
 
-        if (dataState.machineState != null) {
-          final machine = dataState.machineState!;
-          buffer.writeln('🤖 Machine State: ${machine.state}');
-          if (machine.workPosition != null) {
-            buffer.writeln('📍 Position: ${machine.workPosition}');
-          }
-        }
+        // Note: Machine state display moved to MachineControllerBloc
+        // Will be shown via machine controller state instead of communication state
 
-        if (dataState.jogTestRunning) {
-          buffer.writeln('🏃 Jog Test: Running');
-        }
+        // Note: Jog test status moved to MachineControllerBloc
+        // Jog test information is now tracked in machine controller state
 
         buffer.writeln('');
         buffer.writeln('📨 Recent Communication:');

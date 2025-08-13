@@ -6,15 +6,13 @@ import '../../utils/logger.dart';
 import 'cnc_communication_event.dart';
 import 'cnc_communication_state.dart';
 
-/// Enhanced CNC communication BLoC with full WebSocket support
+/// Lightweight CNC communication BLoC with WebSocket support
 ///
-/// This BLoC replaces the basic simulated connection with real WebSocket
-/// communication to GRBL/grblHAL controllers. It provides:
+/// This BLoC provides basic WebSocket communication to GRBL/grblHAL controllers:
 /// - Real-time bidirectional communication
-/// - Performance monitoring and latency tracking
-/// - Machine state monitoring
-/// - Automated jog testing capabilities
-/// - UI responsiveness monitoring
+/// - Connection management and validation
+/// - Raw message passing to MachineControllerBloc
+/// - Minimal state tracking focused on connection status
 class CncCommunicationBloc
     extends Bloc<CncCommunicationEvent, CncCommunicationState> {
   // WebSocket communication
@@ -27,79 +25,20 @@ class CncCommunicationBloc
   DateTime? _connectedAt;
   final List<String> _messages = [];
 
-  // Performance monitoring
-  PerformanceData? _currentPerformanceData;
-  final Map<int, DateTime> _pendingCommands = {};
-  final Map<int, String> _pendingCommandTypes = {};
-  final List<double> _latencies = [];
+  // Simple command tracking for basic functionality
   int _commandIdCounter = 0;
 
-  // Machine state tracking
-  MachineState? _currentMachineState;
-  String _lastRawMachineState = '';
-
-  // Jog testing
-  bool _jogTestRunning = false;
-  DateTime? _jogTestStartTime;
-  int _jogTestDurationSeconds = 0;
-  int _jogCount = 0;
-  double _jogDistance = 0.0;
-  int _jogFeedRate = 0;
-  DateTime? _jogStartTime;
-  final List<String> _stateTransitions = [];
-
-  // Timers for periodic operations
-  Timer? _heartbeatTimer;
-  Timer? _jogPollTimer;
-  Timer? _uiPerformanceTimer;
-
-  // UI performance monitoring
-  final List<double> _uiFrameTimes = [];
-  final Stopwatch _uiStopwatch = Stopwatch();
-
-  // Track when data has been updated from message processing
-  bool _hasDataUpdate = false;
-
   CncCommunicationBloc() : super(const CncCommunicationInitial()) {
-    AppLogger.commInfo('CNC Communication BLoC initialized');
+    AppLogger.commInfo('CNC Communication BLoC initialized (lightweight version)');
 
     on<CncCommunicationConnectRequested>(_onConnectRequested);
     on<CncCommunicationDisconnectRequested>(_onDisconnectRequested);
     on<CncCommunicationSendCommand>(_onSendCommand);
-    on<CncCommunicationStartJogTest>(_onStartJogTest);
-    on<CncCommunicationStopJogTest>(_onStopJogTest);
+    on<CncCommunicationSendRawBytes>(_onSendRawBytes);
     on<CncCommunicationStatusChanged>(_onStatusChanged);
     on<CncCommunicationSetControllerAddress>(_onSetControllerAddress);
-
-    _startUIPerformanceMonitoring();
   }
 
-  /// Start monitoring UI thread responsiveness
-  void _startUIPerformanceMonitoring() {
-    _uiPerformanceTimer = Timer.periodic(const Duration(milliseconds: 16), (
-      timer,
-    ) {
-      // Measure UI thread responsiveness by timing this callback
-      if (_uiStopwatch.isRunning) {
-        final frameTime = _uiStopwatch.elapsedMicroseconds / 1000.0;
-        _uiFrameTimes.add(frameTime);
-
-        // Keep only last 60 frames (1 second at 60fps)
-        if (_uiFrameTimes.length > 60) {
-          _uiFrameTimes.removeAt(0);
-        }
-
-        // Log UI jank if frame time exceeds 20ms (50fps threshold)
-        if (frameTime > 20.0) {
-          AppLogger.commWarning(
-            'UI JANK detected: ${frameTime.toStringAsFixed(2)}ms frame time',
-          );
-        }
-      }
-      _uiStopwatch.reset();
-      _uiStopwatch.start();
-    });
-  }
 
   /// Handle connection request
   Future<void> _onConnectRequested(
@@ -107,6 +46,13 @@ class CncCommunicationBloc
     Emitter<CncCommunicationState> emit,
   ) async {
     AppLogger.commInfo('WebSocket connection requested to ${event.url}');
+    
+    // Ensure clean state before attempting connection
+    if (_webSocketChannel != null || _isConnected) {
+      AppLogger.commWarning('Previous connection detected, performing cleanup before reconnect');
+      _cleanup();
+    }
+    
     emit(const CncCommunicationConnecting());
 
     try {
@@ -136,88 +82,13 @@ class CncCommunicationBloc
       // Test connection with a single status request after WebSocket is established
       AppLogger.commInfo('Testing WebSocket connection with status request');
 
-      // Stop any existing heartbeat to avoid interference with validation
-      _heartbeatTimer?.cancel();
-      _heartbeatTimer = null;
+      // Note: Heartbeat mechanism removed for simplicity
 
-      // Set up connection validation with proper state management
-      bool connectionValidated = false;
-      bool connectionFailed = false;
-
-      AppLogger.commInfo('Starting connection validation - heartbeat stopped');
-
-      // Set up a timeout for the entire connection validation process
-      final validationTimeout = Timer(const Duration(milliseconds: 2000), () {
-        if (!connectionValidated && !connectionFailed) {
-          AppLogger.commError(
-            'WebSocket connection validation timeout - likely handshake failed',
-          );
-          connectionFailed = true;
-          if (!emit.isDone) {
-            emit(
-              const CncCommunicationError(
-                errorMessage:
-                    'WebSocket connection timeout - controller may not support WebSocket protocol',
-                statusMessage: 'Connection Timeout',
-              ),
-            );
-          }
-        }
-      });
-
-      // Set up temporary message handler to detect first successful communication
+      // Set up WebSocket stream listener for message processing
       _webSocketSubscription = _webSocketChannel!.stream.listen(
         (data) {
-          AppLogger.commDebug(
-            'Validation check: connectionValidated=$connectionValidated, connectionFailed=$connectionFailed',
-          );
-
-          if (!connectionValidated && !connectionFailed) {
-            // First successful message received - connection is truly established
-            connectionValidated = true;
-            _isConnected = true;
-            validationTimeout.cancel();
-
-            AppLogger.commInfo(
-              'WebSocket connection successfully established and validated',
-            );
-            _messages.add('Connected to WebSocket: ${event.url}');
-
-            AppLogger.commDebug(
-              'About to emit CncCommunicationConnected state',
-            );
-            if (!emit.isDone) {
-              emit(
-                CncCommunicationConnected(
-                  url: event.url,
-                  statusMessage: 'Connected to CNC Controller',
-                  deviceInfo: 'GRBL/grblHAL via WebSocket',
-                  connectedAt: _connectedAt!,
-                ),
-              );
-              AppLogger.commDebug(
-                'CncCommunicationConnected state emitted successfully',
-              );
-            } else {
-              AppLogger.commError('Failed to emit state - emitter is done');
-            }
-
-            // Start heartbeat now that we're truly connected
-            _startHeartbeat();
-            AppLogger.commDebug('Heartbeat started after validation');
-
-            // Remove the immediate _emitDataState call to avoid overriding the Connected state
-            // _emitDataState(emit);
-          }
-
-          // Continue with normal message processing
-          AppLogger.commDebug(
-            'WebSocket received raw data: ${data.toString()}',
-          );
+          // Process incoming message (no debug logging to avoid 60Hz spam)
           _onMessage(data.toString(), DateTime.now());
-
-          // Note: Cannot emit states from async stream listener after event handler completes
-          // State emissions must happen within the original event handler context
         },
         onError: (error) {
           AppLogger.commError(
@@ -226,26 +97,7 @@ class CncCommunicationBloc
           );
           _isConnected = false;
 
-          if (!connectionValidated && !connectionFailed) {
-            connectionFailed = true;
-            validationTimeout.cancel();
-
-            AppLogger.commError(
-              'WebSocket connection failed during validation: $error',
-              error,
-            );
-            if (!emit.isDone) {
-              emit(
-                CncCommunicationError(
-                  errorMessage:
-                      'Failed to establish WebSocket connection: $error',
-                  statusMessage: 'Connection Failed',
-                  error: error,
-                ),
-              );
-            }
-          } else if (!emit.isDone) {
-            // Connection was established but then failed
+          if (!emit.isDone) {
             emit(
               CncCommunicationError(
                 errorMessage: 'WebSocket connection lost: $error',
@@ -259,20 +111,7 @@ class CncCommunicationBloc
           AppLogger.commInfo('WebSocket stream closed (onDone callback)');
           _isConnected = false;
 
-          if (!connectionValidated && !connectionFailed) {
-            connectionFailed = true;
-            validationTimeout.cancel();
-
-            AppLogger.commInfo('WebSocket connection closed during validation');
-            if (!emit.isDone) {
-              emit(
-                const CncCommunicationDisconnected(
-                  statusMessage: 'Connection Closed',
-                  reason: 'WebSocket closed during handshake',
-                ),
-              );
-            }
-          } else if (!emit.isDone) {
+          if (!emit.isDone) {
             emit(
               const CncCommunicationDisconnected(
                 statusMessage: 'Disconnected',
@@ -283,25 +122,19 @@ class CncCommunicationBloc
         },
       );
 
-      try {
-        // Send a test command to trigger the validation
-        _sendCommand('?', -999);
-      } catch (e) {
-        connectionFailed = true;
-        validationTimeout.cancel();
-
-        AppLogger.commError('Failed to send test command', e);
-        if (!emit.isDone) {
-          emit(
-            CncCommunicationError(
-              errorMessage: 'Connection test failed: $e',
-              statusMessage: 'Connection Test Failed',
-              error: e,
-            ),
-          );
-        }
-        return;
-      }
+      // WebSocket connection established successfully
+      _isConnected = true;
+      _messages.add('Connected to WebSocket: ${event.url}');
+      
+      AppLogger.commInfo('WebSocket connection established successfully');
+      emit(
+        CncCommunicationConnected(
+          url: event.url,
+          statusMessage: 'Connected to CNC Controller',
+          deviceInfo: 'GRBL/grblHAL via WebSocket',
+          connectedAt: _connectedAt!,
+        ),
+      );
     } catch (error, stackTrace) {
       AppLogger.commError('Failed to connect WebSocket', error, stackTrace);
       emit(
@@ -323,15 +156,27 @@ class CncCommunicationBloc
     AppLogger.commInfo('Disconnection requested by user');
 
     try {
-      // Close WebSocket connection
+      // Force close WebSocket connection with proper cleanup
       if (_webSocketChannel != null) {
-        await _webSocketChannel!.sink.close(status.goingAway);
+        AppLogger.commDebug('Closing WebSocket connection');
+        
+        // Cancel subscription first to prevent stream events during close
+        _webSocketSubscription?.cancel();
+        _webSocketSubscription = null;
+        
+        // Close the WebSocket with normal closure status code
+        try {
+          await _webSocketChannel!.sink.close(status.normalClosure);
+        } catch (e) {
+          AppLogger.commWarning('WebSocket close failed, forcing cleanup: $e');
+        }
+        
         _webSocketChannel = null;
+        AppLogger.commDebug('WebSocket connection closed and nullified');
       }
 
-      // Clean up timers and state
+      // Perform comprehensive cleanup
       _cleanup();
-      _isConnected = false;
 
       AppLogger.commInfo('Successfully disconnected from CNC controller');
       emit(
@@ -343,6 +188,10 @@ class CncCommunicationBloc
       );
     } catch (error, stackTrace) {
       AppLogger.commError('Error during disconnection', error, stackTrace);
+      
+      // Even if disconnection fails, force cleanup to allow reconnection
+      _cleanup();
+      
       emit(
         CncCommunicationError(
           errorMessage: 'Disconnection error: ${error.toString()}',
@@ -365,49 +214,35 @@ class CncCommunicationBloc
     }
 
     final commandId = ++_commandIdCounter;
-    AppLogger.commInfo('Sending command $commandId: "${event.command}"');
+    
+    // Only log non-status queries to avoid flooding logs
+    if (event.command != '?') {
+      AppLogger.commInfo('Sending command $commandId: "${event.command}"');
+    }
 
     _sendCommand(event.command, commandId);
     _messages.add('Sent: ${event.command}');
     _emitDataState(emit);
   }
 
-  /// Handle jog test start
-  void _onStartJogTest(
-    CncCommunicationStartJogTest event,
+  /// Handle raw bytes sending (for real-time commands like grblHAL auto-reporting)
+  void _onSendRawBytes(
+    CncCommunicationSendRawBytes event,
     Emitter<CncCommunicationState> emit,
   ) {
-    if (!_isConnected) {
-      AppLogger.commWarning('Cannot start jog test - not connected');
+    if (!_isConnected || _webSocketChannel == null) {
+      AppLogger.commWarning('Cannot send raw bytes - not connected');
       return;
     }
 
-    AppLogger.commInfo(
-      'Starting jog test: ${event.durationSeconds}s, ${event.jogDistance}mm, ${event.feedRate}mm/min',
-    );
+    final bytesHex = event.bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ');
+    AppLogger.commInfo('Sending raw bytes: $bytesHex');
 
-    _jogTestRunning = true;
-    _jogTestStartTime = DateTime.now();
-    _jogTestDurationSeconds = event.durationSeconds;
-    _messages.add('=== JOG TEST STARTED ===');
-    _messages.add(
-      'Duration: ${event.durationSeconds}s, Distance: ${event.jogDistance}mm, Feed: ${event.feedRate}mm/min',
-    );
-
-    _startJogTest(event.durationSeconds, event.jogDistance, event.feedRate);
+    _sendRawBytes(event.bytes);
+    _messages.add('Sent raw: $bytesHex');
     _emitDataState(emit);
   }
 
-  /// Handle jog test stop
-  void _onStopJogTest(
-    CncCommunicationStopJogTest event,
-    Emitter<CncCommunicationState> emit,
-  ) {
-    AppLogger.commInfo('Stopping jog test');
-    _stopJogTest();
-    _messages.add('=== JOG TEST STOPPED ===');
-    _emitDataState(emit);
-  }
 
   /// Handle external status changes
   Future<void> _onStatusChanged(
@@ -466,219 +301,38 @@ class CncCommunicationBloc
   void _onMessage(String message, DateTime timestamp) {
     if (message.isEmpty) return;
 
-    AppLogger.commDebug('Received: $message');
+    // Only log non-status messages to avoid flooding with 60Hz updates
+    if (!message.startsWith('<') && message.trim() != 'ok') {
+      AppLogger.commDebug('Received: $message');
+    }
+    
     _messages.add('Received: $message');
 
-    // Keep message history manageable
-    if (_messages.length > 1000) {
-      _messages.removeRange(0, 100);
+    // Keep message history manageable (more aggressive with 60Hz updates)
+    if (_messages.length > 500) {
+      _messages.removeRange(0, 200);
     }
 
-    // Track state changes for jog test
-    _trackStateChange(message, timestamp);
-
-    // Parse machine state from status messages
-    _parseMachineState(message, timestamp);
-
-    // Check if this is a response to a pending command
-    _processCommandResponse(message, timestamp);
-
-    // Update performance metrics
-    _updatePerformanceMetrics();
-
-    // Mark that data has been updated
-    _hasDataUpdate = true;
+    // Extract basic machine state from status messages (simple parsing only)
+    _extractBasicMachineState(message, timestamp);
   }
 
-  /// Track state transitions for jog testing
-  void _trackStateChange(String message, DateTime timestamp) {
+
+  /// Extract basic machine state from GRBL status messages (simple parsing only)
+  /// Detailed parsing is handled by MachineControllerBloc
+  void _extractBasicMachineState(String message, DateTime timestamp) {
+    // Note: Machine state tracking moved to MachineControllerBloc
+    // This method is kept minimal for potential future use
     if (!message.startsWith('<')) return;
 
+    // Basic validation only - detailed parsing handled by MachineControllerBloc
     final stateMatch = RegExp(r'<([^|]+)').firstMatch(message);
     if (stateMatch == null) return;
 
-    final currentState = stateMatch.group(1)!;
-
-    if (_lastRawMachineState.isNotEmpty &&
-        _lastRawMachineState != currentState) {
-      final transitionTime = _jogStartTime != null
-          ? timestamp.difference(_jogStartTime!).inMicroseconds / 1000.0
-          : 0.0;
-
-      final transition =
-          '$_lastRawMachineState → $currentState (${transitionTime.toStringAsFixed(1)}ms)';
-      _stateTransitions.add(transition);
-
-      _messages.add('State: $transition');
-      AppLogger.commDebug('State transition: $transition');
-
-      // If we transitioned from Jog to Idle during jog test, start next jog
-      if (_jogTestRunning &&
-          _lastRawMachineState == 'Jog' &&
-          currentState == 'Idle') {
-        AppLogger.commDebug('Jog completed, starting next jog');
-        Timer(const Duration(milliseconds: 100), () {
-          if (_jogTestRunning) {
-            _executeNextJog();
-          }
-        });
-      }
-    }
-
-    _lastRawMachineState = currentState;
+    // No local state storage needed - MachineControllerBloc handles all parsing
   }
 
-  /// Parse machine state information from GRBL status messages
-  void _parseMachineState(String message, DateTime timestamp) {
-    if (!message.startsWith('<')) return;
-
-    // Parse GRBL status: <Idle|MPos:0.000,0.000,0.000|FS:0,0>
-    final stateMatch = RegExp(r'<([^|]+)').firstMatch(message);
-    if (stateMatch == null) return;
-
-    final state = stateMatch.group(1)!;
-
-    // Parse positions
-    Position? workPos;
-    Position? machinePos;
-
-    final workPosMatch = RegExp(
-      r'WPos:([+-]?\d*\.?\d+),([+-]?\d*\.?\d+),([+-]?\d*\.?\d+)',
-    ).firstMatch(message);
-    if (workPosMatch != null) {
-      workPos = Position(
-        x: double.parse(workPosMatch.group(1)!),
-        y: double.parse(workPosMatch.group(2)!),
-        z: double.parse(workPosMatch.group(3)!),
-      );
-    }
-
-    final machinePosMatch = RegExp(
-      r'MPos:([+-]?\d*\.?\d+),([+-]?\d*\.?\d+),([+-]?\d*\.?\d+)',
-    ).firstMatch(message);
-    if (machinePosMatch != null) {
-      machinePos = Position(
-        x: double.parse(machinePosMatch.group(1)!),
-        y: double.parse(machinePosMatch.group(2)!),
-        z: double.parse(machinePosMatch.group(3)!),
-      );
-    }
-
-    // Parse feed and spindle
-    double? feedRate;
-    double? spindleSpeed;
-
-    final fsMatch = RegExp(r'FS:(\d+),(\d+)').firstMatch(message);
-    if (fsMatch != null) {
-      feedRate = double.parse(fsMatch.group(1)!);
-      spindleSpeed = double.parse(fsMatch.group(2)!);
-    }
-
-    _currentMachineState = MachineState(
-      state: state,
-      workPosition: workPos,
-      machinePosition: machinePos,
-      feedRate: feedRate,
-      spindleSpeed: spindleSpeed,
-      lastUpdated: timestamp,
-    );
-  }
-
-  /// Process command responses and calculate latency
-  void _processCommandResponse(String message, DateTime timestamp) {
-    if (message != 'ok' &&
-        !message.startsWith('error:') &&
-        !message.startsWith('<')) {
-      return;
-    }
-
-    int? commandId;
-
-    if (message.startsWith('<')) {
-      // Status data - find most recent status query
-      commandId = _findMostRecentStatusQuery();
-    } else if (message == 'ok' || message.startsWith('error:')) {
-      // Ok/error response - match to oldest non-status command
-      commandId = _findOldestNonStatusCommand();
-    }
-
-    if (commandId != null && _pendingCommands.containsKey(commandId)) {
-      final sentTime = _pendingCommands.remove(commandId)!;
-      _pendingCommandTypes.remove(commandId);
-      final latency = timestamp.difference(sentTime).inMicroseconds / 1000.0;
-
-      _latencies.add(latency);
-      if (_latencies.length > 1000) {
-        _latencies.removeAt(0);
-      }
-
-      _messages.add('Response [$commandId]: $message (${latency.round()}ms)');
-      AppLogger.commDebug(
-        'Command $commandId latency: ${latency.toStringAsFixed(3)}ms',
-      );
-    }
-  }
-
-  /// Find the most recent status query command ID
-  int? _findMostRecentStatusQuery() {
-    int? latestStatusCommandId;
-    DateTime? latestStatusTime;
-
-    for (final entry in _pendingCommands.entries) {
-      final commandId = entry.key;
-      final timestamp = entry.value;
-      final commandType = _pendingCommandTypes[commandId];
-
-      if (commandType == '?' &&
-          (latestStatusTime == null || timestamp.isAfter(latestStatusTime))) {
-        latestStatusCommandId = commandId;
-        latestStatusTime = timestamp;
-      }
-    }
-
-    return latestStatusCommandId;
-  }
-
-  /// Find the oldest non-status command ID
-  int? _findOldestNonStatusCommand() {
-    int? oldestNonStatusCommandId;
-    DateTime? oldestNonStatusTime;
-
-    for (final entry in _pendingCommands.entries) {
-      final commandId = entry.key;
-      final timestamp = entry.value;
-      final commandType = _pendingCommandTypes[commandId];
-
-      if (commandType != '?' &&
-          commandId > 0 &&
-          (oldestNonStatusTime == null ||
-              timestamp.isBefore(oldestNonStatusTime))) {
-        oldestNonStatusCommandId = commandId;
-        oldestNonStatusTime = timestamp;
-      }
-    }
-
-    return oldestNonStatusCommandId;
-  }
-
-  /// Update performance metrics based on current latency data
-  void _updatePerformanceMetrics() {
-    if (_latencies.isEmpty) return;
-
-    final avgLatency = _latencies.reduce((a, b) => a + b) / _latencies.length;
-    final maxLatency = _latencies.reduce((a, b) => a > b ? a : b);
-
-    _currentPerformanceData = PerformanceData(
-      messagesPerSecond: _latencies.length,
-      averageLatencyMs: avgLatency,
-      maxLatencyMs: maxLatency,
-      totalMessages: _latencies.length,
-      droppedMessages: 0,
-      recentLatencies: [],
-    );
-  }
-
-  /// Send command to WebSocket with tracking
+  /// Send command to WebSocket
   void _sendCommand(String command, int commandId) {
     if (_webSocketChannel == null) {
       AppLogger.commWarning('Cannot send WebSocket command - not connected');
@@ -687,28 +341,18 @@ class CncCommunicationBloc
 
     try {
       final commandWithNewline = '$command\r\n';
+      _webSocketChannel!.sink.add(commandWithNewline);
 
-      // Check WebSocket state before sending
-      final sink = _webSocketChannel!.sink;
-      AppLogger.commDebug('WebSocket sink ready: ${sink.hashCode}');
-
-      sink.add(commandWithNewline);
-
-      final timestamp = DateTime.now();
-      _pendingCommands[commandId] = timestamp;
-      _pendingCommandTypes[commandId] = command;
-
-      AppLogger.commDebug(
-        'WebSocket sent command $commandId: "$command" successfully',
-      );
+      // Only log non-status commands to reduce noise
+      if (command != '?') {
+        AppLogger.commDebug('WebSocket sent command: "$command"');
+      }
     } catch (e, stackTrace) {
       AppLogger.commError(
         'Error sending WebSocket command "$command"',
         e,
         stackTrace,
       );
-      _pendingCommands.remove(commandId);
-      _pendingCommandTypes.remove(commandId);
 
       // If command sending fails, this indicates the connection is broken
       if (_isConnected) {
@@ -721,161 +365,39 @@ class CncCommunicationBloc
     }
   }
 
-  /// Start heartbeat timer for status monitoring
-  void _startHeartbeat() {
-    _heartbeatTimer = Timer.periodic(const Duration(milliseconds: 200), (
-      timer,
-    ) {
-      if (_webSocketChannel != null && !_jogTestRunning) {
-        _sendCommand('?', -timer.tick);
-
-        // If we have data updates, trigger a status event to refresh the UI state
-        if (_hasDataUpdate && _isConnected) {
-          _hasDataUpdate = false; // Reset the flag
-          add(
-            CncCommunicationStatusChanged(
-              isConnected: true,
-              statusMessage: 'Data Updated',
-              deviceInfo: 'GRBL/grblHAL via WebSocket',
-            ),
-          );
-        }
-      }
-    });
-    AppLogger.commInfo('Heartbeat started (200ms interval)');
-  }
-
-  /// Start jog test sequence
-  void _startJogTest(int durationSeconds, double jogDistance, int feedRate) {
-    _jogTestRunning = true;
-    _jogCount = 0;
-    _jogDistance = jogDistance;
-    _jogFeedRate = feedRate;
-    _jogTestDurationSeconds = durationSeconds;
-    _lastRawMachineState = '';
-    _stateTransitions.clear();
-
-    AppLogger.commInfo(
-      'Starting jog test: ${durationSeconds}s, ${jogDistance}mm, ${feedRate}mm/min',
-    );
-
-    // Stop regular heartbeat during test
-    _heartbeatTimer?.cancel();
-
-    // Start 20Hz status polling during jog operations
-    _startJogPolling();
-
-    // Start the jog sequence
-    _executeNextJog();
-  }
-
-  /// Start high-frequency status polling during jog test
-  void _startJogPolling() {
-    _jogPollTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
-      if (!_jogTestRunning) {
-        timer.cancel();
-        return;
-      }
-
-      // Safety check: ensure test doesn't run longer than intended duration
-      if (_jogTestStartTime != null &&
-          DateTime.now().difference(_jogTestStartTime!).inSeconds >=
-              _jogTestDurationSeconds) {
-        AppLogger.commInfo('Jog test duration exceeded - stopping test');
-        _stopJogTest();
-        timer.cancel();
-        return;
-      }
-
-      // Send status query
-      _sendCommand('?', -1000 - _jogCount);
-    });
-  }
-
-  /// Execute the next jog movement in sequence
-  void _executeNextJog() {
-    if (!_jogTestRunning) return;
-
-    if (_jogTestStartTime != null &&
-        DateTime.now().difference(_jogTestStartTime!).inSeconds >=
-            _jogTestDurationSeconds) {
-      _stopJogTest();
+  /// Send raw bytes to WebSocket (for real-time commands like grblHAL auto-reporting)
+  void _sendRawBytes(List<int> bytes) {
+    if (_webSocketChannel == null) {
+      AppLogger.commWarning('Cannot send raw bytes to WebSocket - not connected');
       return;
     }
 
-    _jogCount++;
-    _jogStartTime = DateTime.now();
+    try {
+      // Send raw bytes directly without any line endings
+      _webSocketChannel!.sink.add(bytes);
 
-    // Send jog command: alternate between +X and -X
-    final direction = (_jogCount % 2 == 1) ? '' : '-';
-    final jogCommand = '\$J=G91 X$direction$_jogDistance F$_jogFeedRate';
+      final bytesHex = bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ');
+      AppLogger.commDebug('WebSocket sent raw bytes: $bytesHex');
+    } catch (e, stackTrace) {
+      final bytesHex = bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ');
+      AppLogger.commError(
+        'Error sending WebSocket raw bytes [$bytesHex]',
+        e,
+        stackTrace,
+      );
 
-    AppLogger.commDebug('Executing jog $_jogCount: $jogCommand');
-    _sendCommand(jogCommand, 20000 + _jogCount);
-  }
-
-  /// Stop jog test and report metrics
-  void _stopJogTest() {
-    if (!_jogTestRunning) return;
-
-    AppLogger.commInfo('Stopping jog test');
-    _jogTestRunning = false;
-    _jogPollTimer?.cancel();
-    _jogPollTimer = null;
-
-    // Resume regular heartbeat
-    _startHeartbeat();
-
-    _reportJogTestMetrics();
-  }
-
-  /// Report jog test performance metrics
-  void _reportJogTestMetrics() {
-    final testDuration = _jogTestStartTime != null
-        ? DateTime.now().difference(_jogTestStartTime!).inMilliseconds / 1000.0
-        : 0.0;
-
-    AppLogger.commInfo('=== JOG TEST RESULTS ===');
-    AppLogger.commInfo('Test duration: ${testDuration.toStringAsFixed(1)}s');
-    AppLogger.commInfo('Total jogs: $_jogCount');
-    AppLogger.commInfo('State transitions: ${_stateTransitions.length}');
-
-    for (final transition in _stateTransitions) {
-      AppLogger.commInfo('  $transition');
-    }
-
-    // Calculate average jog time
-    final jogTimes = <double>[];
-    for (final transition in _stateTransitions) {
-      if (transition.contains('Jog → Idle')) {
-        final timeMatch = RegExp(r'\\(([0-9.]+)ms\\)').firstMatch(transition);
-        if (timeMatch != null) {
-          jogTimes.add(double.parse(timeMatch.group(1)!));
-        }
+      // If raw byte sending fails, this indicates the connection is broken
+      if (_isConnected) {
+        AppLogger.commError(
+          'WebSocket connection appears broken, marking as disconnected',
+        );
+        _isConnected = false;
+        // The stream listener should handle the disconnection
       }
     }
-
-    final avgJogTime = jogTimes.isEmpty
-        ? 0.0
-        : jogTimes.reduce((a, b) => a + b) / jogTimes.length;
-    final maxJogTime = jogTimes.isEmpty
-        ? 0.0
-        : jogTimes.reduce((a, b) => a > b ? a : b);
-
-    AppLogger.commInfo(
-      'Average jog completion time: ${avgJogTime.toStringAsFixed(2)}ms',
-    );
-    AppLogger.commInfo(
-      'Max jog completion time: ${maxJogTime.toStringAsFixed(2)}ms',
-    );
-
-    // Add results to message history
-    _messages.add('=== JOG TEST COMPLETED ===');
-    _messages.add('Total jogs: $_jogCount');
-    _messages.add('Average jog time: ${avgJogTime.toStringAsFixed(2)}ms');
-    _messages.add('Max jog time: ${maxJogTime.toStringAsFixed(2)}ms');
-    _messages.add('Test duration: ${testDuration.toStringAsFixed(1)}s');
   }
+
+
 
   /// Emit current data state
   /// Note: This method can only be called from within an active event handler context
@@ -886,9 +408,6 @@ class CncCommunicationBloc
           url: _currentUrl,
           messages: List.from(_messages),
           isConnected: _isConnected,
-          performanceData: _currentPerformanceData,
-          machineState: _currentMachineState,
-          jogTestRunning: _jogTestRunning,
           connectedAt: _connectedAt!,
         ),
       );
@@ -897,13 +416,22 @@ class CncCommunicationBloc
 
   /// Clean up timers and subscriptions
   void _cleanup() {
+    AppLogger.commDebug('Starting cleanup of communication resources');
+    
+    // Cancel and clear all timers and subscriptions
     _webSocketSubscription?.cancel();
-    _heartbeatTimer?.cancel();
-    _jogPollTimer?.cancel();
-
     _webSocketSubscription = null;
-    _heartbeatTimer = null;
-    _jogPollTimer = null;
+    
+    // Reset connection state variables
+    _isConnected = false;
+    _currentUrl = '';
+    _connectedAt = null;
+    
+    // Clear message data
+    _messages.clear();
+    _commandIdCounter = 0;
+    
+    AppLogger.commDebug('Cleanup completed - all state reset for reconnection');
   }
 
   /// Get current connection status
@@ -931,33 +459,6 @@ class CncCommunicationBloc
     };
   }
 
-  /// Get current UI performance metrics
-  Map<String, dynamic> getUIPerformanceMetrics() {
-    if (_uiFrameTimes.isEmpty) {
-      return {
-        'avgFrameTime': 0.0,
-        'maxFrameTime': 0.0,
-        'jankFrames': 0,
-        'framerate': 0.0,
-        'uiThreadBlocked': false,
-      };
-    }
-
-    final avgFrameTime =
-        _uiFrameTimes.reduce((a, b) => a + b) / _uiFrameTimes.length;
-    final maxFrameTime = _uiFrameTimes.reduce((a, b) => a > b ? a : b);
-    final jankFrames = _uiFrameTimes.where((time) => time > 20.0).length;
-    final framerate = 1000.0 / avgFrameTime;
-    final uiThreadBlocked = avgFrameTime > 20.0;
-
-    return {
-      'avgFrameTime': avgFrameTime,
-      'maxFrameTime': maxFrameTime,
-      'jankFrames': jankFrames,
-      'framerate': framerate,
-      'uiThreadBlocked': uiThreadBlocked,
-    };
-  }
 
   @override
   void onTransition(
@@ -977,8 +478,22 @@ class CncCommunicationBloc
 
   @override
   Future<void> close() {
-    _uiPerformanceTimer?.cancel();
+    AppLogger.commDebug('CncCommunicationBloc closing, performing final cleanup');
+    
+    // Force close WebSocket if still connected
+    if (_webSocketChannel != null) {
+      try {
+        _webSocketChannel!.sink.close(status.normalClosure);
+      } catch (e) {
+        AppLogger.commDebug('Error closing WebSocket during BLoC close: $e');
+      }
+      _webSocketChannel = null;
+    }
+    
+    // Perform comprehensive cleanup
     _cleanup();
+    
+    AppLogger.commDebug('CncCommunicationBloc cleanup completed');
     return super.close();
   }
 }

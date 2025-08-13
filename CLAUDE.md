@@ -26,3 +26,4 @@
   Default: Over-research rather than under-research. Say "Let me check the docs first" frequently.
 - please only use the build and run tools provided by the devops agent in the @tools directory. please do not directly run tools from the toolchain directory. if you need a tool, please consult the devops agent and have it modify @tools/build.sh for you
 - always use @spike/graphics_performance_spike/lib/utils/logger.dart to log diagnostics output. never use print
+- avoid magic numbers in the codebase where possible. create intelligently named variables if needed. prefer library enums or constants

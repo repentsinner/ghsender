@@ -9,8 +9,7 @@ import '../profile/profile_state.dart';
 
 /// BLoC for managing system-wide problems and issues
 class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
-  /// Timer for periodic cleanup of stale problems
-  Timer? _cleanupTimer;
+  /// Note: Removed automatic cleanup timer - problems persist until resolved
 
   ProblemsBloc() : super(const ProblemsState()) {
     AppLogger.info('Problems BLoC initialized');
@@ -28,11 +27,7 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
     on<FileManagerStateAnalyzed>(_onFileManagerStateAnalyzed);
     on<ProfileStateAnalyzed>(_onProfileStateAnalyzed);
 
-    // Cleanup handler
-    on<ProblemsStaleCleanup>(_onProblemsStaleCleanup);
-
-    // Start periodic cleanup
-    _startCleanupTimer();
+    // Note: Removed stale cleanup functionality
 
     // Initialize the state in the next tick to avoid emit in constructor
     Future.delayed(Duration.zero, () {
@@ -174,25 +169,9 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
         break;
 
       case const (CncCommunicationWithData):
-        final dataState = event.state as CncCommunicationWithData;
-
-        // Check for high latency
-        if (dataState.performanceData != null &&
-            !dataState.performanceData!.meetsLatencyRequirement) {
-          newProblems.add(
-            ProblemFactory.cncHighLatency(
-              dataState.performanceData!.averageLatencyMs,
-            ),
-          );
-        }
-
-        // Check for machine alarm state
-        if (dataState.machineState != null &&
-            dataState.machineState!.state.toLowerCase().contains('alarm')) {
-          newProblems.add(
-            ProblemFactory.cncMachineAlarm(dataState.machineState!.state),
-          );
-        }
+        // Note: Performance data checking moved to MachineControllerBloc
+        // Note: Machine alarm checking moved to MachineControllerBloc
+        // CommunicationWithData state is now lightweight - no performance metrics
         break;
 
       // Connected and Connecting states are considered healthy
@@ -305,29 +284,9 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
     }
   }
 
-  /// Handle periodic cleanup of stale problems
-  void _onProblemsStaleCleanup(
-    ProblemsStaleCleanup event,
-    Emitter<ProblemsState> emit,
-  ) {
-    final now = DateTime.now();
-    final updatedProblems = state.problems
-        .where((p) => now.difference(p.timestamp) < event.maxAge)
-        .toList();
-
-    if (updatedProblems.length != state.problems.length) {
-      final removedCount = state.problems.length - updatedProblems.length;
-      AppLogger.debug('Cleaned up $removedCount stale problems');
-      emit(state.copyWith(problems: updatedProblems));
-    }
-  }
-
-  /// Start periodic cleanup timer
-  void _startCleanupTimer() {
-    _cleanupTimer = Timer.periodic(const Duration(minutes: 1), (_) {
-      add(const ProblemsStaleCleanup());
-    });
-  }
+  /// Note: Removed automatic stale cleanup functionality
+  /// Problems now persist until they are resolved or explicitly cleared
+  /// This follows VS Code's behavior where problems remain visible until fixed
 
   /// Helper to compare problem lists for equality
   bool _problemListsEqual(List<Problem> list1, List<Problem> list2) {
@@ -365,7 +324,7 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
 
   @override
   Future<void> close() {
-    _cleanupTimer?.cancel();
+    // Note: No cleanup timer to cancel anymore
     return super.close();
   }
 }

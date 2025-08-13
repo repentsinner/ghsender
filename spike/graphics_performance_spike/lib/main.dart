@@ -41,8 +41,14 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
@@ -54,6 +60,7 @@ class MyApp extends StatelessWidget {
           create: (context) => ProfileBloc()..add(const ProfileLoadRequested()),
         ),
         BlocProvider(create: (context) => ProblemsBloc()),
+        BlocProvider(create: (context) => MachineControllerBloc()),
       ],
       child: MaterialApp(
         title: 'Graphics Performance Spike',
@@ -74,6 +81,44 @@ class ProfileIntegratedApp extends StatefulWidget {
 }
 
 class _ProfileIntegratedAppState extends State<ProfileIntegratedApp> {
+  Timer? _grblHalDetectionTimeout;
+
+  @override
+  void dispose() {
+    _grblHalDetectionTimeout?.cancel();
+    super.dispose();
+  }
+
+  
+  
+  void _scheduleGrblHalDetectionTimeout(BuildContext context) {
+    // Cancel any existing timeout
+    _grblHalDetectionTimeout?.cancel();
+    
+    // Wait 3 seconds for grblHAL welcome message - if not found, disconnect
+    _grblHalDetectionTimeout = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        final machineState = context.read<MachineControllerBloc>().state;
+        
+        if (!machineState.grblHalDetected) {
+          AppLogger.error('grblHAL not detected - this sender requires grblHAL firmware');
+          
+          // Disconnect since we only support grblHAL
+          context.read<CncCommunicationBloc>().add(
+            CncCommunicationDisconnectRequested(),
+          );
+          
+          // Show error in machine controller
+          context.read<MachineControllerBloc>().add(
+            MachineControllerInfoUpdated(
+              firmwareVersion: 'ERROR: grblHAL required - Standard GRBL not supported',
+            ),
+          );
+        }
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -88,8 +133,12 @@ class _ProfileIntegratedAppState extends State<ProfileIntegratedApp> {
     final commBloc = context.read<CncCommunicationBloc>();
     final fileBloc = context.read<FileManagerBloc>();
     final problemsBloc = context.read<ProblemsBloc>();
+    final machineBloc = context.read<MachineControllerBloc>();
     
     AppLogger.info('Triggering initial state analysis for all BLoCs');
+    
+    // Set up communication bloc reference in machine controller
+    machineBloc.add(MachineControllerSetCommunicationBloc(commBloc));
     
     // Analyze current states
     problemsBloc.add(ProfileStateAnalyzed(profileBloc.state));
@@ -126,10 +175,34 @@ class _ProfileIntegratedAppState extends State<ProfileIntegratedApp> {
         // CNC Communication state monitoring
         BlocListener<CncCommunicationBloc, CncCommunicationState>(
           listener: (context, commState) {
-            AppLogger.debug('CNC state changed to: ${commState.runtimeType}');
+            // Reduced logging - only log important state changes
+            
+            // Send to Problems BLoC for problem analysis
             context.read<ProblemsBloc>().add(
               CncCommunicationStateAnalyzed(commState),
             );
+            
+            // Send to Machine Controller BLoC for machine state processing
+            context.read<MachineControllerBloc>().add(
+              MachineControllerCommunicationReceived(commState),
+            );
+            
+            // Handle initial connection - wait for grblHAL detection
+            if (commState is CncCommunicationConnected) {
+              AppLogger.info('Connection established, waiting for grblHAL welcome message');
+              
+              // Wait for grblHAL detection - disconnect if not found
+              _scheduleGrblHalDetectionTimeout(context);
+            }
+            
+            // Stop timers when disconnected
+            if (commState is CncCommunicationDisconnected || 
+                commState is CncCommunicationError ||
+                commState is CncCommunicationInitial) {
+              AppLogger.info('Connection lost, stopping timers');
+              _grblHalDetectionTimeout?.cancel();
+              _grblHalDetectionTimeout = null;
+            }
           },
         ),
         
@@ -140,6 +213,17 @@ class _ProfileIntegratedAppState extends State<ProfileIntegratedApp> {
             context.read<ProblemsBloc>().add(
               FileManagerStateAnalyzed(fileState),
             );
+          },
+        ),
+        
+        // Machine Controller state monitoring
+        BlocListener<MachineControllerBloc, MachineControllerState>(
+          listener: (context, machineState) {
+            // Cancel timeout when grblHAL is detected
+            if (machineState.grblHalDetected) {
+              _grblHalDetectionTimeout?.cancel();
+              _grblHalDetectionTimeout = null;
+            }
           },
         ),
       ],

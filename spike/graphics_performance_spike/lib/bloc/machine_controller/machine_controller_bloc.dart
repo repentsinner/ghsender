@@ -1,0 +1,611 @@
+import 'dart:async';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../models/machine_controller.dart';
+import '../../utils/logger.dart';
+import 'machine_controller_event.dart';
+import 'machine_controller_state.dart';
+import '../communication/cnc_communication_state.dart';
+import '../communication/cnc_communication_event.dart';
+
+/// BLoC for managing machine controller state from CNC communication responses
+class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControllerState> {
+  
+  // Reference to communication bloc for sending commands
+  dynamic _communicationBloc;
+  
+  MachineControllerBloc() : super(const MachineControllerState()) {
+    AppLogger.info('Machine Controller BLoC initialized');
+    
+    // Register event handlers
+    on<MachineControllerInitialized>(_onInitialized);
+    on<MachineControllerCommunicationReceived>(_onCommunicationReceived);
+    on<MachineControllerStatusUpdated>(_onStatusUpdated);
+    on<MachineControllerCoordinatesUpdated>(_onCoordinatesUpdated);
+    on<MachineControllerSpindleUpdated>(_onSpindleUpdated);
+    on<MachineControllerFeedUpdated>(_onFeedUpdated);
+    on<MachineControllerCodesUpdated>(_onCodesUpdated);
+    on<MachineControllerAlarmAdded>(_onAlarmAdded);
+    on<MachineControllerAlarmsCleared>(_onAlarmsCleared);
+    on<MachineControllerErrorAdded>(_onErrorAdded);
+    on<MachineControllerErrorsCleared>(_onErrorsCleared);
+    on<MachineControllerInfoUpdated>(_onInfoUpdated);
+    on<MachineControllerConnectionChanged>(_onConnectionChanged);
+    on<MachineControllerReset>(_onReset);
+    
+    // grblHAL detection and configuration handlers
+    on<MachineControllerGrblHalDetected>(_onGrblHalDetected);
+    on<MachineControllerSetCommunicationBloc>(_onSetCommunicationBloc);
+    on<MachineControllerAutoReportingConfigured>(_onAutoReportingConfigured);
+    
+    // Initialize in the next tick
+    Future.delayed(Duration.zero, () {
+      if (!isClosed) {
+        add(const MachineControllerInitialized());
+      }
+    });
+  }
+  
+  /// Handle initialization
+  void _onInitialized(MachineControllerInitialized event, Emitter<MachineControllerState> emit) {
+    AppLogger.info('Machine Controller BLoC marked as initialized');
+    emit(state.copyWith(isInitialized: true));
+  }
+  
+  /// Handle incoming CNC communication data
+  void _onCommunicationReceived(
+    MachineControllerCommunicationReceived event, 
+    Emitter<MachineControllerState> emit,
+  ) {
+    // Reduced logging for frequent status updates
+    
+    final now = DateTime.now();
+    
+    switch (event.communicationState.runtimeType) {
+      case const (CncCommunicationConnected):
+        final connectedState = event.communicationState as CncCommunicationConnected;
+        _handleConnectedState(connectedState, emit, now);
+        break;
+        
+      case const (CncCommunicationWithData):
+        final dataState = event.communicationState as CncCommunicationWithData;
+        _handleDataState(dataState, emit, now);
+        break;
+        
+      case const (CncCommunicationDisconnected):
+      case const (CncCommunicationError):
+        _handleDisconnectedState(emit, now);
+        break;
+        
+      case const (CncCommunicationInitial):
+      case const (CncCommunicationAddressConfigured):
+      case const (CncCommunicationConnecting):
+        // These states don't provide machine data
+        break;
+    }
+  }
+  
+  /// Handle connected state
+  void _handleConnectedState(
+    CncCommunicationConnected connectedState, 
+    Emitter<MachineControllerState> emit,
+    DateTime timestamp,
+  ) {
+    // Create or update controller with connection info
+    final currentController = state.controller;
+    final updatedController = (currentController ?? MachineController(
+      controllerId: _extractControllerIdFromUrl(connectedState.url),
+      lastCommunication: timestamp,
+    )).copyWith(
+      isOnline: true,
+      lastCommunication: timestamp,
+    );
+    
+    emit(state.copyWith(
+      controller: updatedController,
+      lastUpdateTime: timestamp,
+    ));
+    
+    AppLogger.info('Machine controller connected: ${updatedController.controllerId}');
+  }
+  
+  /// Handle data state with machine information
+  void _handleDataState(
+    CncCommunicationWithData dataState, 
+    Emitter<MachineControllerState> emit,
+    DateTime timestamp,
+  ) {
+    // Check for grblHAL welcome message first
+    if (!state.grblHalDetected) {
+      _checkForGrblHalWelcomeMessage(dataState.messages, timestamp);
+    }
+    
+    // Create or update controller with all available data
+    final currentController = state.controller;
+    final controllerId = currentController?.controllerId ?? 
+                        _extractControllerIdFromUrl(dataState.url);
+    
+    // Parse machine state from raw messages
+    MachineStatus status = MachineStatus.unknown;
+    MachineCoordinates? workPos;
+    MachineCoordinates? machinePos;
+    double? feedRate;
+    double? spindleSpeed;
+    List<String> alarms = [];
+    
+    // Parse the most recent status message from the message list
+    final statusMessage = _findMostRecentStatusMessage(dataState.messages);
+    if (statusMessage != null) {
+      final parsedData = _parseGrblStatusMessage(statusMessage, timestamp);
+      status = parsedData['status'] ?? MachineStatus.unknown;
+      workPos = parsedData['workPosition'];
+      machinePos = parsedData['machinePosition'];
+      feedRate = parsedData['feedRate'];
+      spindleSpeed = parsedData['spindleSpeed'];
+      
+      // Check for alarms in the status
+      if (status.hasError || status == MachineStatus.alarm) {
+        alarms.add('Machine alarm: ${status.displayName}');
+      }
+    }
+    
+    // Create feed state if we have feed rate data
+    FeedState? feedState;
+    if (feedRate != null) {
+      feedState = FeedState(
+        rate: feedRate,
+        targetRate: feedRate,
+        lastUpdated: timestamp,
+      );
+    }
+    
+    // Create spindle state if we have spindle data
+    SpindleState? spindleState;
+    if (spindleSpeed != null) {
+      spindleState = SpindleState(
+        isRunning: spindleSpeed > 0,
+        speed: spindleSpeed,
+        targetSpeed: spindleSpeed,
+        lastUpdated: timestamp,
+      );
+    }
+    
+    // Create active codes if available in status message
+    ActiveCodes? activeCodes;
+    // Note: Modal codes parsing would need to be implemented if required
+    // For now, we focus on basic status, coordinates, feed, and spindle
+    
+    final updatedController = (currentController ?? MachineController(
+      controllerId: controllerId,
+      lastCommunication: timestamp,
+    )).copyWith(
+      status: status,
+      workPosition: workPos,
+      machinePosition: machinePos,
+      spindleState: spindleState,
+      feedState: feedState,
+      activeCodes: activeCodes,
+      alarms: alarms,
+      isOnline: true,
+      lastCommunication: timestamp,
+    );
+    
+    // Store last raw message for debugging
+    String lastMessage = '';
+    if (dataState.messages.isNotEmpty) {
+      lastMessage = dataState.messages.last;
+    }
+    
+    emit(state.copyWith(
+      controller: updatedController,
+      lastRawMessage: lastMessage,
+      lastUpdateTime: timestamp,
+    ));
+    
+    // Status updates happen at 60Hz - reduced logging
+  }
+  
+  /// Handle disconnected state
+  void _handleDisconnectedState(Emitter<MachineControllerState> emit, DateTime timestamp) {
+    if (state.controller != null) {
+      final updatedController = state.controller!.copyWith(
+        isOnline: false,
+        lastCommunication: timestamp,
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: timestamp,
+      ));
+      
+      AppLogger.info('Machine controller disconnected');
+    }
+  }
+  
+  /// Extract controller ID from WebSocket URL
+  String _extractControllerIdFromUrl(String url) {
+    // Simple extraction - could be made more sophisticated
+    final uri = Uri.tryParse(url);
+    if (uri != null) {
+      return '${uri.host}:${uri.port}';
+    }
+    return url;
+  }
+  
+  /// Find the most recent GRBL status message from the message list
+  String? _findMostRecentStatusMessage(List<String> messages) {
+    // Look for the most recent message that starts with '<' (GRBL status)
+    for (int i = messages.length - 1; i >= 0; i--) {
+      final message = messages[i];
+      if (message.contains('Received: <')) {
+        // Extract the status part from "Received: <status>"
+        final statusStart = message.indexOf('<');
+        if (statusStart != -1) {
+          return message.substring(statusStart);
+        }
+      }
+    }
+    return null;
+  }
+  
+  /// Parse GRBL status message and extract machine data
+  Map<String, dynamic> _parseGrblStatusMessage(String message, DateTime timestamp) {
+    final result = <String, dynamic>{};
+    
+    if (!message.startsWith('<')) return result;
+    
+    // Parse GRBL status: <Idle|MPos:0.000,0.000,0.000|WPos:0.000,0.000,0.000|FS:0,0>
+    final stateMatch = RegExp(r'<([^|]+)').firstMatch(message);
+    if (stateMatch != null) {
+      final stateString = stateMatch.group(1)!;
+      result['status'] = MachineController.parseStatus(stateString);
+    }
+    
+    // Parse work position
+    final workPosMatch = RegExp(
+      r'WPos:([+-]?\d*\.?\d+),([+-]?\d*\.?\d+),([+-]?\d*\.?\d+)',
+    ).firstMatch(message);
+    if (workPosMatch != null) {
+      result['workPosition'] = MachineCoordinates(
+        x: double.parse(workPosMatch.group(1)!),
+        y: double.parse(workPosMatch.group(2)!),
+        z: double.parse(workPosMatch.group(3)!),
+        lastUpdated: timestamp,
+      );
+    }
+    
+    // Parse machine position
+    final machinePosMatch = RegExp(
+      r'MPos:([+-]?\d*\.?\d+),([+-]?\d*\.?\d+),([+-]?\d*\.?\d+)',
+    ).firstMatch(message);
+    if (machinePosMatch != null) {
+      result['machinePosition'] = MachineCoordinates(
+        x: double.parse(machinePosMatch.group(1)!),
+        y: double.parse(machinePosMatch.group(2)!),
+        z: double.parse(machinePosMatch.group(3)!),
+        lastUpdated: timestamp,
+      );
+    }
+    
+    // Parse feed rate and spindle speed
+    final fsMatch = RegExp(r'FS:(\d+),(\d+)').firstMatch(message);
+    if (fsMatch != null) {
+      result['feedRate'] = double.parse(fsMatch.group(1)!);
+      result['spindleSpeed'] = double.parse(fsMatch.group(2)!);
+    }
+    
+    return result;
+  }
+  
+  /// Handle status update
+  void _onStatusUpdated(MachineControllerStatusUpdated event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final updatedController = state.controller!.copyWith(
+        status: event.status,
+        lastCommunication: event.timestamp,
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: event.timestamp,
+      ));
+      
+      AppLogger.debug('Machine status updated: ${event.status.displayName}');
+    }
+  }
+  
+  /// Handle coordinates update
+  void _onCoordinatesUpdated(MachineControllerCoordinatesUpdated event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final updatedController = state.controller!.copyWith(
+        workPosition: event.workPosition,
+        machinePosition: event.machinePosition,
+        lastCommunication: event.timestamp,
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: event.timestamp,
+      ));
+      
+      AppLogger.debug('Machine coordinates updated');
+    }
+  }
+  
+  /// Handle spindle update
+  void _onSpindleUpdated(MachineControllerSpindleUpdated event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final updatedController = state.controller!.copyWith(
+        spindleState: event.spindleState,
+        lastCommunication: event.timestamp,
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: event.timestamp,
+      ));
+      
+      AppLogger.debug('Machine spindle updated: ${event.spindleState.speed} RPM');
+    }
+  }
+  
+  /// Handle feed update
+  void _onFeedUpdated(MachineControllerFeedUpdated event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final updatedController = state.controller!.copyWith(
+        feedState: event.feedState,
+        lastCommunication: event.timestamp,
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: event.timestamp,
+      ));
+      
+      AppLogger.debug('Machine feed updated: ${event.feedState.rate} ${event.feedState.units}');
+    }
+  }
+  
+  /// Handle codes update
+  void _onCodesUpdated(MachineControllerCodesUpdated event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final updatedController = state.controller!.copyWith(
+        activeCodes: event.activeCodes,
+        lastCommunication: event.timestamp,
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: event.timestamp,
+      ));
+      
+      AppLogger.debug('Machine codes updated: G[${event.activeCodes.gCodes.join(', ')}] M[${event.activeCodes.mCodes.join(', ')}]');
+    }
+  }
+  
+  /// Handle alarm added
+  void _onAlarmAdded(MachineControllerAlarmAdded event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final currentAlarms = List<String>.from(state.controller!.alarms);
+      if (!currentAlarms.contains(event.alarm)) {
+        currentAlarms.add(event.alarm);
+      }
+      
+      final updatedController = state.controller!.copyWith(
+        alarms: currentAlarms,
+        lastCommunication: event.timestamp,
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: event.timestamp,
+      ));
+      
+      AppLogger.warning('Machine alarm added: ${event.alarm}');
+    }
+  }
+  
+  /// Handle alarms cleared
+  void _onAlarmsCleared(MachineControllerAlarmsCleared event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final updatedController = state.controller!.copyWith(
+        alarms: [],
+        lastCommunication: DateTime.now(),
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: DateTime.now(),
+      ));
+      
+      AppLogger.info('Machine alarms cleared');
+    }
+  }
+  
+  /// Handle error added
+  void _onErrorAdded(MachineControllerErrorAdded event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final currentErrors = List<String>.from(state.controller!.errors);
+      if (!currentErrors.contains(event.error)) {
+        currentErrors.add(event.error);
+      }
+      
+      final updatedController = state.controller!.copyWith(
+        errors: currentErrors,
+        lastCommunication: event.timestamp,
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: event.timestamp,
+      ));
+      
+      AppLogger.error('Machine error added: ${event.error}');
+    }
+  }
+  
+  /// Handle errors cleared
+  void _onErrorsCleared(MachineControllerErrorsCleared event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final updatedController = state.controller!.copyWith(
+        errors: [],
+        lastCommunication: DateTime.now(),
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: DateTime.now(),
+      ));
+      
+      AppLogger.info('Machine errors cleared');
+    }
+  }
+  
+  /// Handle info update
+  void _onInfoUpdated(MachineControllerInfoUpdated event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final updatedController = state.controller!.copyWith(
+        firmwareVersion: event.firmwareVersion,
+        hardwareVersion: event.hardwareVersion,
+        lastCommunication: DateTime.now(),
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: DateTime.now(),
+      ));
+      
+      if (event.firmwareVersion != null && event.hardwareVersion != null) {
+        AppLogger.info('Machine info updated: FW=${event.firmwareVersion}, HW=${event.hardwareVersion}');
+      }
+    }
+  }
+  
+  /// Handle connection change
+  void _onConnectionChanged(MachineControllerConnectionChanged event, Emitter<MachineControllerState> emit) {
+    if (state.controller != null) {
+      final updatedController = state.controller!.copyWith(
+        isOnline: event.isOnline,
+        lastCommunication: event.timestamp,
+      );
+      
+      emit(state.copyWith(
+        controller: updatedController,
+        lastUpdateTime: event.timestamp,
+      ));
+      
+      AppLogger.info('Machine connection changed: ${event.isOnline ? 'online' : 'offline'}');
+    }
+  }
+  
+  /// Handle reset
+  void _onReset(MachineControllerReset event, Emitter<MachineControllerState> emit) {
+    emit(const MachineControllerState(isInitialized: true));
+    AppLogger.info('Machine controller reset');
+  }
+  
+  /// Check for grblHAL welcome message in recent messages
+  void _checkForGrblHalWelcomeMessage(List<String> messages, DateTime timestamp) {
+    // Look for grblHAL welcome message patterns
+    final grblHalPatterns = [
+      RegExp(r'grblHAL\s+(\d+\.\d+[a-zA-Z]?)', caseSensitive: false),
+      RegExp(r'Grbl\s+(\d+\.\d+[a-zA-Z]?)\s+\[grblHAL', caseSensitive: false),
+    ];
+    
+    for (final message in messages.reversed.take(10)) {
+      for (final pattern in grblHalPatterns) {
+        final match = pattern.firstMatch(message);
+        if (match != null) {
+          final version = match.group(1) ?? 'unknown';
+          AppLogger.info('grblHAL detected: version $version');
+          
+          // Trigger grblHAL detection event
+          add(MachineControllerGrblHalDetected(
+            welcomeMessage: message,
+            firmwareVersion: version,
+            timestamp: timestamp,
+          ));
+          return; // Found grblHAL, exit search
+        }
+      }
+    }
+  }
+  
+  /// Set communication bloc reference for command sending
+  void _onSetCommunicationBloc(
+    MachineControllerSetCommunicationBloc event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    _communicationBloc = event.communicationBloc;
+    AppLogger.debug('Communication bloc reference set in machine controller');
+  }
+  
+  /// Handle grblHAL detection
+  void _onGrblHalDetected(
+    MachineControllerGrblHalDetected event, 
+    Emitter<MachineControllerState> emit,
+  ) {
+    AppLogger.info('grblHAL controller detected: ${event.firmwareVersion}');
+    AppLogger.info('Welcome message: "${event.welcomeMessage.trim()}"');
+    
+    emit(state.copyWith(
+      grblHalDetected: true,
+      grblHalVersion: event.firmwareVersion,
+      grblHalDetectedAt: event.timestamp,
+    ));
+    
+    // Automatically configure grblHAL auto reporting
+    _configureGrblHalAutoReporting();
+  }
+  
+  /// Configure grblHAL automatic status reporting
+  void _configureGrblHalAutoReporting() {
+    if (_communicationBloc == null) {
+      AppLogger.error('Cannot configure grblHAL - no communication bloc reference');
+      return;
+    }
+    
+    AppLogger.info('Configuring grblHAL automatic status reporting (16ms/60Hz)...');
+    
+    // Send grblHAL configuration commands directly
+    _communicationBloc.add(CncCommunicationSendRawBytes([0x84, 0x10]));
+    _communicationBloc.add(CncCommunicationSendCommand('?'));
+    
+    // Mark as configured
+    add(MachineControllerAutoReportingConfigured(
+      enabled: true,
+      timestamp: DateTime.now(),
+    ));
+  }
+  
+  
+  /// Handle auto reporting configuration completion
+  void _onAutoReportingConfigured(
+    MachineControllerAutoReportingConfigured event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    emit(state.copyWith(
+      autoReportingConfigured: event.enabled,
+    ));
+    
+    if (event.enabled) {
+      AppLogger.info('grblHAL configured for 60Hz event-based status updates (0x84 0x10)');
+    }
+  }
+  
+  @override
+  void onTransition(Transition<MachineControllerEvent, MachineControllerState> transition) {
+    super.onTransition(transition);
+    final currentStatus = transition.currentState.status;
+    final nextStatus = transition.nextState.status;
+    
+    if (currentStatus != nextStatus) {
+      AppLogger.debug('Machine status changed: ${currentStatus.name} -> ${nextStatus.name}');
+    }
+  }
+  
+  @override
+  void onError(Object error, StackTrace stackTrace) {
+    super.onError(error, stackTrace);
+    AppLogger.error('MachineControllerBloc error', error, stackTrace);
+  }
+}

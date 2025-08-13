@@ -87,23 +87,17 @@ class CncCommunicationError extends CncCommunicationState {
   List<Object?> get props => [errorMessage, statusMessage, error, stackTrace];
 }
 
-/// Connected state with communication data and metrics
+/// Connected state with communication data (lightweight)
 class CncCommunicationWithData extends CncCommunicationState {
   final String url;
   final List<String> messages;
   final bool isConnected;
-  final PerformanceData? performanceData;
-  final MachineState? machineState;
-  final bool jogTestRunning;
   final DateTime connectedAt;
   
   const CncCommunicationWithData({
     required this.url,
     required this.messages,
     required this.isConnected,
-    this.performanceData,
-    this.machineState,
-    this.jogTestRunning = false,
     required this.connectedAt,
   });
   
@@ -112,9 +106,6 @@ class CncCommunicationWithData extends CncCommunicationState {
     url,
     messages,
     isConnected,
-    performanceData,
-    machineState,
-    jogTestRunning,
     connectedAt,
   ];
   
@@ -122,18 +113,12 @@ class CncCommunicationWithData extends CncCommunicationState {
     String? url,
     List<String>? messages,
     bool? isConnected,
-    PerformanceData? performanceData,
-    MachineState? machineState,
-    bool? jogTestRunning,
     DateTime? connectedAt,
   }) {
     return CncCommunicationWithData(
       url: url ?? this.url,
       messages: messages ?? this.messages,
       isConnected: isConnected ?? this.isConnected,
-      performanceData: performanceData ?? this.performanceData,
-      machineState: machineState ?? this.machineState,
-      jogTestRunning: jogTestRunning ?? this.jogTestRunning,
       connectedAt: connectedAt ?? this.connectedAt,
     );
   }
@@ -190,39 +175,22 @@ class LatencyMeasurement extends Equatable {
   List<Object?> get props => [timestamp, latencyMs, commandId];
 }
 
-/// Current machine state information
+/// Simple machine state information for communication bloc
+/// Only contains basic state string and timestamp - detailed parsing moved to MachineControllerBloc
 class MachineState extends Equatable {
-  final String state; // e.g., "Idle", "Run", "Jog", "Alarm"
-  final Position? workPosition;
-  final Position? machinePosition;
-  final double? feedRate;
-  final double? spindleSpeed;
-  final List<String> activeModalCodes;
+  final String state; // Raw state string from controller (e.g., "Idle", "Run", "Jog", "Alarm")
   final DateTime lastUpdated;
   
   const MachineState({
     required this.state,
-    this.workPosition,
-    this.machinePosition,
-    this.feedRate,
-    this.spindleSpeed,
-    this.activeModalCodes = const [],
     required this.lastUpdated,
   });
   
   @override
-  List<Object?> get props => [
-    state,
-    workPosition,
-    machinePosition,
-    feedRate,
-    spindleSpeed,
-    activeModalCodes,
-    lastUpdated,
-  ];
+  List<Object?> get props => [state, lastUpdated];
 }
 
-/// 3D position information
+/// Simple 3D position information for basic communication data
 class Position extends Equatable {
   final double x;
   final double y;

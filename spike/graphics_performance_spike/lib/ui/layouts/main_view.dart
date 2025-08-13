@@ -6,24 +6,12 @@ import '../widgets/dro_display.dart';
 /// Main View widget - central content area for graphics rendering
 class MainView extends StatelessWidget {
   final Widget child;
-  final double wPosX;
-  final double wPosY;
-  final double wPosZ;
-  final double mPosX;
-  final double mPosY;
-  final double mPosZ;
   final double fps;
   final int polygons;
 
   const MainView({
     super.key,
     required this.child,
-    this.wPosX = 0.0,
-    this.wPosY = 0.0,
-    this.wPosZ = 0.0,
-    this.mPosX = 0.0,
-    this.mPosY = 0.0,
-    this.mPosZ = 0.0,
     required this.fps,
     required this.polygons,
   });
@@ -40,18 +28,11 @@ class MainView extends StatelessWidget {
           // Debug performance overlay at top left
           Positioned(top: 8, left: 8, child: _buildDebugOverlay()),
 
-          // DRO positioned at top right
-          Positioned(
+          // DRO positioned at top right - now automatically updates from machine controller
+          const Positioned(
             top: 0,
             right: 0,
-            child: DRODisplay(
-              wPosX: wPosX,
-              wPosY: wPosY,
-              wPosZ: wPosZ,
-              mPosX: mPosX,
-              mPosY: mPosY,
-              mPosZ: mPosZ,
-            ),
+            child: DRODisplay(),
           ),
         ],
       ),

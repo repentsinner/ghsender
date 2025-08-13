@@ -21,3 +21,8 @@ export 'profile/profile_state.dart';
 export 'problems/problems_bloc.dart';
 export 'problems/problems_event.dart';
 export 'problems/problems_state.dart';
+
+// Machine Controller BLoC
+export 'machine_controller/machine_controller_bloc.dart';
+export 'machine_controller/machine_controller_event.dart';
+export 'machine_controller/machine_controller_state.dart';

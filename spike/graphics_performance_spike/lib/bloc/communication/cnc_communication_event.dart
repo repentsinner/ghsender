@@ -22,21 +22,13 @@ class CncCommunicationSendCommand extends CncCommunicationEvent {
   CncCommunicationSendCommand(this.command);
 }
 
-/// Start automated jog testing for performance validation
-class CncCommunicationStartJogTest extends CncCommunicationEvent {
-  final int durationSeconds;
-  final double jogDistance;
-  final int feedRate;
+/// Send raw bytes to the CNC controller (for real-time commands)
+class CncCommunicationSendRawBytes extends CncCommunicationEvent {
+  final List<int> bytes;
   
-  CncCommunicationStartJogTest(
-    this.durationSeconds, 
-    this.jogDistance, 
-    this.feedRate,
-  );
+  CncCommunicationSendRawBytes(this.bytes);
 }
 
-/// Stop automated jog testing
-class CncCommunicationStopJogTest extends CncCommunicationEvent {}
 
 /// Internal event for handling external status changes
 class CncCommunicationStatusChanged extends CncCommunicationEvent {

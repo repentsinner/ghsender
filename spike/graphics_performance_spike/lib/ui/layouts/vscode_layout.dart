@@ -37,13 +37,7 @@ class VSCodeLayout extends StatefulWidget {
   final double lineOpacity;
   final bool isAutoMode;
   
-  // DRO position values
-  final double wPosX;
-  final double wPosY;
-  final double wPosZ;
-  final double mPosX;
-  final double mPosY;
-  final double mPosZ;
+  // DRO position values now handled by MachineControllerBloc
 
   const VSCodeLayout({
     super.key,
@@ -60,12 +54,6 @@ class VSCodeLayout extends StatefulWidget {
     required this.lineSmoothness,
     required this.lineOpacity,
     required this.isAutoMode,
-    this.wPosX = 0.0,
-    this.wPosY = 0.0,
-    this.wPosZ = 0.0,
-    this.mPosX = 0.0,
-    this.mPosY = 0.0,
-    this.mPosZ = 0.0,
   });
 
   @override
@@ -164,12 +152,6 @@ class _VSCodeLayoutState extends State<VSCodeLayout> {
                       // Graphics renderer area
                       Expanded(
                         child: MainView(
-                          wPosX: widget.wPosX,
-                          wPosY: widget.wPosY,
-                          wPosZ: widget.wPosZ,
-                          mPosX: widget.mPosX,
-                          mPosY: widget.mPosY,
-                          mPosZ: widget.mPosZ,
                           fps: widget.fps,
                           polygons: widget.polygons,
                           child: widget.graphicsRenderer,
