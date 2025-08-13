@@ -8,6 +8,11 @@ import '../../../bloc/communication/cnc_communication_event.dart';
 import '../../../bloc/communication/cnc_communication_state.dart';
 import '../../../bloc/profile/profile_bloc.dart';
 import '../../../bloc/profile/profile_state.dart';
+import '../../../bloc/machine_controller/machine_controller_bloc.dart';
+import '../../../bloc/machine_controller/machine_controller_event.dart';
+import '../../../bloc/machine_controller/machine_controller_state.dart';
+import '../../../models/machine_controller.dart';
+import '../../../utils/logger.dart';
 
 /// Session Initialization section - CNC machine setup and control interface
 class SessionInitializationSection extends StatefulWidget {
@@ -190,15 +195,65 @@ class _SessionInitializationSectionState
   }
 
   Widget _buildManualJogControls() {
-    return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
-      builder: (context, state) {
-        final isConnected =
-            state is CncCommunicationConnected ||
-            state is CncCommunicationWithData;
+    return BlocBuilder<MachineControllerBloc, MachineControllerState>(
+      builder: (context, machineState) {
+        // Check if jogging is allowed based on machine state
+        final canJog = (machineState.hasController) && 
+                       (machineState.isOnline) && 
+                       (machineState.grblHalDetected) &&
+                       (machineState.status == MachineStatus.idle ||
+                        machineState.status == MachineStatus.jogging ||
+                        machineState.status == MachineStatus.check);
+        
+        // Get status info for display
+        String statusInfo = 'Status: ${machineState.status.displayName}';
+        if (!(machineState.hasController)) {
+          statusInfo = 'No controller detected';
+        } else if (!(machineState.isOnline)) {
+          statusInfo = 'Controller offline';
+        } else if (!(machineState.grblHalDetected)) {
+          statusInfo = 'Waiting for grblHAL detection...';
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Machine Status Indicator
+            Container(
+              padding: const EdgeInsets.all(8),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: canJog 
+                    ? VSCodeTheme.success.withValues(alpha: 0.1)
+                    : VSCodeTheme.warning.withValues(alpha: 0.1),
+                border: Border.all(
+                  color: canJog 
+                      ? VSCodeTheme.success.withValues(alpha: 0.3)
+                      : VSCodeTheme.warning.withValues(alpha: 0.3),
+                ),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    canJog ? Icons.check_circle : Icons.warning,
+                    size: 14,
+                    color: canJog ? VSCodeTheme.success : VSCodeTheme.warning,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      statusInfo,
+                      style: GoogleFonts.inconsolata(
+                        fontSize: 11,
+                        color: canJog ? VSCodeTheme.success : VSCodeTheme.warning,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
             // Jog Distance Selector
             Text(
               'Jog Distance (mm)',
@@ -243,7 +298,7 @@ class _SessionInitializationSectionState
                     Icons.keyboard_arrow_up,
                     'Y+',
                     () => _jogAxis('Y', _selectedJogDistance),
-                    isConnected,
+                    canJog,
                   ),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -253,7 +308,7 @@ class _SessionInitializationSectionState
                         Icons.keyboard_arrow_left,
                         'X-',
                         () => _jogAxis('X', -_selectedJogDistance),
-                        isConnected,
+                        canJog,
                       ),
                       const SizedBox(width: 8),
                       // XY label
@@ -280,7 +335,7 @@ class _SessionInitializationSectionState
                         Icons.keyboard_arrow_right,
                         'X+',
                         () => _jogAxis('X', _selectedJogDistance),
-                        isConnected,
+                        canJog,
                       ),
                     ],
                   ),
@@ -289,7 +344,7 @@ class _SessionInitializationSectionState
                     Icons.keyboard_arrow_down,
                     'Y-',
                     () => _jogAxis('Y', -_selectedJogDistance),
-                    isConnected,
+                    canJog,
                   ),
                 ],
               ),
@@ -314,7 +369,7 @@ class _SessionInitializationSectionState
                     'Z+',
                     Icons.keyboard_arrow_up,
                     () => _jogAxis('Z', _selectedJogDistance),
-                    isConnected,
+                    canJog,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -323,7 +378,7 @@ class _SessionInitializationSectionState
                     'Z-',
                     Icons.keyboard_arrow_down,
                     () => _jogAxis('Z', -_selectedJogDistance),
-                    isConnected,
+                    canJog,
                   ),
                 ),
               ],
@@ -614,23 +669,64 @@ class _SessionInitializationSectionState
   }
 
   void _homeMachine() {
-    // Placeholder for homing functionality
-    debugPrint('Homing machine...');
+    AppLogger.info('Homing machine request');
+    
+    // Send homing command through CommunicationBloc (direct GRBL command)
+    context.read<CncCommunicationBloc>().add(
+      CncCommunicationSendCommand('\$H'), // GRBL homing command
+    );
   }
 
   void _jogAxis(String axis, double distance) {
-    // Placeholder for jogging functionality
-    debugPrint('Jogging $axis axis by $distance mm');
+    AppLogger.info('Jog request: $axis axis by ${distance}mm');
+    
+    // Send jog command through MachineControllerBloc
+    context.read<MachineControllerBloc>().add(
+      MachineControllerJogRequested(
+        axis: axis,
+        distance: distance,
+        feedRate: 500, // Default feed rate of 500mm/min
+      ),
+    );
   }
 
   void _setWorkZero(String axes) {
-    // Placeholder for setting work zero
-    debugPrint('Setting work zero for $axes axes');
+    AppLogger.info('Setting work zero for $axes axes');
+    
+    // Send work coordinate system commands through CommunicationBloc
+    String command;
+    switch (axes) {
+      case 'X':
+        command = 'G92 X0'; // Set current X position as zero
+        break;
+      case 'Y':
+        command = 'G92 Y0'; // Set current Y position as zero
+        break;
+      case 'Z':
+        command = 'G92 Z0'; // Set current Z position as zero
+        break;
+      case 'XYZ':
+        command = 'G92 X0 Y0 Z0'; // Set all current positions as zero
+        break;
+      default:
+        AppLogger.warning('Unknown axes for work zero: $axes');
+        return;
+    }
+    
+    context.read<CncCommunicationBloc>().add(
+      CncCommunicationSendCommand(command),
+    );
   }
 
   void _probeWorkSurface() {
-    // Placeholder for probing functionality
-    debugPrint('Probing work surface...');
+    AppLogger.info('Probing work surface - distance: ${_probeDistance}mm, feed: ${_probeFeedRate}mm/min');
+    
+    // Send GRBL probe command: G38.2 Z-10 F100 (probe toward workpiece in negative Z direction)
+    final probeCommand = 'G38.2 Z-$_probeDistance F${_probeFeedRate.toInt()}';
+    
+    context.read<CncCommunicationBloc>().add(
+      CncCommunicationSendCommand(probeCommand),
+    );
   }
 
 }

@@ -37,6 +37,12 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     on<MachineControllerSetCommunicationBloc>(_onSetCommunicationBloc);
     on<MachineControllerAutoReportingConfigured>(_onAutoReportingConfigured);
     
+    // Jog control handlers
+    on<MachineControllerJogRequested>(_onJogRequested);
+    on<MachineControllerJogStopRequested>(_onJogStopRequested);
+    on<MachineControllerContinuousJogStarted>(_onContinuousJogStarted);
+    on<MachineControllerContinuousJogStopped>(_onContinuousJogStopped);
+    
     // Initialize in the next tick
     Future.delayed(Duration.zero, () {
       if (!isClosed) {
@@ -90,6 +96,12 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     Emitter<MachineControllerState> emit,
     DateTime timestamp,
   ) {
+    // Check for grblHAL welcome message in device info
+    if (!state.grblHalDetected && connectedState.deviceInfo != null && connectedState.deviceInfo!.isNotEmpty) {
+      AppLogger.debug('Checking connected state deviceInfo for grblHAL: "${connectedState.deviceInfo}"');
+      _checkForGrblHalWelcomeMessage([connectedState.deviceInfo!], timestamp);
+    }
+    
     // Create or update controller with connection info
     final currentController = state.controller;
     final updatedController = (currentController ?? MachineController(
@@ -116,7 +128,11 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
   ) {
     // Check for grblHAL welcome message first
     if (!state.grblHalDetected) {
+      AppLogger.debug('Checking for grblHAL welcome message in ${dataState.messages.length} messages');
+      AppLogger.debug('WithData messages: ${dataState.messages.take(10).join(" | ")}');
       _checkForGrblHalWelcomeMessage(dataState.messages, timestamp);
+    } else {
+      AppLogger.debug('grblHAL already detected, skipping welcome message check');
     }
     
     // Create or update controller with all available data
@@ -134,6 +150,8 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     
     // Parse the most recent status message from the message list
     final statusMessage = _findMostRecentStatusMessage(dataState.messages);
+    AppLogger.debug('Found status message: $statusMessage');
+    
     if (statusMessage != null) {
       final parsedData = _parseGrblStatusMessage(statusMessage, timestamp);
       status = parsedData['status'] ?? MachineStatus.unknown;
@@ -142,10 +160,16 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
       feedRate = parsedData['feedRate'];
       spindleSpeed = parsedData['spindleSpeed'];
       
+      AppLogger.debug('Parsed status: ${status.displayName}');
+      if (workPos != null) AppLogger.debug('Work position: ${workPos.toString()}');
+      if (machinePos != null) AppLogger.debug('Machine position: ${machinePos.toString()}');
+      
       // Check for alarms in the status
       if (status.hasError || status == MachineStatus.alarm) {
         alarms.add('Machine alarm: ${status.displayName}');
       }
+    } else {
+      AppLogger.debug('No status message found in ${dataState.messages.length} messages');
     }
     
     // Create feed state if we have feed rate data
@@ -233,17 +257,26 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
   
   /// Find the most recent GRBL status message from the message list
   String? _findMostRecentStatusMessage(List<String> messages) {
+    AppLogger.debug('Searching for status message in ${messages.length} messages');
+    AppLogger.debug('Last 5 messages: ${messages.reversed.take(5).join(" | ")}');
+    
     // Look for the most recent message that starts with '<' (GRBL status)
     for (int i = messages.length - 1; i >= 0; i--) {
       final message = messages[i];
+      AppLogger.debug('Checking message $i: "$message"');
+      
       if (message.contains('Received: <')) {
         // Extract the status part from "Received: <status>"
         final statusStart = message.indexOf('<');
         if (statusStart != -1) {
-          return message.substring(statusStart);
+          final statusMessage = message.substring(statusStart);
+          AppLogger.debug('Found status message at index $i: "$statusMessage"');
+          return statusMessage;
         }
       }
     }
+    
+    AppLogger.debug('No status messages found (looking for "Received: <")');
     return null;
   }
   
@@ -253,11 +286,17 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     
     if (!message.startsWith('<')) return result;
     
+    AppLogger.debug('Parsing status message: $message');
+    
     // Parse GRBL status: <Idle|MPos:0.000,0.000,0.000|WPos:0.000,0.000,0.000|FS:0,0>
     final stateMatch = RegExp(r'<([^|]+)').firstMatch(message);
     if (stateMatch != null) {
       final stateString = stateMatch.group(1)!;
-      result['status'] = MachineController.parseStatus(stateString);
+      final parsedStatus = MachineController.parseStatus(stateString);
+      AppLogger.debug('Parsed state string: "$stateString" -> ${parsedStatus.displayName}');
+      result['status'] = parsedStatus;
+    } else {
+      AppLogger.warning('Could not extract state from status message: $message');
     }
     
     // Parse work position
@@ -505,18 +544,40 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
   
   /// Check for grblHAL welcome message in recent messages
   void _checkForGrblHalWelcomeMessage(List<String> messages, DateTime timestamp) {
-    // Look for grblHAL welcome message patterns
+    AppLogger.debug('_checkForGrblHalWelcomeMessage called with ${messages.length} messages');
+    AppLogger.debug('Recent messages: ${messages.take(5).join(" | ")}');
+    
+    // Look for grblHAL welcome message patterns (more robust)
     final grblHalPatterns = [
-      RegExp(r'grblHAL\s+(\d+\.\d+[a-zA-Z]?)', caseSensitive: false),
-      RegExp(r'Grbl\s+(\d+\.\d+[a-zA-Z]?)\s+\[grblHAL', caseSensitive: false),
+      // Match "GrblHAL 1.1f" format (most common)
+      RegExp(r'grblhal\s+([0-9]+\.[0-9]+[a-z]*)', caseSensitive: false),
+      // Match "Grbl 1.1f [grblHAL" format  
+      RegExp(r'grbl\s+([0-9]+\.[0-9]+[a-z]*)\s*\[.*grblhal', caseSensitive: false),
+      // Simple pattern to just look for "grblhal" anywhere in the message
+      RegExp(r'grblhal', caseSensitive: false),
     ];
     
     for (final message in messages.reversed.take(10)) {
-      for (final pattern in grblHalPatterns) {
+      AppLogger.debug('Checking message for grblHAL: "$message"');
+      
+      for (int i = 0; i < grblHalPatterns.length; i++) {
+        final pattern = grblHalPatterns[i];
         final match = pattern.firstMatch(message);
         if (match != null) {
-          final version = match.group(1) ?? 'unknown';
-          AppLogger.info('grblHAL detected: version $version');
+          String version = 'unknown';
+          
+          // Try to extract version from first two patterns, fallback for simple pattern
+          if (i < 2 && match.groupCount >= 1 && match.group(1) != null) {
+            version = match.group(1)!;
+          } else if (i == 2) {
+            // For simple "grblhal" pattern, try to extract version manually
+            final versionMatch = RegExp(r'([0-9]+\.[0-9]+[a-z]*)', caseSensitive: false).firstMatch(message);
+            if (versionMatch != null) {
+              version = versionMatch.group(0)!;
+            }
+          }
+          
+          AppLogger.info('grblHAL detected: version $version from message: "$message"');
           
           // Trigger grblHAL detection event
           add(MachineControllerGrblHalDetected(
@@ -528,6 +589,8 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
         }
       }
     }
+    
+    AppLogger.debug('No grblHAL patterns matched in ${messages.length} messages');
   }
   
   /// Set communication bloc reference for command sending
@@ -567,8 +630,38 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     AppLogger.info('Configuring grblHAL automatic status reporting (16ms/60Hz)...');
     
     // Send grblHAL configuration commands directly
+    AppLogger.info('Sending 0x84 0x10 raw bytes for 60Hz auto-reporting');
     _communicationBloc.add(CncCommunicationSendRawBytes([0x84, 0x10]));
+    
+    // Query machine configuration to understand capabilities and settings
+    AppLogger.info('Querying machine configuration with \$ command');
+    _communicationBloc.add(CncCommunicationSendCommand('\$'));
+    
+    // Send multiple status queries to ensure we get machine state
+    AppLogger.info('Sending initial status queries to determine machine state');
     _communicationBloc.add(CncCommunicationSendCommand('?'));
+    
+    // Send additional status queries with delays to ensure we get a response
+    Timer(const Duration(milliseconds: 100), () {
+      if (_communicationBloc != null) {
+        AppLogger.info('Sending delayed status query (100ms)');
+        _communicationBloc.add(CncCommunicationSendCommand('?'));
+      }
+    });
+    
+    Timer(const Duration(milliseconds: 500), () {
+      if (_communicationBloc != null) {
+        AppLogger.info('Sending delayed status query (500ms)');
+        _communicationBloc.add(CncCommunicationSendCommand('?'));
+      }
+    });
+    
+    Timer(const Duration(milliseconds: 1000), () {
+      if (_communicationBloc != null) {
+        AppLogger.info('Sending delayed status query (1000ms)');
+        _communicationBloc.add(CncCommunicationSendCommand('?'));
+      }
+    });
     
     // Mark as configured
     add(MachineControllerAutoReportingConfigured(
@@ -607,5 +700,122 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
   void onError(Object error, StackTrace stackTrace) {
     super.onError(error, stackTrace);
     AppLogger.error('MachineControllerBloc error', error, stackTrace);
+  }
+
+  // Jog Control Event Handlers
+
+  /// Handle discrete jog request (move specific distance)
+  void _onJogRequested(
+    MachineControllerJogRequested event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    if (!_canJog()) {
+      AppLogger.warning('Cannot jog - machine not in valid state: ${state.status.displayName}');
+      return;
+    }
+
+    if (_communicationBloc == null) {
+      AppLogger.error('Cannot jog - no communication bloc reference');
+      return;
+    }
+
+    // Build GRBL jog command: $J=X10.0F500 (jog X axis 10mm at 500mm/min)
+    final jogCommand = '\$J=${event.axis}${event.distance}F${event.feedRate}';
+    
+    AppLogger.info('Sending jog command: $jogCommand');
+    _communicationBloc.add(CncCommunicationSendCommand(jogCommand));
+    
+    // Update state to indicate jogging
+    emit(state.copyWith(
+      lastUpdateTime: DateTime.now(),
+    ));
+  }
+
+  /// Handle jog stop request
+  void _onJogStopRequested(
+    MachineControllerJogStopRequested event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    if (_communicationBloc == null) {
+      AppLogger.error('Cannot stop jog - no communication bloc reference');
+      return;
+    }
+
+    // Send jog cancel command (0x85 for grblHAL real-time command)
+    AppLogger.info('Sending jog cancel command');
+    _communicationBloc.add(CncCommunicationSendRawBytes([0x85]));
+    
+    emit(state.copyWith(
+      lastUpdateTime: DateTime.now(),
+    ));
+  }
+
+  /// Handle continuous jog start (for hold-down buttons)
+  void _onContinuousJogStarted(
+    MachineControllerContinuousJogStarted event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    if (!_canJog()) {
+      AppLogger.warning('Cannot start continuous jog - machine not in valid state: ${state.status.displayName}');
+      return;
+    }
+
+    if (_communicationBloc == null) {
+      AppLogger.error('Cannot start continuous jog - no communication bloc reference');
+      return;
+    }
+
+    // For continuous jog, send a long distance in the specified direction
+    // grblHAL will stop when the jog cancel is received
+    final distance = event.positive ? '1000' : '-1000'; // Large distance
+    final jogCommand = '\$J=${event.axis}${distance}F${event.feedRate}';
+    
+    AppLogger.info('Starting continuous jog: $jogCommand');
+    _communicationBloc.add(CncCommunicationSendCommand(jogCommand));
+    
+    emit(state.copyWith(
+      lastUpdateTime: DateTime.now(),
+    ));
+  }
+
+  /// Handle continuous jog stop (for button release)
+  void _onContinuousJogStopped(
+    MachineControllerContinuousJogStopped event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    // Same as regular jog stop
+    _onJogStopRequested(const MachineControllerJogStopRequested(), emit);
+  }
+
+  /// Check if machine is in a valid state for jogging
+  bool _canJog() {
+    AppLogger.debug('Checking jog eligibility:');
+    AppLogger.debug('  hasController: ${state.hasController}');
+    AppLogger.debug('  isOnline: ${state.isOnline}');
+    AppLogger.debug('  status: ${state.status.displayName} (${state.status.name})');
+    AppLogger.debug('  grblHalDetected: ${state.grblHalDetected}');
+    AppLogger.debug('  autoReportingConfigured: ${state.autoReportingConfigured}');
+    
+    if (!state.hasController || !state.isOnline) {
+      AppLogger.warning('Cannot jog - controller not available or offline');
+      return false;
+    }
+
+    if (!state.grblHalDetected) {
+      AppLogger.warning('Cannot jog - grblHAL not detected');
+      return false;
+    }
+
+    // Only allow jogging in Idle, Jog, or Check states
+    final currentStatus = state.status;
+    final canJog = currentStatus == MachineStatus.idle || 
+                   currentStatus == MachineStatus.jogging ||
+                   currentStatus == MachineStatus.check;
+                   
+    if (!canJog) {
+      AppLogger.warning('Cannot jog - machine in invalid state: ${currentStatus.displayName}');
+    }
+    
+    return canJog;
   }
 }

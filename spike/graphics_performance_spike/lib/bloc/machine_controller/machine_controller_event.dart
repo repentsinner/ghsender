@@ -282,3 +282,47 @@ class MachineControllerAutoReportingConfigured extends MachineControllerEvent {
   @override
   List<Object?> get props => [enabled, timestamp];
 }
+
+// Jog Control Events
+
+/// Request to jog the machine in a specific direction
+class MachineControllerJogRequested extends MachineControllerEvent {
+  final String axis; // 'X', 'Y', 'Z'
+  final double distance; // Distance to jog (positive or negative)
+  final int feedRate; // Feed rate in mm/min or in/min
+  
+  const MachineControllerJogRequested({
+    required this.axis,
+    required this.distance,
+    required this.feedRate,
+  });
+  
+  @override
+  List<Object?> get props => [axis, distance, feedRate];
+}
+
+/// Request to stop any ongoing jog movement
+class MachineControllerJogStopRequested extends MachineControllerEvent {
+  const MachineControllerJogStopRequested();
+}
+
+/// Continuous jog start (hold down)
+class MachineControllerContinuousJogStarted extends MachineControllerEvent {
+  final String axis; // 'X', 'Y', 'Z'
+  final bool positive; // true for positive direction, false for negative
+  final int feedRate; // Feed rate in mm/min or in/min
+  
+  const MachineControllerContinuousJogStarted({
+    required this.axis,
+    required this.positive,
+    required this.feedRate,
+  });
+  
+  @override
+  List<Object?> get props => [axis, positive, feedRate];
+}
+
+/// Continuous jog stop (release button)
+class MachineControllerContinuousJogStopped extends MachineControllerEvent {
+  const MachineControllerContinuousJogStopped();
+}
