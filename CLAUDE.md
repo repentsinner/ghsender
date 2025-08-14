@@ -104,3 +104,4 @@ hook/build.dart                              # Native assets build hook
 - Sample code exists in flutter_gpu showing proper usage patterns
 - Must use actual GPU shaders for meaningful performance comparison
 - All BLoC state management designed for 60Hz real-time machine control
+- state management is accomplished via BLoC in this project

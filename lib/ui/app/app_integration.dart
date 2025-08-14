@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../utils/logger.dart';
 import '../../bloc/bloc_exports.dart';
+import '../../bloc/performance/performance_bloc.dart';
+import '../../bloc/graphics/graphics_bloc.dart';
 import '../screens/grblhal_visualizer.dart';
 
 /// App Integration Layer - handles BLoC communication and state integration
-/// Manages profile integration, communication monitoring, and machine detection
+/// Manages profile integration, communication monitoring, and state coordination
 class AppIntegrationLayer extends StatefulWidget {
   const AppIntegrationLayer({super.key});
 
@@ -15,42 +17,6 @@ class AppIntegrationLayer extends StatefulWidget {
 }
 
 class _AppIntegrationLayerState extends State<AppIntegrationLayer> {
-  Timer? _grblHalDetectionTimeout;
-
-  @override
-  void dispose() {
-    _grblHalDetectionTimeout?.cancel();
-    super.dispose();
-  }
-
-  /// Schedule timeout for grblHAL detection after connection
-  void _scheduleGrblHalDetectionTimeout(BuildContext context) {
-    // Cancel any existing timeout
-    _grblHalDetectionTimeout?.cancel();
-    
-    // Wait 3 seconds for grblHAL welcome message - if not found, disconnect
-    _grblHalDetectionTimeout = Timer(const Duration(seconds: 3), () {
-      if (mounted) {
-        final machineState = context.read<MachineControllerBloc>().state;
-        
-        if (!machineState.grblHalDetected) {
-          AppLogger.error('grblHAL not detected - this sender requires grblHAL firmware');
-          
-          // Disconnect since we only support grblHAL
-          context.read<CncCommunicationBloc>().add(
-            CncCommunicationDisconnectRequested(),
-          );
-          
-          // Show error in machine controller
-          context.read<MachineControllerBloc>().add(
-            MachineControllerInfoUpdated(
-              firmwareVersion: 'ERROR: grblHAL required - Standard GRBL not supported',
-            ),
-          );
-        }
-      }
-    });
-  }
 
   @override
   void initState() {
@@ -122,21 +88,16 @@ class _AppIntegrationLayerState extends State<AppIntegrationLayer> {
               MachineControllerCommunicationReceived(commState),
             );
             
-            // Handle initial connection - wait for grblHAL detection
+            // Log connection establishment
             if (commState is CncCommunicationConnected) {
-              AppLogger.info('Connection established, waiting for grblHAL welcome message');
-              
-              // Wait for grblHAL detection - disconnect if not found
-              _scheduleGrblHalDetectionTimeout(context);
+              AppLogger.info('Connection established - machine controller will handle grblHAL detection');
             }
             
-            // Stop timers when disconnected
+            // Log disconnection
             if (commState is CncCommunicationDisconnected || 
                 commState is CncCommunicationError ||
                 commState is CncCommunicationInitial) {
-              AppLogger.info('Connection lost, stopping timers');
-              _grblHalDetectionTimeout?.cancel();
-              _grblHalDetectionTimeout = null;
+              AppLogger.info('Connection lost');
             }
           },
         ),
@@ -154,12 +115,6 @@ class _AppIntegrationLayerState extends State<AppIntegrationLayer> {
         // Machine Controller state monitoring
         BlocListener<MachineControllerBloc, MachineControllerState>(
           listener: (context, machineState) {
-            // Cancel timeout when grblHAL is detected
-            if (machineState.grblHalDetected) {
-              _grblHalDetectionTimeout?.cancel();
-              _grblHalDetectionTimeout = null;
-            }
-            
             // Send machine state to Problems BLoC for analysis
             context.read<ProblemsBloc>().add(
               MachineControllerStateAnalyzed(machineState),
@@ -167,7 +122,17 @@ class _AppIntegrationLayerState extends State<AppIntegrationLayer> {
           },
         ),
       ],
-      child: const GrblHalVisualizerScreen(),
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<PerformanceBloc>(
+            create: (_) => PerformanceBloc(),
+          ),
+          BlocProvider<GraphicsBloc>(
+            create: (_) => GraphicsBloc(),
+          ),
+        ],
+        child: const GrblHalVisualizerScreen(),
+      ),
     );
   }
 }

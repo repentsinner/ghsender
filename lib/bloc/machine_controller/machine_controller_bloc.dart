@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../models/machine_controller.dart';
+import '../../models/machine_configuration.dart';
 import '../../utils/logger.dart';
 import 'machine_controller_event.dart';
 import 'machine_controller_state.dart';
@@ -12,6 +13,9 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
   
   // Reference to communication bloc for sending commands
   dynamic _communicationBloc;
+  
+  // Timer for grblHAL detection timeout
+  Timer? _grblHalDetectionTimeout;
   
   MachineControllerBloc() : super(const MachineControllerState()) {
     AppLogger.machineInfo('Machine Controller BLoC initialized');
@@ -36,6 +40,7 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     on<MachineControllerGrblHalDetected>(_onGrblHalDetected);
     on<MachineControllerSetCommunicationBloc>(_onSetCommunicationBloc);
     on<MachineControllerAutoReportingConfigured>(_onAutoReportingConfigured);
+    on<MachineControllerConfigurationReceived>(_onConfigurationReceived);
     
     // Jog control handlers
     on<MachineControllerJogRequested>(_onJogRequested);
@@ -103,6 +108,11 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
       _checkForGrblHalWelcomeMessage([connectedState.deviceInfo!], timestamp);
     }
     
+    // Start grblHAL detection timeout if not already detected
+    if (!state.grblHalDetected) {
+      _startGrblHalDetectionTimeout();
+    }
+    
     // Create or update controller with connection info
     final currentController = state.controller;
     final updatedController = (currentController ?? MachineController(
@@ -135,6 +145,10 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     } else {
       AppLogger.machineDebug('grblHAL already detected, skipping welcome message check');
     }
+    
+    // Check for configuration response ($ command responses)
+    AppLogger.machineDebug('Checking for configuration in ${dataState.messages.length} messages');
+    _parseConfigurationResponses(dataState.messages, timestamp);
     
     // Create or update controller with all available data
     final currentController = state.controller;
@@ -231,6 +245,9 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
   
   /// Handle disconnected state
   void _handleDisconnectedState(Emitter<MachineControllerState> emit, DateTime timestamp) {
+    // Cancel grblHAL detection timeout on disconnect
+    _cancelGrblHalDetectionTimeout();
+    
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         isOnline: false,
@@ -593,6 +610,57 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     
     AppLogger.machineDebug('No grblHAL patterns matched in ${messages.length} messages');
   }
+
+  /// Parse configuration responses from $ command
+  void _parseConfigurationResponses(List<String> messages, DateTime timestamp) {
+    final configurationLines = <String>[];
+    final allMessages = <String>[];
+    
+    // Look for configuration setting lines in format: $<number>=<value>
+    // May have prefixes like "Received: $100=250.000"
+    final settingPattern = RegExp(r'\$\d+=.+');
+    
+    for (final message in messages) {
+      final trimmed = message.trim();
+      allMessages.add(trimmed);
+      
+      // Check if this message contains a configuration setting
+      final match = settingPattern.firstMatch(trimmed);
+      if (match != null) {
+        // Extract just the setting part (e.g., "$100=250.000")
+        final settingLine = match.group(0)!;
+        configurationLines.add(settingLine);
+        AppLogger.machineDebug('Found configuration setting: "$settingLine" in message: "$trimmed"');
+      }
+    }
+    
+    // If we found configuration settings or any messages that might contain firmware info, parse them
+    if (configurationLines.isNotEmpty || allMessages.isNotEmpty) {
+      // Parse configuration from all messages (includes both settings and potential firmware info)
+      final configuration = MachineConfiguration.parseFromMessages(allMessages);
+      
+      AppLogger.machineDebug('Parsed configuration: ${configuration.settings.length} settings, firmware: ${configuration.firmwareVersion}');
+      
+      // Merge with existing configuration if present
+      final existingConfig = state.configuration;
+      final mergedConfig = existingConfig != null 
+          ? existingConfig.withSettings(configuration.settings.values.toList()).copyWith(
+              firmwareVersion: configuration.firmwareVersion ?? existingConfig.firmwareVersion,
+            )
+          : configuration;
+      
+      // Only trigger event if we actually have configuration data
+      if (mergedConfig.settings.isNotEmpty || mergedConfig.firmwareVersion != null) {
+        AppLogger.machineInfo('Configuration update: ${mergedConfig.settings.length} settings, firmware: ${mergedConfig.firmwareVersion}');
+        
+        // Trigger configuration received event
+        add(MachineControllerConfigurationReceived(
+          configuration: mergedConfig,
+          timestamp: timestamp,
+        ));
+      }
+    }
+  }
   
   /// Set communication bloc reference for command sending
   void _onSetCommunicationBloc(
@@ -610,6 +678,9 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
   ) {
     AppLogger.machineInfo('grblHAL controller detected: ${event.firmwareVersion}');
     AppLogger.machineInfo('Welcome message: "${event.welcomeMessage.trim()}"');
+    
+    // Cancel timeout since grblHAL was detected successfully
+    _cancelGrblHalDetectionTimeout();
     
     emit(state.copyWith(
       grblHalDetected: true,
@@ -685,7 +756,48 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
       AppLogger.machineInfo('grblHAL configured for 60Hz event-based status updates (0x84 0x10)');
     }
   }
+
+  /// Handle machine configuration received from $ command parsing
+  void _onConfigurationReceived(
+    MachineControllerConfigurationReceived event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    AppLogger.machineInfo('Machine configuration received: ${event.configuration.settings.length} settings');
+    
+    emit(state.copyWith(
+      configuration: event.configuration,
+      lastUpdateTime: event.timestamp,
+    ));
+  }
   
+  /// Start grblHAL detection timeout
+  void _startGrblHalDetectionTimeout() {
+    _cancelGrblHalDetectionTimeout();
+    
+    AppLogger.machineInfo('Starting grblHAL detection timeout (5 seconds)');
+    _grblHalDetectionTimeout = Timer(const Duration(seconds: 5), () {
+      if (!state.grblHalDetected) {
+        AppLogger.machineError('grblHAL not detected within timeout - this sender requires grblHAL firmware');
+        
+        // Disconnect since we only support grblHAL
+        if (_communicationBloc != null) {
+          _communicationBloc.add(CncCommunicationDisconnectRequested());
+        }
+        
+        // Update firmware version to show error
+        add(MachineControllerInfoUpdated(
+          firmwareVersion: 'ERROR: grblHAL required - Standard GRBL not supported',
+        ));
+      }
+    });
+  }
+  
+  /// Cancel grblHAL detection timeout
+  void _cancelGrblHalDetectionTimeout() {
+    _grblHalDetectionTimeout?.cancel();
+    _grblHalDetectionTimeout = null;
+  }
+
   @override
   void onTransition(Transition<MachineControllerEvent, MachineControllerState> transition) {
     super.onTransition(transition);
@@ -818,5 +930,11 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     }
     
     return canJog;
+  }
+
+  @override
+  Future<void> close() {
+    _cancelGrblHalDetectionTimeout();
+    return super.close();
   }
 }

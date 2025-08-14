@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../models/machine_controller.dart';
+import '../../models/machine_configuration.dart';
 import '../communication/cnc_communication_state.dart';
 
 /// State for the Machine Controller BLoC
@@ -27,6 +28,9 @@ class MachineControllerState extends Equatable {
   final bool autoReportingConfigured;
   final DateTime? grblHalDetectedAt;
   
+  // Machine configuration from $ command responses
+  final MachineConfiguration? configuration;
+  
   const MachineControllerState({
     this.controller,
     this.isInitialized = false,
@@ -44,6 +48,7 @@ class MachineControllerState extends Equatable {
     this.grblHalVersion,
     this.autoReportingConfigured = false,
     this.grblHalDetectedAt,
+    this.configuration,
   });
   
   /// Create a copy with updated fields
@@ -64,11 +69,13 @@ class MachineControllerState extends Equatable {
     String? grblHalVersion,
     bool? autoReportingConfigured,
     DateTime? grblHalDetectedAt,
+    MachineConfiguration? configuration,
     bool clearLastMessage = false,
     bool clearPerformanceData = false,
     bool clearJogTestStartTime = false,
     bool clearGrblHalVersion = false,
     bool clearGrblHalDetectedAt = false,
+    bool clearConfiguration = false,
   }) {
     return MachineControllerState(
       controller: controller ?? this.controller,
@@ -87,6 +94,7 @@ class MachineControllerState extends Equatable {
       grblHalVersion: clearGrblHalVersion ? null : grblHalVersion ?? this.grblHalVersion,
       autoReportingConfigured: autoReportingConfigured ?? this.autoReportingConfigured,
       grblHalDetectedAt: clearGrblHalDetectedAt ? null : grblHalDetectedAt ?? this.grblHalDetectedAt,
+      configuration: clearConfiguration ? null : configuration ?? this.configuration,
     );
   }
   
@@ -207,6 +215,7 @@ class MachineControllerState extends Equatable {
     grblHalVersion,
     autoReportingConfigured,
     grblHalDetectedAt,
+    configuration,
   ];
   
   @override

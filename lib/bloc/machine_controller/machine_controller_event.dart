@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../models/machine_controller.dart';
+import '../../models/machine_configuration.dart';
 import '../communication/cnc_communication_state.dart';
 
 /// Events for the Machine Controller BLoC
@@ -325,4 +326,18 @@ class MachineControllerContinuousJogStarted extends MachineControllerEvent {
 /// Continuous jog stop (release button)
 class MachineControllerContinuousJogStopped extends MachineControllerEvent {
   const MachineControllerContinuousJogStopped();
+}
+
+/// Machine configuration received and parsed from $ command response
+class MachineControllerConfigurationReceived extends MachineControllerEvent {
+  final MachineConfiguration configuration;
+  final DateTime timestamp;
+  
+  const MachineControllerConfigurationReceived({
+    required this.configuration,
+    required this.timestamp,
+  });
+  
+  @override
+  List<Object?> get props => [configuration, timestamp];
 }

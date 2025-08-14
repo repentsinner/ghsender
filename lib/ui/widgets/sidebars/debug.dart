@@ -281,8 +281,12 @@ class DebugSection extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _buildInputStateRow('Firmware', machineState.grblHalVersion ?? 'Unknown', '⚙️'),
+                    _buildInputStateRow('Firmware', _getFirmwareVersion(machineState), '⚙️'),
                     const SizedBox(height: 4),
+                    if (machineState.configuration != null && machineState.configuration!.settings.isNotEmpty)
+                      _buildInputStateRow('Configuration', '${machineState.configuration!.settings.length} settings loaded', '📋'),
+                    if (machineState.configuration != null && machineState.configuration!.settings.isNotEmpty)
+                      const SizedBox(height: 4),
                     _buildInputStateRow('Auto Reporting', machineState.autoReportingConfigured ? 'Enabled (60Hz)' : 'Disabled', machineState.autoReportingConfigured ? '✅' : '❌'),
                     const SizedBox(height: 8),
                     Container(
@@ -344,6 +348,17 @@ class DebugSection extends StatelessWidget {
     return Column(children: inputRows);
   }
   
+  String _getFirmwareVersion(MachineControllerState machineState) {
+    // Priority: Configuration firmware version > grblHAL version > Unknown
+    if (machineState.configuration?.firmwareVersion != null) {
+      return machineState.configuration!.firmwareVersion!;
+    }
+    if (machineState.grblHalVersion != null) {
+      return machineState.grblHalVersion!;
+    }
+    return 'Unknown';
+  }
+
   Widget _buildInputStateRow(String label, String value, String icon) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),

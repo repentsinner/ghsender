@@ -7,26 +7,13 @@ import '../sidebar_sections/sidebar_components.dart';
 import '../../../bloc/profile/profile_bloc.dart';
 import '../../../bloc/profile/profile_event.dart';
 import '../../../bloc/profile/profile_state.dart';
+import '../../../bloc/graphics/graphics_bloc.dart';
+import '../../../bloc/graphics/graphics_state.dart';
 import '../../../utils/logger.dart';
 
 /// Settings section - Machine profiles, communication settings, and renderer settings
 class SettingsSection extends StatefulWidget {
-  final double lineWeight;
-  final double lineSmoothness;
-  final double lineOpacity;
-  final ValueChanged<double> onLineWeightChanged;
-  final ValueChanged<double> onLineSmoothnessChanged;
-  final ValueChanged<double> onLineOpacityChanged;
-
-  const SettingsSection({
-    super.key,
-    required this.lineWeight,
-    required this.lineSmoothness,
-    required this.lineOpacity,
-    required this.onLineWeightChanged,
-    required this.onLineSmoothnessChanged,
-    required this.onLineOpacityChanged,
-  });
+  const SettingsSection({super.key});
 
   @override
   State<SettingsSection> createState() => _SettingsSectionState();
@@ -534,64 +521,75 @@ class _SettingsSectionState extends State<SettingsSection> {
 
 
   Widget _buildRendererSettingsSection() {
-    return SidebarComponents.buildSectionWithInfo(
-      title: 'Renderer Settings',
-      infoTooltip: 'Visual rendering parameters and line style settings',
-      child: Column(
-        children: [
-          // Line Weight Control
-          _buildSliderControl(
-            label: 'Line Weight',
-            value: widget.lineWeight,
-            min: 0.1,
-            max: 5.0,
-            divisions: 49,
-            onChanged: widget.onLineWeightChanged,
-            formatValue: (value) => value.toStringAsFixed(1),
-            description: 'Controls the thickness of rendered G-code lines',
+    return BlocBuilder<GraphicsBloc, GraphicsState>(
+      builder: (context, state) {
+        final lineWeight = state is GraphicsLoaded ? state.lineWeight : 1.0;
+        final lineSmoothness = state is GraphicsLoaded ? state.lineSmoothness : 0.5;
+        final lineOpacity = state is GraphicsLoaded ? state.lineOpacity : 0.5;
+        final onLineWeightChanged = state is GraphicsLoaded ? state.onLineWeightChanged : null;
+        final onLineSmoothnessChanged = state is GraphicsLoaded ? state.onLineSmoothnessChanged : null;
+        final onLineOpacityChanged = state is GraphicsLoaded ? state.onLineOpacityChanged : null;
+        
+        return SidebarComponents.buildSectionWithInfo(
+          title: 'Renderer Settings',
+          infoTooltip: 'Visual rendering parameters and line style settings',
+          child: Column(
+            children: [
+              // Line Weight Control
+              _buildSliderControl(
+                label: 'Line Weight',
+                value: lineWeight,
+                min: 0.1,
+                max: 5.0,
+                divisions: 49,
+                onChanged: onLineWeightChanged ?? (_) {},
+                formatValue: (value) => value.toStringAsFixed(1),
+                description: 'Controls the thickness of rendered G-code lines',
+              ),
+
+              const SizedBox(height: 20),
+
+              // Line Smoothness Control
+              _buildSliderControl(
+                label: 'Line Smoothness',
+                value: lineSmoothness,
+                min: 0.0,
+                max: 1.0,
+                divisions: 20,
+                onChanged: onLineSmoothnessChanged ?? (_) {},
+                formatValue: (value) =>
+                    '${value.toStringAsFixed(2)} ${_getSmoothnessSuffix(value)}',
+                description: 'Adjusts line edge softness (0.0 = soft, 1.0 = sharp)',
+              ),
+
+              const SizedBox(height: 20),
+
+              // Line Opacity Control
+              _buildSliderControl(
+                label: 'Line Opacity',
+                value: lineOpacity,
+                min: 0.0,
+                max: 1.0,
+                divisions: 20,
+                onChanged: onLineOpacityChanged ?? (_) {},
+                formatValue: (value) =>
+                    '${value.toStringAsFixed(2)} ${_getOpacitySuffix(value)}',
+                description:
+                    'Controls line transparency (0.0 = transparent, 1.0 = solid)',
+              ),
+
+              const SizedBox(height: 20),
+
+              // Renderer Info
+              SidebarComponents.buildInfoCard(
+                title: 'Active Renderer',
+                content:
+                    'Flutter Scene Lines Renderer\\nHardware-accelerated GPU rendering',
+              ),
+            ],
           ),
-
-          const SizedBox(height: 20),
-
-          // Line Smoothness Control
-          _buildSliderControl(
-            label: 'Line Smoothness',
-            value: widget.lineSmoothness,
-            min: 0.0,
-            max: 1.0,
-            divisions: 20,
-            onChanged: widget.onLineSmoothnessChanged,
-            formatValue: (value) =>
-                '${value.toStringAsFixed(2)} ${_getSmoothnessSuffix(value)}',
-            description: 'Adjusts line edge softness (0.0 = soft, 1.0 = sharp)',
-          ),
-
-          const SizedBox(height: 20),
-
-          // Line Opacity Control
-          _buildSliderControl(
-            label: 'Line Opacity',
-            value: widget.lineOpacity,
-            min: 0.0,
-            max: 1.0,
-            divisions: 20,
-            onChanged: widget.onLineOpacityChanged,
-            formatValue: (value) =>
-                '${value.toStringAsFixed(2)} ${_getOpacitySuffix(value)}',
-            description:
-                'Controls line transparency (0.0 = transparent, 1.0 = solid)',
-          ),
-
-          const SizedBox(height: 20),
-
-          // Renderer Info
-          SidebarComponents.buildInfoCard(
-            title: 'Active Renderer',
-            content:
-                'Flutter Scene Lines Renderer\\nHardware-accelerated GPU rendering',
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 

@@ -60,8 +60,6 @@ class AppLogger {
     // Configure logging to output to console with clean format
     Logger.root.level = Level.ALL;
     Logger.root.onRecord.listen((record) {
-      final time = record.time.toString().substring(11, 23); // HH:mm:ss.mmm
-      final level = record.level.name.padRight(7);
       final message = record.message;
 
       // Create the formatted log message (same for both UI and developer.log)
@@ -85,7 +83,7 @@ class AppLogger {
 
       // Store in global log history (always collecting)
       _logHistory.add(uiLogMessage);
-      
+
       // Limit the number of stored messages for memory management
       if (_logHistory.length > _maxLogMessages) {
         _logHistory.removeRange(0, _logHistory.length - _maxLogMessages);

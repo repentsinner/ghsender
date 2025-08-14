@@ -13,39 +13,11 @@ import '../widgets/sidebars/debug.dart';
 class PrimarySidebar extends StatelessWidget {
   final double width;
   final ActivitySection activeSection;
-  final double fps;
-  final int polygons;
-  final int drawCalls;
-  final String cameraInfo;
-
-  // Line control callbacks
-  final ValueChanged<double> onLineWeightChanged;
-  final ValueChanged<double> onLineSmoothnessChanged;
-  final ValueChanged<double> onLineOpacityChanged;
-  final VoidCallback onCameraToggle;
-
-  // Current line values
-  final double lineWeight;
-  final double lineSmoothness;
-  final double lineOpacity;
-  final bool isAutoMode;
 
   const PrimarySidebar({
     super.key,
     required this.width,
     required this.activeSection,
-    required this.fps,
-    required this.polygons,
-    required this.drawCalls,
-    required this.cameraInfo,
-    required this.onLineWeightChanged,
-    required this.onLineSmoothnessChanged,
-    required this.onLineOpacityChanged,
-    required this.onCameraToggle,
-    required this.lineWeight,
-    required this.lineSmoothness,
-    required this.lineOpacity,
-    required this.isAutoMode,
   });
 
   @override
@@ -106,9 +78,6 @@ class PrimarySidebar extends StatelessWidget {
     return Container(
       height: 35,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: VSCodeTheme.border)),
-      ),
       child: Row(
         children: [
           Icon(icon, color: VSCodeTheme.primaryText, size: 16),
@@ -133,26 +102,11 @@ class PrimarySidebar extends StatelessWidget {
       case ActivitySection.filesAndJobs:
         return const FilesAndJobsSection();
       case ActivitySection.graphics:
-        return GraphicsSection(
-          cameraInfo: cameraInfo,
-          isAutoMode: isAutoMode,
-          onCameraToggle: onCameraToggle,
-        );
+        return const GraphicsSection();
       case ActivitySection.settings:
-        return SettingsSection(
-          lineWeight: lineWeight,
-          lineSmoothness: lineSmoothness,
-          lineOpacity: lineOpacity,
-          onLineWeightChanged: onLineWeightChanged,
-          onLineSmoothnessChanged: onLineSmoothnessChanged,
-          onLineOpacityChanged: onLineOpacityChanged,
-        );
+        return const SettingsSection();
       case ActivitySection.performance:
-        return PerformanceSection(
-          fps: fps,
-          polygons: polygons,
-          drawCalls: drawCalls,
-        );
+        return const PerformanceSection();
       case ActivitySection.scene:
         return const SceneSection();
       case ActivitySection.debug:

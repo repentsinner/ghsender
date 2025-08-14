@@ -25,7 +25,7 @@ class VSCodeTheme {
   static const Color selection = Color(0xFF094771);
   static const Color focus = Color(0xFF007ACC);
   static const Color accent = Color(0xFF007ACC);
-  
+
   // Input Colors
   static const Color inputBackground = Color(0xFF3C3C3C);
   static const Color dropdownBackground = Color(0xFF3C3C3C);
@@ -148,7 +148,7 @@ class VSCodeTheme {
   static const double panelMinHeight = 100.0;
   static const double panelMaxHeight = 400.0;
   static const double statusBarHeight = 22.0;
-  static const double splitterWidth = 4.0;
+  static const double splitterWidth = 2.0;
 
   /// Border radius for containers
   static const BorderRadius containerRadius = BorderRadius.all(
@@ -173,10 +173,8 @@ class VSCodeTheme {
     fontWeight: FontWeight.w500,
   );
 
-  static TextStyle get loglineLevel => GoogleFonts.inconsolata(
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-  );
+  static TextStyle get loglineLevel =>
+      GoogleFonts.inconsolata(fontSize: 11, fontWeight: FontWeight.w600);
 
   static TextStyle get loglineMessage => GoogleFonts.inconsolata(
     color: primaryText,
