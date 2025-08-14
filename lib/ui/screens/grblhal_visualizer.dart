@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'dart:async';
 
 import '../../utils/logger.dart';
@@ -9,6 +10,10 @@ import '../../scene/scene_manager.dart';
 import '../../renderers/renderer_interface.dart';
 import '../../renderers/line_style.dart';
 import '../../camera_director.dart';
+import '../../bloc/performance/performance_bloc.dart';
+import '../../bloc/performance/performance_event.dart';
+import '../../bloc/graphics/graphics_bloc.dart';
+import '../../bloc/graphics/graphics_event.dart';
 import '../layouts/vscode_layout.dart';
 
 enum RendererType { flutterSceneLines }
@@ -306,20 +311,30 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
       ),
     );
 
-    return VSCodeLayout(
-      graphicsRenderer: graphicsRenderer,
+    // Update BLoCs with current data
+    context.read<PerformanceBloc>().add(PerformanceMetricsUpdated(
       fps: _fps,
       polygons: polygons,
       drawCalls: drawCalls,
+    ));
+    
+    context.read<GraphicsBloc>().add(GraphicsCameraStateUpdated(
       cameraInfo: _getCameraInfo(),
-      onLineWeightChanged: _updateLineWeight,
-      onLineSmoothnessChanged: _updateLineSmoothness,
-      onLineOpacityChanged: _updateLineOpacity,
+      isAutoMode: _cameraDirector.isAutoMode,
       onCameraToggle: _toggleCameraAnimation,
+    ));
+    
+    context.read<GraphicsBloc>().add(GraphicsLineControlsUpdated(
       lineWeight: _lineWeight,
       lineSmoothness: _lineSmoothness,
       lineOpacity: _lineOpacity,
-      isAutoMode: _cameraDirector.isAutoMode,
+      onLineWeightChanged: _updateLineWeight,
+      onLineSmoothnessChanged: _updateLineSmoothness,
+      onLineOpacityChanged: _updateLineOpacity,
+    ));
+
+    return VSCodeLayout(
+      graphicsRenderer: graphicsRenderer,
     );
   }
 }

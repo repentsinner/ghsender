@@ -20,17 +20,7 @@ class SettingsSection extends StatefulWidget {
 }
 
 class _SettingsSectionState extends State<SettingsSection> {
-  // Text controllers for input fields
-  late final TextEditingController _profileNameController;
-  late final TextEditingController _controllerAddressController;
-  
-  // Focus nodes for detecting focus changes
-  late final FocusNode _profileNameFocusNode;
-  late final FocusNode _controllerAddressFocusNode;
-  
-  // Track the currently displayed profile to detect switches
-  String? _currentDisplayedProfileId;
-  
+  // Text controllers for numerical inputs only
   late final TextEditingController _workAreaXController;
   late final TextEditingController _workAreaYController;
   late final TextEditingController _workAreaZController;
@@ -44,61 +34,21 @@ class _SettingsSectionState extends State<SettingsSection> {
   }
 
   void _initializeControllers() {
-    _profileNameController = TextEditingController();
-    _controllerAddressController = TextEditingController();
     _workAreaXController = TextEditingController();
     _workAreaYController = TextEditingController();
     _workAreaZController = TextEditingController();
     _maxFeedRateController = TextEditingController();
     _maxSpindleSpeedController = TextEditingController();
-    
-    // Initialize focus nodes with listeners
-    _profileNameFocusNode = FocusNode();
-    _controllerAddressFocusNode = FocusNode();
-    
-    _profileNameFocusNode.addListener(() {
-      if (!_profileNameFocusNode.hasFocus) {
-        // Lost focus - save the profile name
-        context.read<ProfileBloc>().add(
-          ProfileNameChanged(_profileNameController.text),
-        );
-      }
-    });
-    
-    _controllerAddressFocusNode.addListener(() {
-      if (!_controllerAddressFocusNode.hasFocus) {
-        // Lost focus - save the controller address
-        context.read<ProfileBloc>().add(
-          ProfileControllerAddressChanged(_controllerAddressController.text),
-        );
-      }
-    });
   }
 
-  /// Update text controllers when profile changes
-  void _updateControllersFromProfile(MachineProfile profile) {
-    _profileNameController.text = profile.name;
-    _controllerAddressController.text = profile.controllerAddress;
-    // Machine parameters will be handled by MachineStateBloc
-    _workAreaXController.text = '0.0';
-    _workAreaYController.text = '0.0';
-    _workAreaZController.text = '0.0';
-    _maxFeedRateController.text = '0.0';
-    _maxSpindleSpeedController.text = '0.0';
-  }
 
   @override
   void dispose() {
-    _profileNameController.dispose();
-    _controllerAddressController.dispose();
     _workAreaXController.dispose();
     _workAreaYController.dispose();
     _workAreaZController.dispose();
     _maxFeedRateController.dispose();
     _maxSpindleSpeedController.dispose();
-    
-    _profileNameFocusNode.dispose();
-    _controllerAddressFocusNode.dispose();
     
     super.dispose();
   }
@@ -107,16 +57,6 @@ class _SettingsSectionState extends State<SettingsSection> {
   Widget build(BuildContext context) {
     return BlocConsumer<ProfileBloc, ProfileState>(
       listener: (context, state) {
-        // Update text controllers when profile loads or switches
-        if (state is ProfileLoaded) {
-          final newProfileId = state.currentProfile.id;
-          if (_currentDisplayedProfileId != newProfileId) {
-            // Profile switched or first load - update controllers with new data
-            _updateControllersFromProfile(state.currentProfile);
-            _currentDisplayedProfileId = newProfileId;
-          }
-        }
-        
         // Show snackbars for operations
         if (state is ProfileOperationSuccess) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -226,12 +166,6 @@ class _SettingsSectionState extends State<SettingsSection> {
 
         if (currentProfile == null) {
           return const Center(child: CircularProgressIndicator());
-        }
-
-        // Ensure text controllers are synchronized with current profile
-        if (_currentDisplayedProfileId != currentProfile.id) {
-          _updateControllersFromProfile(currentProfile);
-          _currentDisplayedProfileId = currentProfile.id;
         }
 
         return SingleChildScrollView(
@@ -403,8 +337,7 @@ class _SettingsSectionState extends State<SettingsSection> {
           // Profile Name
           _buildTextInput(
             label: 'Profile Name',
-            controller: _profileNameController,
-            focusNode: _profileNameFocusNode,
+            value: currentProfile.name,
             onChanged: (value) => context.read<ProfileBloc>().add(
               ProfileNameChanged(value),
             ),
@@ -415,8 +348,7 @@ class _SettingsSectionState extends State<SettingsSection> {
           // Controller Address
           _buildTextInput(
             label: 'Controller Address',
-            controller: _controllerAddressController,
-            focusNode: _controllerAddressFocusNode,
+            value: currentProfile.controllerAddress,
             onChanged: (value) => context.read<ProfileBloc>().add(
               ProfileControllerAddressChanged(value),
             ),
@@ -616,10 +548,9 @@ class _SettingsSectionState extends State<SettingsSection> {
 
   Widget _buildTextInput({
     required String label,
-    required TextEditingController controller,
+    required String value,
     required ValueChanged<String> onChanged,
     String? placeholder,
-    FocusNode? focusNode,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -633,10 +564,10 @@ class _SettingsSectionState extends State<SettingsSection> {
           ),
         ),
         const SizedBox(height: 4),
-        TextField(
-          controller: controller,
-          focusNode: focusNode,
-          onSubmitted: onChanged,
+        TextFormField(
+          initialValue: value,
+          onFieldSubmitted: onChanged,
+          onChanged: onChanged,
           style: GoogleFonts.inconsolata(
             color: VSCodeTheme.primaryText,
             fontSize: 14,

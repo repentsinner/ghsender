@@ -1,22 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import '../themes/vscode_theme.dart';
 import 'activity_bar.dart';
 import 'primary_sidebar.dart';
 import 'main_view.dart';
 import 'bottom_panel.dart';
 import 'status_bar.dart';
-import '../../bloc/performance/performance_bloc.dart';
-import '../../bloc/performance/performance_event.dart';
-import '../../bloc/graphics/graphics_bloc.dart';
-import '../../bloc/graphics/graphics_event.dart';
 
 /// Activity bar sections
 enum ActivitySection {
   sessionInitialization,
   filesAndJobs,
   graphics,
-  settings, // Renamed from 'renderer' to 'settings'
+  settings,
   performance,
   scene,
   debug,
@@ -25,41 +20,8 @@ enum ActivitySection {
 /// Main VS Code-like layout container
 class VSCodeLayout extends StatefulWidget {
   final Widget graphicsRenderer;
-  final double fps;
-  final int polygons;
-  final int drawCalls;
-  final String cameraInfo;
 
-  // Line control callbacks
-  final ValueChanged<double> onLineWeightChanged;
-  final ValueChanged<double> onLineSmoothnessChanged;
-  final ValueChanged<double> onLineOpacityChanged;
-  final VoidCallback onCameraToggle;
-
-  // Current line values
-  final double lineWeight;
-  final double lineSmoothness;
-  final double lineOpacity;
-  final bool isAutoMode;
-
-  // DRO position values now handled by MachineControllerBloc
-
-  const VSCodeLayout({
-    super.key,
-    required this.graphicsRenderer,
-    required this.fps,
-    required this.polygons,
-    required this.drawCalls,
-    required this.cameraInfo,
-    required this.onLineWeightChanged,
-    required this.onLineSmoothnessChanged,
-    required this.onLineOpacityChanged,
-    required this.onCameraToggle,
-    required this.lineWeight,
-    required this.lineSmoothness,
-    required this.lineOpacity,
-    required this.isAutoMode,
-  });
+  const VSCodeLayout({super.key, required this.graphicsRenderer});
 
   @override
   State<VSCodeLayout> createState() => _VSCodeLayoutState();
@@ -111,28 +73,6 @@ class _VSCodeLayoutState extends State<VSCodeLayout> {
 
   @override
   Widget build(BuildContext context) {
-    // Update BLoCs with current data
-    context.read<PerformanceBloc>().add(PerformanceMetricsUpdated(
-      fps: widget.fps,
-      polygons: widget.polygons,
-      drawCalls: widget.drawCalls,
-    ));
-    
-    context.read<GraphicsBloc>().add(GraphicsCameraStateUpdated(
-      cameraInfo: widget.cameraInfo,
-      isAutoMode: widget.isAutoMode,
-      onCameraToggle: widget.onCameraToggle,
-    ));
-    
-    context.read<GraphicsBloc>().add(GraphicsLineControlsUpdated(
-      lineWeight: widget.lineWeight,
-      lineSmoothness: widget.lineSmoothness,
-      lineOpacity: widget.lineOpacity,
-      onLineWeightChanged: widget.onLineWeightChanged,
-      onLineSmoothnessChanged: widget.onLineSmoothnessChanged,
-      onLineOpacityChanged: widget.onLineOpacityChanged,
-    ));
-    
     return Scaffold(
       backgroundColor: VSCodeTheme.editorBackground,
       body: Column(
@@ -164,13 +104,7 @@ class _VSCodeLayoutState extends State<VSCodeLayout> {
                   child: Column(
                     children: [
                       // Graphics renderer area
-                      Expanded(
-                        child: MainView(
-                          fps: widget.fps,
-                          polygons: widget.polygons,
-                          child: widget.graphicsRenderer,
-                        ),
-                      ),
+                      Expanded(child: MainView(child: widget.graphicsRenderer)),
 
                       // Bottom Panel (collapsible)
                       if (_panelVisible) ...[
@@ -188,12 +122,7 @@ class _VSCodeLayoutState extends State<VSCodeLayout> {
           ),
 
           // Status Bar
-          StatusBar(
-            cameraInfo: widget.cameraInfo,
-            isAutoMode: widget.isAutoMode,
-            onTogglePanel: _togglePanel,
-            panelVisible: _panelVisible,
-          ),
+          StatusBar(onTogglePanel: _togglePanel, panelVisible: _panelVisible),
         ],
       ),
     );

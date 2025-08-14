@@ -353,74 +353,25 @@ main() {
             run_tests_all
             ;;
         "test-single")
-            local project=${2:-""}
-            if [[ -z "$project" ]]; then
-                print_error "Please specify project name (use '.' for root project)"
-                exit 1
-            fi
+            # Only one project exists now - the root project
             check_flutter
-            if [[ "$project" == "." ]]; then
-                flutter pub get && flutter analyze && flutter test --timeout=60s
-            elif [[ -d "spike/$project" ]]; then
-                (cd "spike/$project" && flutter pub get && flutter analyze && flutter test --timeout=60s)
-            else
-                print_error "Project $project not found"
-                exit 1
-            fi
+            print_status "Running tests for ghSender project..."
+            flutter pub get && flutter analyze && flutter test --timeout=60s
             ;;
         "test-unit")
-            local project=${2:-""}
-            if [[ -z "$project" ]]; then
-                print_error "Please specify project name (use '.' for root project)"
-                exit 1
-            fi
             check_flutter
-            if [[ "$project" == "." ]]; then
-                print_status "Running unit tests for root project..."
-                flutter test test/unit/ --timeout=60s
-            elif [[ -d "spike/$project" ]]; then
-                print_status "Running unit tests for $project..."
-                (cd "spike/$project" && flutter test test/unit/ --timeout=60s)
-            else
-                print_error "Project $project not found"
-                exit 1
-            fi
+            print_status "Running unit tests for ghSender project..."
+            flutter test test/unit/ --timeout=60s
             ;;
         "test-widget")
-            local project=${2:-""}
-            if [[ -z "$project" ]]; then
-                print_error "Please specify project name (use '.' for root project)"
-                exit 1
-            fi
             check_flutter
-            if [[ "$project" == "." ]]; then
-                print_status "Running widget tests for root project..."
-                flutter test test/widget/ --timeout=60s
-            elif [[ -d "spike/$project" ]]; then
-                print_status "Running widget tests for $project..."
-                (cd "spike/$project" && flutter test test/widget/ --timeout=60s)
-            else
-                print_error "Project $project not found"
-                exit 1
-            fi
+            print_status "Running widget tests for ghSender project..."
+            flutter test test/widget/ --timeout=60s
             ;;
         "test-integration")
-            local project=${2:-""}
-            if [[ -z "$project" ]]; then
-                print_error "Please specify project name (use '.' for root project)"
-                exit 1
-            fi
             check_flutter
-            if [[ "$project" == "." ]]; then
-                print_status "Running integration tests for root project..."
-                flutter test integration_test/ --timeout=120s
-            elif [[ -d "spike/$project" ]]; then
-                print_status "Running integration tests for $project..."
-                (cd "spike/$project" && flutter test integration_test/ --timeout=120s)
-            else
-                print_error "Project $project not found"
-                exit 1
-            fi
+            print_status "Running integration tests for ghSender project..."
+            flutter test integration_test/ --timeout=120s
             ;;
         "build")
             local platform=${2:-""}
@@ -434,23 +385,15 @@ main() {
             build_platform_all "$platform"
             ;;
         "build-single")
-            local project=${2:-""}
-            local platform=${3:-""}
-            if [[ -z "$project" || -z "$platform" ]]; then
-                print_error "Usage: $0 build-single <project> <platform>"
-                print_error "Project: . (root-level Flutter app)"
+            local platform=${2:-""}
+            if [[ -z "$platform" ]]; then
+                print_error "Usage: $0 build-single <platform>"
                 print_error "Platforms: macos, ios, android, linux"
                 exit 1
             fi
             check_flutter
-            if [[ "$project" == "." ]]; then
-                flutter pub get && build_platform "$platform"
-            elif [[ -d "spike/$project" ]]; then
-                (cd "spike/$project" && flutter pub get && build_platform "$platform")
-            else
-                print_error "Project $project not found"
-                exit 1
-            fi
+            print_status "Building ghSender project for $platform..."
+            flutter pub get && build_platform "$platform"
             ;;
         "diagnose-shaders")
             print_status "Diagnosing shader compatibility for root project..."
@@ -490,19 +433,19 @@ main() {
         "help"|*)
             echo "Usage: $0 <command> [options]"
             echo
-            echo "🏗️  Monorepo Commands (All Projects):"
-            echo "  setup                    - Setup development environment for all projects"
-            echo "  test                     - Run tests and analysis for all projects"
-            echo "  build <platform>         - Build all projects for platform (macos, ios, android, linux)"
-            echo "  all                      - Build all projects for all available platforms"
-            echo "  clean                    - Clean build artifacts for all projects"
+            echo "🏗️  Project Commands:"
+            echo "  setup                    - Setup development environment"
+            echo "  test                     - Run tests and analysis"
+            echo "  build <platform>         - Build for platform (macos, ios, android, linux)"
+            echo "  all                      - Build for all available platforms"
+            echo "  clean                    - Clean build artifacts"
             echo
-            echo "🎯 Single Project Commands:"
-            echo "  test-single <project>              - Test specific project (all tests)"
-            echo "  test-unit <project>                - Run unit tests only for specific project"
-            echo "  test-widget <project>              - Run widget tests only for specific project"  
-            echo "  test-integration <project>         - Run integration tests only for specific project"
-            echo "  build-single <project> <platform>  - Build specific project for platform"
+            echo "🎯 Test Commands:"
+            echo "  test-single              - Run all tests"
+            echo "  test-unit                - Run unit tests only"
+            echo "  test-widget              - Run widget tests only"
+            echo "  test-integration         - Run integration tests only"
+            echo "  build-single <platform>  - Build for specific platform"
             echo
             echo "🔧 Shader/Native Assets Diagnostics:"
             echo "  diagnose-shaders                    - Check shader compatibility for root project"
@@ -522,9 +465,9 @@ main() {
             echo "Examples:"
             echo "  $0 setup                                    # Setup project dependencies"
             echo "  $0 test                                     # Test project"
-            echo "  $0 test-single .                           # Test root project"
+            echo "  $0 test-single                             # Run all tests"
             echo "  $0 build macos                             # Build project for macOS"
-            echo "  $0 build-single . macos                       # Build root project for macOS"
+            echo "  $0 build-single macos                      # Build for macOS"
             echo "  $0 diagnose-shaders                        # Check shader compatibility issues"
             echo "  $0 fix-shaders                             # Fix common shader syntax issues"
             echo "  $0 all                                      # Build project for all platforms"

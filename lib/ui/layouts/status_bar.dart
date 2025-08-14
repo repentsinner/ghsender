@@ -3,19 +3,17 @@ import 'package:google_fonts/google_fonts.dart';
 import '../themes/vscode_theme.dart';
 import '../widgets/problem_item.dart';
 import '../../bloc/bloc_exports.dart';
+import '../../bloc/graphics/graphics_bloc.dart';
+import '../../bloc/graphics/graphics_state.dart';
 import '../../models/machine_controller.dart';
 
 /// Status Bar widget - bottom status information
 class StatusBar extends StatelessWidget {
-  final String cameraInfo;
-  final bool isAutoMode;
   final VoidCallback onTogglePanel;
   final bool panelVisible;
 
   const StatusBar({
     super.key,
-    required this.cameraInfo,
-    required this.isAutoMode,
     required this.onTogglePanel,
     required this.panelVisible,
   });
@@ -50,9 +48,14 @@ class StatusBar extends StatelessWidget {
           _buildDivider(),
 
           // Camera mode indicator
-          _buildStatusItem(
-            icon: isAutoMode ? Icons.play_circle : Icons.pause_circle,
-            text: isAutoMode ? 'Auto' : 'Manual',
+          BlocBuilder<GraphicsBloc, GraphicsState>(
+            builder: (context, state) {
+              final isAutoMode = state is GraphicsLoaded ? state.isAutoMode : false;
+              return _buildStatusItem(
+                icon: isAutoMode ? Icons.play_circle : Icons.pause_circle,
+                text: isAutoMode ? 'Auto' : 'Manual',
+              );
+            },
           ),
 
           _buildDivider(),
