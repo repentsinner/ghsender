@@ -18,18 +18,23 @@ class CncCommunicationBloc
   // WebSocket communication
   WebSocketChannel? _webSocketChannel;
   StreamSubscription? _webSocketSubscription;
+  
+  // Message stream for real-time communication
+  StreamController<CncMessage>? _messageStreamController;
 
   // Connection state
   bool _isConnected = false;
   String _currentUrl = '';
   DateTime? _connectedAt;
-  final List<String> _messages = [];
 
   // Simple command tracking for basic functionality
   int _commandIdCounter = 0;
 
   CncCommunicationBloc() : super(const CncCommunicationInitial()) {
     AppLogger.commInfo('CNC Communication BLoC initialized (lightweight version)');
+    
+    // Initialize message stream for real-time communication
+    _messageStreamController = StreamController<CncMessage>.broadcast();
 
     on<CncCommunicationConnectRequested>(_onConnectRequested);
     on<CncCommunicationDisconnectRequested>(_onDisconnectRequested);
@@ -38,6 +43,10 @@ class CncCommunicationBloc
     on<CncCommunicationStatusChanged>(_onStatusChanged);
     on<CncCommunicationSetControllerAddress>(_onSetControllerAddress);
   }
+
+  /// Stream of messages received from CNC controller
+  /// Use this for real-time message processing instead of events
+  Stream<CncMessage> get messageStream => _messageStreamController?.stream ?? const Stream.empty();
 
 
   /// Handle connection request
@@ -69,8 +78,6 @@ class CncCommunicationBloc
       // Don't immediately mark as connected - wait for actual WebSocket upgrade success
       _currentUrl = event.url;
       _connectedAt = DateTime.now();
-      _messages.clear();
-      _messages.add('Attempting WebSocket connection to: ${event.url}');
 
       AppLogger.commInfo(
         'WebSocket connection initiated, waiting for handshake completion...',
@@ -124,7 +131,6 @@ class CncCommunicationBloc
 
       // WebSocket connection established successfully
       _isConnected = true;
-      _messages.add('Connected to WebSocket: ${event.url}');
       
       AppLogger.commInfo('WebSocket connection established successfully');
       emit(
@@ -215,14 +221,14 @@ class CncCommunicationBloc
 
     final commandId = ++_commandIdCounter;
     
-    // Only log non-status queries to avoid flooding logs
-    if (event.command != '?') {
-      AppLogger.commInfo('Sending command $commandId: "${event.command}"');
-    }
-
     _sendCommand(event.command, commandId);
-    _messages.add('Sent: ${event.command}');
-    _emitDataState(emit);
+    
+    // Emit sent command to message stream
+    _messageStreamController?.add(CncMessage(
+      content: 'Sent: ${event.command}',
+      timestamp: DateTime.now(),
+      type: CncMessageType.other,
+    ));
   }
 
   /// Handle raw bytes sending (for real-time commands like grblHAL auto-reporting)
@@ -236,11 +242,15 @@ class CncCommunicationBloc
     }
 
     final bytesHex = event.bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ');
-    AppLogger.commInfo('Sending raw bytes: $bytesHex');
-
+    
     _sendRawBytes(event.bytes);
-    _messages.add('Sent raw: $bytesHex');
-    _emitDataState(emit);
+    
+    // Emit sent raw bytes to message stream
+    _messageStreamController?.add(CncMessage(
+      content: 'Sent raw: $bytesHex',
+      timestamp: DateTime.now(),
+      type: CncMessageType.other,
+    ));
   }
 
 
@@ -254,19 +264,14 @@ class CncCommunicationBloc
     );
 
     if (event.isConnected) {
-      // Check if we have data to emit as a WithData state
-      if (_isConnected && _connectedAt != null && _messages.isNotEmpty) {
-        _emitDataState(emit);
-      } else {
-        emit(
-          CncCommunicationConnected(
-            url: _currentUrl,
-            statusMessage: event.statusMessage,
-            deviceInfo: event.deviceInfo,
-            connectedAt: _connectedAt ?? DateTime.now(),
-          ),
-        );
-      }
+      emit(
+        CncCommunicationConnected(
+          url: _currentUrl,
+          statusMessage: event.statusMessage,
+          deviceInfo: event.deviceInfo,
+          connectedAt: _connectedAt ?? DateTime.now(),
+        ),
+      );
     } else {
       emit(
         CncCommunicationDisconnected(
@@ -297,40 +302,48 @@ class CncCommunicationBloc
     AppLogger.info('Controller address configured successfully');
   }
 
+  // Removed pointless _onMessageReceived - using streams instead
+
   /// Process incoming message from WebSocket
   void _onMessage(String message, DateTime timestamp) {
     if (message.isEmpty) return;
 
-    // Only log non-status messages to avoid flooding with 60Hz updates
-    if (!message.startsWith('<') && message.trim() != 'ok') {
-      AppLogger.commDebug('Received: $message');
-    }
+    // Debug logging for all messages during connection handshake
+    AppLogger.commDebug('Received: $message');
     
-    _messages.add('Received: $message');
+    // Determine message type for efficient processing
+    final messageType = _determineMessageType(message);
+    
+    // Emit to message stream for real-time processing
+    _messageStreamController?.add(CncMessage(
+      content: message,
+      timestamp: timestamp,
+      type: messageType,
+    ));
+  }
 
-    // Keep message history manageable (more aggressive with 60Hz updates)
-    if (_messages.length > 500) {
-      _messages.removeRange(0, 200);
+  /// Determine the type of message for efficient processing
+  CncMessageType _determineMessageType(String message) {
+    final trimmed = message.trim();
+    
+    if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
+      return CncMessageType.status;
+    } else if (trimmed.startsWith(r'$') && trimmed.contains('=')) {
+      return CncMessageType.configuration;
+    } else if (trimmed.toLowerCase().contains('grbl') || 
+               trimmed.toLowerCase().contains('welcome') ||
+               trimmed.contains('[') && trimmed.contains(']')) {
+      return CncMessageType.welcome;
+    } else if (trimmed == 'ok') {
+      return CncMessageType.acknowledgment;
+    } else if (trimmed.startsWith('error:')) {
+      return CncMessageType.error;
+    } else {
+      return CncMessageType.other;
     }
-
-    // Extract basic machine state from status messages (simple parsing only)
-    _extractBasicMachineState(message, timestamp);
   }
 
 
-  /// Extract basic machine state from GRBL status messages (simple parsing only)
-  /// Detailed parsing is handled by MachineControllerBloc
-  void _extractBasicMachineState(String message, DateTime timestamp) {
-    // Note: Machine state tracking moved to MachineControllerBloc
-    // This method is kept minimal for potential future use
-    if (!message.startsWith('<')) return;
-
-    // Basic validation only - detailed parsing handled by MachineControllerBloc
-    final stateMatch = RegExp(r'<([^|]+)').firstMatch(message);
-    if (stateMatch == null) return;
-
-    // No local state storage needed - MachineControllerBloc handles all parsing
-  }
 
   /// Send command to WebSocket
   void _sendCommand(String command, int commandId) {
@@ -343,9 +356,9 @@ class CncCommunicationBloc
       final commandWithNewline = '$command\r\n';
       _webSocketChannel!.sink.add(commandWithNewline);
 
-      // Only log non-status commands to reduce noise
-      if (command != '?') {
-        AppLogger.commDebug('WebSocket sent command: "$command"');
+      // Minimal command logging
+      if (command != '?' && command != r'$') {
+        AppLogger.commDebug('Sent: "$command"');
       }
     } catch (e, stackTrace) {
       AppLogger.commError(
@@ -376,8 +389,11 @@ class CncCommunicationBloc
       // Send raw bytes directly without any line endings
       _webSocketChannel!.sink.add(bytes);
 
-      final bytesHex = bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ');
-      AppLogger.commDebug('WebSocket sent raw bytes: $bytesHex');
+      // Minimal raw bytes logging
+      if (bytes.isNotEmpty && bytes[0] != 0x84) { // Don't log auto-reporting setup
+        final bytesHex = bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ');
+        AppLogger.commDebug('Sent raw: $bytesHex');
+      }
     } catch (e, stackTrace) {
       final bytesHex = bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ');
       AppLogger.commError(
@@ -399,20 +415,6 @@ class CncCommunicationBloc
 
 
 
-  /// Emit current data state
-  /// Note: This method can only be called from within an active event handler context
-  void _emitDataState(Emitter<CncCommunicationState> emit) {
-    if (_isConnected && _connectedAt != null && !emit.isDone) {
-      emit(
-        CncCommunicationWithData(
-          url: _currentUrl,
-          messages: List.from(_messages),
-          isConnected: _isConnected,
-          connectedAt: _connectedAt!,
-        ),
-      );
-    }
-  }
 
   /// Clean up timers and subscriptions
   void _cleanup() {
@@ -427,8 +429,7 @@ class CncCommunicationBloc
     _currentUrl = '';
     _connectedAt = null;
     
-    // Clear message data
-    _messages.clear();
+    // Reset command counter
     _commandIdCounter = 0;
     
     AppLogger.commDebug('Cleanup completed - all state reset for reconnection');
@@ -445,7 +446,6 @@ class CncCommunicationBloc
       CncCommunicationConnected(:final statusMessage) => statusMessage,
       CncCommunicationDisconnected(:final statusMessage) => statusMessage,
       CncCommunicationError(:final statusMessage) => statusMessage,
-      CncCommunicationWithData() => 'Connected to $_currentUrl',
       _ => 'Unknown state',
     };
   }
@@ -454,7 +454,6 @@ class CncCommunicationBloc
   String? get deviceInfo {
     return switch (state) {
       CncCommunicationConnected(:final deviceInfo) => deviceInfo,
-      CncCommunicationWithData() => 'GRBL/grblHAL via WebSocket',
       _ => null,
     };
   }
@@ -465,9 +464,12 @@ class CncCommunicationBloc
     Transition<CncCommunicationEvent, CncCommunicationState> transition,
   ) {
     super.onTransition(transition);
-    AppLogger.commDebug(
-      'CommunicationBloc transition: ${transition.currentState} -> ${transition.nextState}',
-    );
+    // Reduced transition logging - only log important state changes
+    final fromType = transition.currentState.runtimeType.toString();
+    final toType = transition.nextState.runtimeType.toString();
+    if (fromType != toType) {
+      AppLogger.commDebug('Communication: $fromType -> $toType');
+    }
   }
 
   @override
@@ -479,6 +481,10 @@ class CncCommunicationBloc
   @override
   Future<void> close() {
     AppLogger.commDebug('CncCommunicationBloc closing, performing final cleanup');
+    
+    // Close message stream
+    _messageStreamController?.close();
+    _messageStreamController = null;
     
     // Force close WebSocket if still connected
     if (_webSocketChannel != null) {

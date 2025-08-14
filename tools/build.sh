@@ -63,7 +63,7 @@ get_dependencies() {
 run_tests() {
     print_status "Running tests..."
     flutter analyze
-    flutter test
+    flutter test --enable-flutter-gpu --enable-impeller
     echo
 }
 
@@ -289,7 +289,7 @@ run_tests_all() {
     for project in "${FLUTTER_PROJECTS[@]}"; do
         if [[ -d "$project" && -f "$project/pubspec.yaml" ]]; then
             print_status "Testing $project..."
-            if ! (cd "$project" && flutter analyze && flutter test --timeout=60s); then
+            if ! (cd "$project" && flutter analyze && flutter test --enable-flutter-gpu --enable-impeller --timeout=60s); then
                 print_error "Tests failed for $project"
                 all_passed=false
             else
@@ -356,22 +356,22 @@ main() {
             # Only one project exists now - the root project
             check_flutter
             print_status "Running tests for ghSender project..."
-            flutter pub get && flutter analyze && flutter test --timeout=60s
+            flutter pub get && flutter analyze && flutter test --enable-flutter-gpu --enable-impeller --timeout=60s
             ;;
         "test-unit")
             check_flutter
             print_status "Running unit tests for ghSender project..."
-            flutter test test/unit/ --timeout=60s
+            flutter test test/unit/ --enable-flutter-gpu --enable-impeller --timeout=60s
             ;;
         "test-widget")
             check_flutter
             print_status "Running widget tests for ghSender project..."
-            flutter test test/widget/ --timeout=60s
+            flutter test test/widget/ --enable-flutter-gpu --enable-impeller --timeout=60s
             ;;
         "test-integration")
             check_flutter
             print_status "Running integration tests for ghSender project..."
-            flutter test integration_test/ --timeout=120s
+            flutter test integration_test/ --enable-flutter-gpu --enable-impeller --timeout=120s
             ;;
         "build")
             local platform=${2:-""}

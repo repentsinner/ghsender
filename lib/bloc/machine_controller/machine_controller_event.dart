@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import '../../models/machine_controller.dart';
 import '../../models/machine_configuration.dart';
 import '../communication/cnc_communication_state.dart';
+import '../communication/cnc_communication_event.dart';
 
 /// Events for the Machine Controller BLoC
 abstract class MachineControllerEvent extends Equatable {
@@ -340,4 +341,20 @@ class MachineControllerConfigurationReceived extends MachineControllerEvent {
   
   @override
   List<Object?> get props => [configuration, timestamp];
+}
+
+/// Individual message received from CNC communication for event-based processing
+class MachineControllerMessageReceived extends MachineControllerEvent {
+  final String message;
+  final DateTime timestamp;
+  final CncMessageType messageType;
+  
+  const MachineControllerMessageReceived({
+    required this.message,
+    required this.timestamp, 
+    required this.messageType,
+  });
+  
+  @override
+  List<Object?> get props => [message, timestamp, messageType];
 }

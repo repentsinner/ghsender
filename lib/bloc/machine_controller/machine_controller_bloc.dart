@@ -9,17 +9,20 @@ import '../communication/cnc_communication_state.dart';
 import '../communication/cnc_communication_event.dart';
 
 /// BLoC for managing machine controller state from CNC communication responses
-class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControllerState> {
-  
+class MachineControllerBloc
+    extends Bloc<MachineControllerEvent, MachineControllerState> {
   // Reference to communication bloc for sending commands
   dynamic _communicationBloc;
-  
+
   // Timer for grblHAL detection timeout
   Timer? _grblHalDetectionTimeout;
-  
+
+  // Stream subscription for real-time message processing
+  StreamSubscription? _messageStreamSubscription;
+
   MachineControllerBloc() : super(const MachineControllerState()) {
     AppLogger.machineInfo('Machine Controller BLoC initialized');
-    
+
     // Register event handlers
     on<MachineControllerInitialized>(_onInitialized);
     on<MachineControllerCommunicationReceived>(_onCommunicationReceived);
@@ -35,19 +38,19 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     on<MachineControllerInfoUpdated>(_onInfoUpdated);
     on<MachineControllerConnectionChanged>(_onConnectionChanged);
     on<MachineControllerReset>(_onReset);
-    
+
     // grblHAL detection and configuration handlers
     on<MachineControllerGrblHalDetected>(_onGrblHalDetected);
     on<MachineControllerSetCommunicationBloc>(_onSetCommunicationBloc);
     on<MachineControllerAutoReportingConfigured>(_onAutoReportingConfigured);
     on<MachineControllerConfigurationReceived>(_onConfigurationReceived);
-    
+
     // Jog control handlers
     on<MachineControllerJogRequested>(_onJogRequested);
     on<MachineControllerJogStopRequested>(_onJogStopRequested);
     on<MachineControllerContinuousJogStarted>(_onContinuousJogStarted);
     on<MachineControllerContinuousJogStopped>(_onContinuousJogStopped);
-    
+
     // Initialize in the next tick
     Future.delayed(Duration.zero, () {
       if (!isClosed) {
@@ -55,39 +58,41 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
       }
     });
   }
-  
+
   /// Handle initialization
-  void _onInitialized(MachineControllerInitialized event, Emitter<MachineControllerState> emit) {
+  void _onInitialized(
+    MachineControllerInitialized event,
+    Emitter<MachineControllerState> emit,
+  ) {
     AppLogger.machineInfo('Machine Controller BLoC marked as initialized');
     emit(state.copyWith(isInitialized: true));
   }
-  
+
   /// Handle incoming CNC communication data
   void _onCommunicationReceived(
-    MachineControllerCommunicationReceived event, 
+    MachineControllerCommunicationReceived event,
     Emitter<MachineControllerState> emit,
   ) {
-    AppLogger.machineDebug('Received communication state: ${event.communicationState.runtimeType}');
-    
+    AppLogger.machineDebug(
+      'Received communication state: ${event.communicationState.runtimeType}',
+    );
+
     final now = DateTime.now();
-    
+
     switch (event.communicationState.runtimeType) {
       case const (CncCommunicationConnected):
-        final connectedState = event.communicationState as CncCommunicationConnected;
+        final connectedState =
+            event.communicationState as CncCommunicationConnected;
         _handleConnectedState(connectedState, emit, now);
         break;
-        
-      case const (CncCommunicationWithData):
-        final dataState = event.communicationState as CncCommunicationWithData;
-        AppLogger.machineDebug('Processing WithData state with ${dataState.messages.length} messages');
-        _handleDataState(dataState, emit, now);
-        break;
-        
+
+      // CncCommunicationWithData removed - now using individual message events
+
       case const (CncCommunicationDisconnected):
       case const (CncCommunicationError):
         _handleDisconnectedState(emit, now);
         break;
-        
+
       case const (CncCommunicationInitial):
       case const (CncCommunicationAddressConfigured):
       case const (CncCommunicationConnecting):
@@ -95,174 +100,73 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
         break;
     }
   }
-  
+
   /// Handle connected state
   void _handleConnectedState(
-    CncCommunicationConnected connectedState, 
+    CncCommunicationConnected connectedState,
     Emitter<MachineControllerState> emit,
     DateTime timestamp,
   ) {
-    // Check for grblHAL welcome message in device info
-    if (!state.grblHalDetected && connectedState.deviceInfo != null && connectedState.deviceInfo!.isNotEmpty) {
-      AppLogger.machineDebug('Checking connected state deviceInfo for grblHAL: "${connectedState.deviceInfo}"');
-      _checkForGrblHalWelcomeMessage([connectedState.deviceInfo!], timestamp);
-    }
-    
+    AppLogger.machineInfo('=== CONNECTED STATE DEBUG ===');
+    AppLogger.machineInfo('grblHalDetected: ${state.grblHalDetected}');
+    AppLogger.machineInfo('deviceInfo: "${connectedState.deviceInfo}"');
+
+    // grblHAL detection now happens via individual message events only
+    AppLogger.machineInfo(
+      'Connected state handled - grblHAL detection via message events',
+    );
+
     // Start grblHAL detection timeout if not already detected
     if (!state.grblHalDetected) {
       _startGrblHalDetectionTimeout();
     }
-    
+
     // Create or update controller with connection info
     final currentController = state.controller;
-    final updatedController = (currentController ?? MachineController(
-      controllerId: _extractControllerIdFromUrl(connectedState.url),
-      lastCommunication: timestamp,
-    )).copyWith(
-      isOnline: true,
-      lastCommunication: timestamp,
+    final updatedController =
+        (currentController ??
+                MachineController(
+                  controllerId: _extractControllerIdFromUrl(connectedState.url),
+                  lastCommunication: timestamp,
+                ))
+            .copyWith(isOnline: true, lastCommunication: timestamp);
+
+    emit(
+      state.copyWith(controller: updatedController, lastUpdateTime: timestamp),
     );
-    
-    emit(state.copyWith(
-      controller: updatedController,
-      lastUpdateTime: timestamp,
-    ));
-    
-    AppLogger.machineInfo('Machine controller connected: ${updatedController.controllerId}');
+
+    AppLogger.machineInfo(
+      'Machine controller connected: ${updatedController.controllerId}',
+    );
   }
-  
-  /// Handle data state with machine information
-  void _handleDataState(
-    CncCommunicationWithData dataState, 
+
+  // _handleDataState method removed - now using individual message events
+
+  /// Handle disconnected state
+  void _handleDisconnectedState(
     Emitter<MachineControllerState> emit,
     DateTime timestamp,
   ) {
-    // Check for grblHAL welcome message first
-    if (!state.grblHalDetected) {
-      AppLogger.machineDebug('Checking for grblHAL welcome message in ${dataState.messages.length} messages');
-      AppLogger.machineDebug('WithData messages: ${dataState.messages.take(10).join(" | ")}');
-      _checkForGrblHalWelcomeMessage(dataState.messages, timestamp);
-    } else {
-      AppLogger.machineDebug('grblHAL already detected, skipping welcome message check');
-    }
-    
-    // Check for configuration response ($ command responses)
-    AppLogger.machineDebug('Checking for configuration in ${dataState.messages.length} messages');
-    _parseConfigurationResponses(dataState.messages, timestamp);
-    
-    // Create or update controller with all available data
-    final currentController = state.controller;
-    final controllerId = currentController?.controllerId ?? 
-                        _extractControllerIdFromUrl(dataState.url);
-    
-    // Parse machine state from raw messages
-    MachineStatus status = MachineStatus.unknown;
-    MachineCoordinates? workPos;
-    MachineCoordinates? machinePos;
-    double? feedRate;
-    double? spindleSpeed;
-    List<String> alarms = [];
-    
-    // Parse the most recent status message from the message list
-    final statusMessage = _findMostRecentStatusMessage(dataState.messages);
-    AppLogger.machineDebug('Found status message: $statusMessage');
-    
-    if (statusMessage != null) {
-      final parsedData = _parseGrblStatusMessage(statusMessage, timestamp);
-      status = parsedData['status'] ?? MachineStatus.unknown;
-      workPos = parsedData['workPosition'];
-      machinePos = parsedData['machinePosition'];
-      feedRate = parsedData['feedRate'];
-      spindleSpeed = parsedData['spindleSpeed'];
-      
-      AppLogger.machineDebug('Parsed status: ${status.displayName}');
-      if (workPos != null) AppLogger.machineDebug('Work position: ${workPos.toString()}');
-      if (machinePos != null) AppLogger.machineDebug('Machine position: ${machinePos.toString()}');
-      
-      // Check for alarms in the status
-      if (status.hasError || status == MachineStatus.alarm) {
-        alarms.add('Machine alarm: ${status.displayName}');
-      }
-    } else {
-      AppLogger.machineDebug('No status message found in ${dataState.messages.length} messages');
-    }
-    
-    // Create feed state if we have feed rate data
-    FeedState? feedState;
-    if (feedRate != null) {
-      feedState = FeedState(
-        rate: feedRate,
-        targetRate: feedRate,
-        lastUpdated: timestamp,
-      );
-    }
-    
-    // Create spindle state if we have spindle data
-    SpindleState? spindleState;
-    if (spindleSpeed != null) {
-      spindleState = SpindleState(
-        isRunning: spindleSpeed > 0,
-        speed: spindleSpeed,
-        targetSpeed: spindleSpeed,
-        lastUpdated: timestamp,
-      );
-    }
-    
-    // Create active codes if available in status message
-    ActiveCodes? activeCodes;
-    // Note: Modal codes parsing would need to be implemented if required
-    // For now, we focus on basic status, coordinates, feed, and spindle
-    
-    final updatedController = (currentController ?? MachineController(
-      controllerId: controllerId,
-      lastCommunication: timestamp,
-    )).copyWith(
-      status: status,
-      workPosition: workPos,
-      machinePosition: machinePos,
-      spindleState: spindleState,
-      feedState: feedState,
-      activeCodes: activeCodes,
-      alarms: alarms,
-      isOnline: true,
-      lastCommunication: timestamp,
-    );
-    
-    // Store last raw message for debugging
-    String lastMessage = '';
-    if (dataState.messages.isNotEmpty) {
-      lastMessage = dataState.messages.last;
-    }
-    
-    emit(state.copyWith(
-      controller: updatedController,
-      lastRawMessage: lastMessage,
-      lastUpdateTime: timestamp,
-    ));
-    
-    // Status updates happen at 60Hz - reduced logging
-  }
-  
-  /// Handle disconnected state
-  void _handleDisconnectedState(Emitter<MachineControllerState> emit, DateTime timestamp) {
     // Cancel grblHAL detection timeout on disconnect
     _cancelGrblHalDetectionTimeout();
-    
+
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         isOnline: false,
         lastCommunication: timestamp,
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: timestamp,
-      ));
-      
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: timestamp,
+        ),
+      );
+
       AppLogger.machineInfo('Machine controller disconnected');
     }
   }
-  
+
   /// Extract controller ID from WebSocket URL
   String _extractControllerIdFromUrl(String url) {
     // Simple extraction - could be made more sophisticated
@@ -272,488 +176,410 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     }
     return url;
   }
-  
-  /// Find the most recent GRBL status message from the message list
-  String? _findMostRecentStatusMessage(List<String> messages) {
-    AppLogger.machineDebug('Searching for status message in ${messages.length} messages');
-    AppLogger.machineDebug('Last 5 messages: ${messages.reversed.take(5).join(" | ")}');
-    
-    // Look for the most recent message that starts with '<' (GRBL status)
-    for (int i = messages.length - 1; i >= 0; i--) {
-      final message = messages[i];
-      AppLogger.machineDebug('Checking message $i: "${message.trim()}"');
-      
-      if (message.contains('Received: <')) {
-        // Extract the status part from "Received: <status>"
-        final statusStart = message.indexOf('<');
-        if (statusStart != -1) {
-          final statusMessage = message.substring(statusStart);
-          AppLogger.machineDebug('Found status message at index $i: "${statusMessage.trim()}"');
-          return statusMessage;
-        }
-      }
-    }
-    
-    AppLogger.machineDebug('No status messages found (looking for "Received: <")');
-    return null;
-  }
-  
-  /// Parse GRBL status message and extract machine data
-  Map<String, dynamic> _parseGrblStatusMessage(String message, DateTime timestamp) {
-    final result = <String, dynamic>{};
-    
-    if (!message.startsWith('<')) return result;
-    
-    AppLogger.machineDebug('Parsing status message: $message');
-    
-    // Parse GRBL status: <Idle|MPos:0.000,0.000,0.000|WPos:0.000,0.000,0.000|FS:0,0>
-    final stateMatch = RegExp(r'<([^|]+)').firstMatch(message);
-    if (stateMatch != null) {
-      final stateString = stateMatch.group(1)!;
-      final parsedStatus = MachineController.parseStatus(stateString);
-      AppLogger.machineDebug('Parsed state string: "$stateString" -> ${parsedStatus.displayName}');
-      result['status'] = parsedStatus;
-    } else {
-      AppLogger.machineWarning('Could not extract state from status message: $message');
-    }
-    
-    // Parse work position
-    final workPosMatch = RegExp(
-      r'WPos:([+-]?\d*\.?\d+),([+-]?\d*\.?\d+),([+-]?\d*\.?\d+)',
-    ).firstMatch(message);
-    if (workPosMatch != null) {
-      result['workPosition'] = MachineCoordinates(
-        x: double.parse(workPosMatch.group(1)!),
-        y: double.parse(workPosMatch.group(2)!),
-        z: double.parse(workPosMatch.group(3)!),
-        lastUpdated: timestamp,
-      );
-    }
-    
-    // Parse machine position
-    final machinePosMatch = RegExp(
-      r'MPos:([+-]?\d*\.?\d+),([+-]?\d*\.?\d+),([+-]?\d*\.?\d+)',
-    ).firstMatch(message);
-    if (machinePosMatch != null) {
-      result['machinePosition'] = MachineCoordinates(
-        x: double.parse(machinePosMatch.group(1)!),
-        y: double.parse(machinePosMatch.group(2)!),
-        z: double.parse(machinePosMatch.group(3)!),
-        lastUpdated: timestamp,
-      );
-    }
-    
-    // Parse feed rate and spindle speed
-    final fsMatch = RegExp(r'FS:(\d+),(\d+)').firstMatch(message);
-    if (fsMatch != null) {
-      result['feedRate'] = double.parse(fsMatch.group(1)!);
-      result['spindleSpeed'] = double.parse(fsMatch.group(2)!);
-    }
-    
-    return result;
-  }
-  
+
   /// Handle status update
-  void _onStatusUpdated(MachineControllerStatusUpdated event, Emitter<MachineControllerState> emit) {
+  void _onStatusUpdated(
+    MachineControllerStatusUpdated event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         status: event.status,
         lastCommunication: event.timestamp,
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: event.timestamp,
-      ));
-      
-      AppLogger.machineDebug('Machine status updated: ${event.status.displayName}');
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: event.timestamp,
+        ),
+      );
+
+      AppLogger.machineDebug(
+        'Machine status updated: ${event.status.displayName}',
+      );
     }
   }
-  
+
   /// Handle coordinates update
-  void _onCoordinatesUpdated(MachineControllerCoordinatesUpdated event, Emitter<MachineControllerState> emit) {
+  void _onCoordinatesUpdated(
+    MachineControllerCoordinatesUpdated event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         workPosition: event.workPosition,
         machinePosition: event.machinePosition,
         lastCommunication: event.timestamp,
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: event.timestamp,
-      ));
-      
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: event.timestamp,
+        ),
+      );
+
       AppLogger.machineDebug('Machine coordinates updated');
     }
   }
-  
+
   /// Handle spindle update
-  void _onSpindleUpdated(MachineControllerSpindleUpdated event, Emitter<MachineControllerState> emit) {
+  void _onSpindleUpdated(
+    MachineControllerSpindleUpdated event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         spindleState: event.spindleState,
         lastCommunication: event.timestamp,
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: event.timestamp,
-      ));
-      
-      AppLogger.machineDebug('Machine spindle updated: ${event.spindleState.speed} RPM');
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: event.timestamp,
+        ),
+      );
+
+      AppLogger.machineDebug(
+        'Machine spindle updated: ${event.spindleState.speed} RPM',
+      );
     }
   }
-  
+
   /// Handle feed update
-  void _onFeedUpdated(MachineControllerFeedUpdated event, Emitter<MachineControllerState> emit) {
+  void _onFeedUpdated(
+    MachineControllerFeedUpdated event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         feedState: event.feedState,
         lastCommunication: event.timestamp,
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: event.timestamp,
-      ));
-      
-      AppLogger.machineDebug('Machine feed updated: ${event.feedState.rate} ${event.feedState.units}');
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: event.timestamp,
+        ),
+      );
+
+      AppLogger.machineDebug(
+        'Machine feed updated: ${event.feedState.rate} ${event.feedState.units}',
+      );
     }
   }
-  
+
   /// Handle codes update
-  void _onCodesUpdated(MachineControllerCodesUpdated event, Emitter<MachineControllerState> emit) {
+  void _onCodesUpdated(
+    MachineControllerCodesUpdated event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         activeCodes: event.activeCodes,
         lastCommunication: event.timestamp,
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: event.timestamp,
-      ));
-      
-      AppLogger.machineDebug('Machine codes updated: G[${event.activeCodes.gCodes.join(', ')}] M[${event.activeCodes.mCodes.join(', ')}]');
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: event.timestamp,
+        ),
+      );
+
+      AppLogger.machineDebug(
+        'Machine codes updated: G[${event.activeCodes.gCodes.join(', ')}] M[${event.activeCodes.mCodes.join(', ')}]',
+      );
     }
   }
-  
+
   /// Handle alarm added
-  void _onAlarmAdded(MachineControllerAlarmAdded event, Emitter<MachineControllerState> emit) {
+  void _onAlarmAdded(
+    MachineControllerAlarmAdded event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final currentAlarms = List<String>.from(state.controller!.alarms);
       if (!currentAlarms.contains(event.alarm)) {
         currentAlarms.add(event.alarm);
       }
-      
+
       final updatedController = state.controller!.copyWith(
         alarms: currentAlarms,
         lastCommunication: event.timestamp,
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: event.timestamp,
-      ));
-      
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: event.timestamp,
+        ),
+      );
+
       AppLogger.machineWarning('Machine alarm added: ${event.alarm}');
     }
   }
-  
+
   /// Handle alarms cleared
-  void _onAlarmsCleared(MachineControllerAlarmsCleared event, Emitter<MachineControllerState> emit) {
+  void _onAlarmsCleared(
+    MachineControllerAlarmsCleared event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         alarms: [],
         lastCommunication: DateTime.now(),
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: DateTime.now(),
-      ));
-      
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: DateTime.now(),
+        ),
+      );
+
       AppLogger.machineInfo('Machine alarms cleared');
     }
   }
-  
+
   /// Handle error added
-  void _onErrorAdded(MachineControllerErrorAdded event, Emitter<MachineControllerState> emit) {
+  void _onErrorAdded(
+    MachineControllerErrorAdded event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final currentErrors = List<String>.from(state.controller!.errors);
       if (!currentErrors.contains(event.error)) {
         currentErrors.add(event.error);
       }
-      
+
       final updatedController = state.controller!.copyWith(
         errors: currentErrors,
         lastCommunication: event.timestamp,
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: event.timestamp,
-      ));
-      
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: event.timestamp,
+        ),
+      );
+
       AppLogger.machineError('Machine error added: ${event.error}');
     }
   }
-  
+
   /// Handle errors cleared
-  void _onErrorsCleared(MachineControllerErrorsCleared event, Emitter<MachineControllerState> emit) {
+  void _onErrorsCleared(
+    MachineControllerErrorsCleared event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         errors: [],
         lastCommunication: DateTime.now(),
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: DateTime.now(),
-      ));
-      
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: DateTime.now(),
+        ),
+      );
+
       AppLogger.machineInfo('Machine errors cleared');
     }
   }
-  
+
   /// Handle info update
-  void _onInfoUpdated(MachineControllerInfoUpdated event, Emitter<MachineControllerState> emit) {
+  void _onInfoUpdated(
+    MachineControllerInfoUpdated event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         firmwareVersion: event.firmwareVersion,
         hardwareVersion: event.hardwareVersion,
         lastCommunication: DateTime.now(),
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: DateTime.now(),
-      ));
-      
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: DateTime.now(),
+        ),
+      );
+
       if (event.firmwareVersion != null && event.hardwareVersion != null) {
-        AppLogger.machineInfo('Machine info updated: FW=${event.firmwareVersion}, HW=${event.hardwareVersion}');
+        AppLogger.machineInfo(
+          'Machine info updated: FW=${event.firmwareVersion}, HW=${event.hardwareVersion}',
+        );
       }
     }
   }
-  
+
   /// Handle connection change
-  void _onConnectionChanged(MachineControllerConnectionChanged event, Emitter<MachineControllerState> emit) {
+  void _onConnectionChanged(
+    MachineControllerConnectionChanged event,
+    Emitter<MachineControllerState> emit,
+  ) {
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         isOnline: event.isOnline,
         lastCommunication: event.timestamp,
       );
-      
-      emit(state.copyWith(
-        controller: updatedController,
-        lastUpdateTime: event.timestamp,
-      ));
-      
-      AppLogger.machineInfo('Machine connection changed: ${event.isOnline ? 'online' : 'offline'}');
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          lastUpdateTime: event.timestamp,
+        ),
+      );
+
+      AppLogger.machineInfo(
+        'Machine connection changed: ${event.isOnline ? 'online' : 'offline'}',
+      );
     }
   }
-  
+
   /// Handle reset
-  void _onReset(MachineControllerReset event, Emitter<MachineControllerState> emit) {
+  void _onReset(
+    MachineControllerReset event,
+    Emitter<MachineControllerState> emit,
+  ) {
     emit(const MachineControllerState(isInitialized: true));
     AppLogger.machineInfo('Machine controller reset');
   }
-  
-  /// Check for grblHAL welcome message in recent messages
-  void _checkForGrblHalWelcomeMessage(List<String> messages, DateTime timestamp) {
-    AppLogger.machineDebug('_checkForGrblHalWelcomeMessage called with ${messages.length} messages');
-    AppLogger.machineDebug('Recent messages: ${messages.take(5).join(" | ")}');
-    
-    // Look for grblHAL welcome message patterns (more robust)
-    final grblHalPatterns = [
-      // Match "GrblHAL 1.1f" format (most common)
-      RegExp(r'grblhal\s+([0-9]+\.[0-9]+[a-z]*)', caseSensitive: false),
-      // Match "Grbl 1.1f [grblHAL" format  
-      RegExp(r'grbl\s+([0-9]+\.[0-9]+[a-z]*)\s*\[.*grblhal', caseSensitive: false),
-      // Simple pattern to just look for "grblhal" anywhere in the message
-      RegExp(r'grblhal', caseSensitive: false),
-    ];
-    
-    for (final message in messages.reversed.take(10)) {
-      AppLogger.machineDebug('Checking message for grblHAL: "${message.trim()}"');
-      
-      for (int i = 0; i < grblHalPatterns.length; i++) {
-        final pattern = grblHalPatterns[i];
-        final match = pattern.firstMatch(message);
-        if (match != null) {
-          String version = 'unknown';
-          
-          // Try to extract version from first two patterns, fallback for simple pattern
-          if (i < 2 && match.groupCount >= 1 && match.group(1) != null) {
-            version = match.group(1)!;
-          } else if (i == 2) {
-            // For simple "grblhal" pattern, try to extract version manually
-            final versionMatch = RegExp(r'([0-9]+\.[0-9]+[a-z]*)', caseSensitive: false).firstMatch(message);
-            if (versionMatch != null) {
-              version = versionMatch.group(0)!;
-            }
-          }
-          
-          AppLogger.machineInfo('grblHAL detected: version $version from message: "$message"');
-          
-          // Trigger grblHAL detection event
-          add(MachineControllerGrblHalDetected(
-            welcomeMessage: message,
-            firmwareVersion: version,
-            timestamp: timestamp,
-          ));
-          return; // Found grblHAL, exit search
-        }
-      }
-    }
-    
-    AppLogger.machineDebug('No grblHAL patterns matched in ${messages.length} messages');
-  }
 
-  /// Parse configuration responses from $ command
-  void _parseConfigurationResponses(List<String> messages, DateTime timestamp) {
-    final configurationLines = <String>[];
-    final allMessages = <String>[];
-    
-    // Look for configuration setting lines in format: $<number>=<value>
-    // May have prefixes like "Received: $100=250.000"
-    final settingPattern = RegExp(r'\$\d+=.+');
-    
-    for (final message in messages) {
-      final trimmed = message.trim();
-      allMessages.add(trimmed);
-      
-      // Check if this message contains a configuration setting
-      final match = settingPattern.firstMatch(trimmed);
-      if (match != null) {
-        // Extract just the setting part (e.g., "$100=250.000")
-        final settingLine = match.group(0)!;
-        configurationLines.add(settingLine);
-        AppLogger.machineDebug('Found configuration setting: "$settingLine" in message: "$trimmed"');
-      }
-    }
-    
-    // If we found configuration settings or any messages that might contain firmware info, parse them
-    if (configurationLines.isNotEmpty || allMessages.isNotEmpty) {
-      // Parse configuration from all messages (includes both settings and potential firmware info)
-      final configuration = MachineConfiguration.parseFromMessages(allMessages);
-      
-      AppLogger.machineDebug('Parsed configuration: ${configuration.settings.length} settings, firmware: ${configuration.firmwareVersion}');
-      
-      // Merge with existing configuration if present
-      final existingConfig = state.configuration;
-      final mergedConfig = existingConfig != null 
-          ? existingConfig.withSettings(configuration.settings.values.toList()).copyWith(
-              firmwareVersion: configuration.firmwareVersion ?? existingConfig.firmwareVersion,
-            )
-          : configuration;
-      
-      // Only trigger event if we actually have configuration data
-      if (mergedConfig.settings.isNotEmpty || mergedConfig.firmwareVersion != null) {
-        AppLogger.machineInfo('Configuration update: ${mergedConfig.settings.length} settings, firmware: ${mergedConfig.firmwareVersion}');
-        
-        // Trigger configuration received event
-        add(MachineControllerConfigurationReceived(
-          configuration: mergedConfig,
-          timestamp: timestamp,
-        ));
-      }
-    }
-  }
-  
+  // Old _checkForGrblHalWelcomeMessage method removed - now using individual message events
+
+  // Old _parseConfigurationResponses method removed - now using individual message events
+
   /// Set communication bloc reference for command sending
   void _onSetCommunicationBloc(
     MachineControllerSetCommunicationBloc event,
     Emitter<MachineControllerState> emit,
   ) {
+    // Cancel existing subscription if any
+    _messageStreamSubscription?.cancel();
+
     _communicationBloc = event.communicationBloc;
-    AppLogger.machineDebug('Communication bloc reference set in machine controller');
+    AppLogger.machineDebug(
+      'Communication bloc reference set in machine controller',
+    );
+
+    // Start listening to message stream for real-time processing
+    if (_communicationBloc?.messageStream != null) {
+      _messageStreamSubscription = _communicationBloc.messageStream.listen(
+        (message) => _processStreamMessage(message),
+        onError: (error) =>
+            AppLogger.machineError('Message stream error: $error'),
+      );
+      AppLogger.machineDebug(
+        'Started listening to communication message stream',
+      );
+    }
   }
-  
+
   /// Handle grblHAL detection
   void _onGrblHalDetected(
-    MachineControllerGrblHalDetected event, 
+    MachineControllerGrblHalDetected event,
     Emitter<MachineControllerState> emit,
   ) {
-    AppLogger.machineInfo('grblHAL controller detected: ${event.firmwareVersion}');
+    AppLogger.machineInfo(
+      'grblHAL controller detected: ${event.firmwareVersion}',
+    );
     AppLogger.machineInfo('Welcome message: "${event.welcomeMessage.trim()}"');
-    
+
     // Cancel timeout since grblHAL was detected successfully
     _cancelGrblHalDetectionTimeout();
-    
-    emit(state.copyWith(
-      grblHalDetected: true,
-      grblHalVersion: event.firmwareVersion,
-      grblHalDetectedAt: event.timestamp,
-    ));
-    
+
+    emit(
+      state.copyWith(
+        grblHalDetected: true,
+        grblHalVersion: event.firmwareVersion,
+        grblHalDetectedAt: event.timestamp,
+      ),
+    );
+
     // Automatically configure grblHAL auto reporting
     _configureGrblHalAutoReporting();
   }
-  
+
   /// Configure grblHAL automatic status reporting
   void _configureGrblHalAutoReporting() {
     if (_communicationBloc == null) {
-      AppLogger.machineError('Cannot configure grblHAL - no communication bloc reference');
+      AppLogger.machineError(
+        'Cannot configure grblHAL - no communication bloc reference',
+      );
       return;
     }
-    
-    AppLogger.machineInfo('Configuring grblHAL automatic status reporting (16ms/60Hz)...');
-    
+
+    AppLogger.machineInfo('=== CONFIGURING grblHAL AUTO-REPORTING ===');
+
     // Send grblHAL configuration commands directly
-    AppLogger.machineInfo('Sending 0x84 0x10 raw bytes for 60Hz auto-reporting');
-    _communicationBloc.add(CncCommunicationSendRawBytes([0x84, 0x10]));
-    
+    AppLogger.machineInfo(
+      'MACHINE CONTROLLER: Sending 0x87 (enable async reporting)',
+    );
+    _communicationBloc.add(CncCommunicationSendRawBytes([0x87]));
+
     // Query machine configuration to understand capabilities and settings
-    AppLogger.machineInfo('Querying machine configuration with \$ command');
+    AppLogger.machineInfo(
+      'MACHINE CONTROLLER: Sending \$ (query configuration)',
+    );
     _communicationBloc.add(CncCommunicationSendCommand('\$'));
-    
+
     // Send multiple status queries to ensure we get machine state
-    AppLogger.machineInfo('Sending initial status queries to determine machine state');
+    AppLogger.machineInfo(
+      'MACHINE CONTROLLER: Sending ? (initial status query)',
+    );
     _communicationBloc.add(CncCommunicationSendCommand('?'));
-    
+
     // Send additional status queries with delays to ensure we get a response
     Timer(const Duration(milliseconds: 100), () {
       if (_communicationBloc != null) {
-        AppLogger.machineInfo('Sending delayed status query (100ms)');
+        AppLogger.machineInfo('MACHINE CONTROLLER: Sending delayed ? (100ms)');
         _communicationBloc.add(CncCommunicationSendCommand('?'));
       }
     });
-    
+
     Timer(const Duration(milliseconds: 500), () {
       if (_communicationBloc != null) {
-        AppLogger.machineInfo('Sending delayed status query (500ms)');
+        AppLogger.machineInfo('MACHINE CONTROLLER: Sending delayed ? (500ms)');
         _communicationBloc.add(CncCommunicationSendCommand('?'));
       }
     });
-    
+
     Timer(const Duration(milliseconds: 1000), () {
       if (_communicationBloc != null) {
-        AppLogger.machineInfo('Sending delayed status query (1000ms)');
+        AppLogger.machineInfo('MACHINE CONTROLLER: Sending delayed ? (1000ms)');
         _communicationBloc.add(CncCommunicationSendCommand('?'));
       }
     });
-    
+
     // Mark as configured
-    add(MachineControllerAutoReportingConfigured(
-      enabled: true,
-      timestamp: DateTime.now(),
-    ));
+    add(
+      MachineControllerAutoReportingConfigured(
+        enabled: true,
+        timestamp: DateTime.now(),
+      ),
+    );
   }
-  
-  
+
   /// Handle auto reporting configuration completion
   void _onAutoReportingConfigured(
     MachineControllerAutoReportingConfigured event,
     Emitter<MachineControllerState> emit,
   ) {
-    emit(state.copyWith(
-      autoReportingConfigured: event.enabled,
-    ));
-    
+    emit(state.copyWith(autoReportingConfigured: event.enabled));
+
     if (event.enabled) {
-      AppLogger.machineInfo('grblHAL configured for 60Hz event-based status updates (0x84 0x10)');
+      AppLogger.machineInfo(
+        'grblHAL configured for async event-based status updates (0x87)',
+      );
     }
   }
 
@@ -762,36 +588,45 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     MachineControllerConfigurationReceived event,
     Emitter<MachineControllerState> emit,
   ) {
-    AppLogger.machineInfo('Machine configuration received: ${event.configuration.settings.length} settings');
-    
-    emit(state.copyWith(
-      configuration: event.configuration,
-      lastUpdateTime: event.timestamp,
-    ));
+    AppLogger.machineInfo(
+      'Machine configuration received: ${event.configuration.settings.length} settings',
+    );
+
+    emit(
+      state.copyWith(
+        configuration: event.configuration,
+        lastUpdateTime: event.timestamp,
+      ),
+    );
   }
-  
+
   /// Start grblHAL detection timeout
   void _startGrblHalDetectionTimeout() {
     _cancelGrblHalDetectionTimeout();
-    
+
     AppLogger.machineInfo('Starting grblHAL detection timeout (5 seconds)');
     _grblHalDetectionTimeout = Timer(const Duration(seconds: 5), () {
       if (!state.grblHalDetected) {
-        AppLogger.machineError('grblHAL not detected within timeout - this sender requires grblHAL firmware');
-        
+        AppLogger.machineError(
+          'grblHAL not detected within timeout - this sender requires grblHAL firmware',
+        );
+
         // Disconnect since we only support grblHAL
         if (_communicationBloc != null) {
           _communicationBloc.add(CncCommunicationDisconnectRequested());
         }
-        
+
         // Update firmware version to show error
-        add(MachineControllerInfoUpdated(
-          firmwareVersion: 'ERROR: grblHAL required - Standard GRBL not supported',
-        ));
+        add(
+          MachineControllerInfoUpdated(
+            firmwareVersion:
+                'ERROR: grblHAL required - Standard GRBL not supported',
+          ),
+        );
       }
     });
   }
-  
+
   /// Cancel grblHAL detection timeout
   void _cancelGrblHalDetectionTimeout() {
     _grblHalDetectionTimeout?.cancel();
@@ -799,16 +634,20 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
   }
 
   @override
-  void onTransition(Transition<MachineControllerEvent, MachineControllerState> transition) {
+  void onTransition(
+    Transition<MachineControllerEvent, MachineControllerState> transition,
+  ) {
     super.onTransition(transition);
     final currentStatus = transition.currentState.status;
     final nextStatus = transition.nextState.status;
-    
+
     if (currentStatus != nextStatus) {
-      AppLogger.machineDebug('Machine status changed: ${currentStatus.name} -> ${nextStatus.name}');
+      AppLogger.machineDebug(
+        'Machine status changed: ${currentStatus.name} -> ${nextStatus.name}',
+      );
     }
   }
-  
+
   @override
   void onError(Object error, StackTrace stackTrace) {
     super.onError(error, stackTrace);
@@ -823,7 +662,9 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     Emitter<MachineControllerState> emit,
   ) {
     if (!_canJog()) {
-      AppLogger.machineWarning('Cannot jog - machine not in valid state: ${state.status.displayName}');
+      AppLogger.machineWarning(
+        'Cannot jog - machine not in valid state: ${state.status.displayName}',
+      );
       return;
     }
 
@@ -834,14 +675,12 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
 
     // Build GRBL jog command: $J=X10.0F500 (jog X axis 10mm at 500mm/min)
     final jogCommand = '\$J=${event.axis}${event.distance}F${event.feedRate}';
-    
+
     AppLogger.machineInfo('Sending jog command: $jogCommand');
     _communicationBloc.add(CncCommunicationSendCommand(jogCommand));
-    
+
     // Update state to indicate jogging
-    emit(state.copyWith(
-      lastUpdateTime: DateTime.now(),
-    ));
+    emit(state.copyWith(lastUpdateTime: DateTime.now()));
   }
 
   /// Handle jog stop request
@@ -850,17 +689,17 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     Emitter<MachineControllerState> emit,
   ) {
     if (_communicationBloc == null) {
-      AppLogger.machineError('Cannot stop jog - no communication bloc reference');
+      AppLogger.machineError(
+        'Cannot stop jog - no communication bloc reference',
+      );
       return;
     }
 
     // Send jog cancel command (0x85 for grblHAL real-time command)
     AppLogger.machineInfo('Sending jog cancel command');
     _communicationBloc.add(CncCommunicationSendRawBytes([0x85]));
-    
-    emit(state.copyWith(
-      lastUpdateTime: DateTime.now(),
-    ));
+
+    emit(state.copyWith(lastUpdateTime: DateTime.now()));
   }
 
   /// Handle continuous jog start (for hold-down buttons)
@@ -869,12 +708,16 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     Emitter<MachineControllerState> emit,
   ) {
     if (!_canJog()) {
-      AppLogger.machineWarning('Cannot start continuous jog - machine not in valid state: ${state.status.displayName}');
+      AppLogger.machineWarning(
+        'Cannot start continuous jog - machine not in valid state: ${state.status.displayName}',
+      );
       return;
     }
 
     if (_communicationBloc == null) {
-      AppLogger.machineError('Cannot start continuous jog - no communication bloc reference');
+      AppLogger.machineError(
+        'Cannot start continuous jog - no communication bloc reference',
+      );
       return;
     }
 
@@ -882,13 +725,11 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     // grblHAL will stop when the jog cancel is received
     final distance = event.positive ? '1000' : '-1000'; // Large distance
     final jogCommand = '\$J=${event.axis}${distance}F${event.feedRate}';
-    
+
     AppLogger.machineInfo('Starting continuous jog: $jogCommand');
     _communicationBloc.add(CncCommunicationSendCommand(jogCommand));
-    
-    emit(state.copyWith(
-      lastUpdateTime: DateTime.now(),
-    ));
+
+    emit(state.copyWith(lastUpdateTime: DateTime.now()));
   }
 
   /// Handle continuous jog stop (for button release)
@@ -900,17 +741,348 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
     _onJogStopRequested(const MachineControllerJogStopRequested(), emit);
   }
 
+  /// Process individual status message (for stream processing)
+  void _processStatusMessage(String message, DateTime timestamp) {
+    // Remove "Received: " prefix if present
+    final cleanMessage = message.startsWith('Received: ')
+        ? message.substring(10)
+        : message;
+
+    AppLogger.machineDebug('Processing status message: $cleanMessage');
+
+    // Parse status message like: <Idle|MPos:0.000,0.000,0.000|...>
+    final statusMatch = RegExp(r'<([^|]+)').firstMatch(cleanMessage);
+    if (statusMatch == null) return;
+
+    final statusString = statusMatch.group(1)!;
+    final machineStatus = _parseMachineStatus(statusString);
+
+    // Parse coordinates and other data from the full message
+    _parseStatusDetailsForStream(cleanMessage, machineStatus, timestamp);
+  }
+
+  /// Process individual configuration message (for stream processing)
+  void _processConfigurationMessage(String message, DateTime timestamp) {
+    // Remove "Received: " prefix if present
+    final cleanMessage = message.startsWith('Received: ')
+        ? message.substring(10)
+        : message;
+
+    AppLogger.machineDebug('Processing configuration message: $cleanMessage');
+
+    // Parse configuration line like: $0=10 (Step pulse time)
+    _parseConfigurationLineForStream(cleanMessage, timestamp);
+  }
+
+  /// Process individual welcome message (for stream processing)
+  void _processWelcomeMessage(String message, DateTime timestamp) {
+    // Remove "Received: " prefix if present
+    final cleanMessage = message.startsWith('Received: ')
+        ? message.substring(10)
+        : message;
+
+    AppLogger.machineDebug('Processing welcome message: $cleanMessage');
+
+    // Check for grblHAL welcome patterns
+    if (!state.grblHalDetected) {
+      _checkSingleMessageForGrblHal(cleanMessage, timestamp);
+    }
+
+    // Parse firmware information
+    _parseFirmwareInfoForStream(cleanMessage, timestamp);
+  }
+
+  /// Process acknowledgment message (for stream processing)
+  void _processAcknowledgment(String message, DateTime timestamp) {
+    // Handle "ok" responses - these confirm command completion
+    AppLogger.machineDebug('Command acknowledged');
+  }
+
+  /// Process error message (for stream processing)
+  void _processErrorMessage(String message, DateTime timestamp) {
+    // Remove "Received: " prefix if present
+    final cleanMessage = message.startsWith('Received: ')
+        ? message.substring(10)
+        : message;
+
+    AppLogger.machineError('CNC Error received: $cleanMessage');
+
+    // Add error to state
+    add(MachineControllerErrorAdded(error: cleanMessage, timestamp: timestamp));
+  }
+
+  /// Parse a single configuration line (for stream processing)
+  void _parseConfigurationLineForStream(String line, DateTime timestamp) {
+    final match = RegExp(
+      r'^\$(\d+)=([^(]+)(?:\((.+)\))?',
+    ).firstMatch(line.trim());
+    if (match == null) return;
+
+    final settingId = int.tryParse(match.group(1)!);
+    final value = match.group(2)!.trim();
+    final description = match.group(3)?.trim();
+
+    if (settingId == null) return;
+
+    // Update configuration incrementally
+    final currentConfig = state.configuration;
+    final newSettings = Map<int, ConfigurationSetting>.from(
+      currentConfig?.settings ?? {},
+    );
+
+    newSettings[settingId] = ConfigurationSetting(
+      number: settingId,
+      rawValue: value,
+      description: description ?? 'Setting $settingId',
+      lastUpdated: timestamp,
+    );
+
+    final newConfig = MachineConfiguration(
+      settings: newSettings,
+      firmwareVersion: currentConfig?.firmwareVersion,
+      lastUpdated: timestamp,
+    );
+
+    // Emit configuration received event
+    add(
+      MachineControllerConfigurationReceived(
+        configuration: newConfig,
+        timestamp: timestamp,
+      ),
+    );
+
+    AppLogger.machineDebug(
+      'Configuration setting updated: \$$settingId=$value',
+    );
+  }
+
+  /// Check a single message for grblHAL patterns
+  void _checkSingleMessageForGrblHal(String message, DateTime timestamp) {
+    if (_isGrblHalMessage(message)) {
+      final version = _extractGrblHalVersion(message);
+      AppLogger.machineInfo(
+        'grblHAL detected: $version from message: "$message"',
+      );
+
+      add(
+        MachineControllerGrblHalDetected(
+          welcomeMessage: message,
+          firmwareVersion: version,
+          timestamp: timestamp,
+        ),
+      );
+    }
+  }
+
+  /// Parse firmware information from welcome messages (for stream processing)
+  void _parseFirmwareInfoForStream(String message, DateTime timestamp) {
+    // Look for firmware version patterns in the message
+    String? firmwareVersion;
+
+    // Try GrblHAL version patterns
+    final grblHalMatch = RegExp(
+      r'GrblHAL\s+(\d+\.\d+[a-z]?)',
+    ).firstMatch(message);
+    if (grblHalMatch != null) {
+      firmwareVersion = 'GrblHAL ${grblHalMatch.group(1)}';
+    } else {
+      // Try standard GRBL version patterns
+      final grblMatch = RegExp(r'Grbl\s+(\d+\.\d+[a-z]?)').firstMatch(message);
+      if (grblMatch != null) {
+        firmwareVersion = 'Grbl ${grblMatch.group(1)}';
+      }
+    }
+
+    if (firmwareVersion != null) {
+      AppLogger.machineInfo('Firmware version detected: $firmwareVersion');
+
+      // Update configuration with firmware version
+      final currentConfig = state.configuration;
+      final newConfig = MachineConfiguration(
+        settings: currentConfig?.settings ?? {},
+        firmwareVersion: firmwareVersion,
+        lastUpdated: timestamp,
+      );
+
+      // Emit configuration received event
+      add(
+        MachineControllerConfigurationReceived(
+          configuration: newConfig,
+          timestamp: timestamp,
+        ),
+      );
+    }
+  }
+
+  /// Parse machine status from status string
+  MachineStatus _parseMachineStatus(String statusString) {
+    final lowerStatus = statusString.toLowerCase();
+
+    if (lowerStatus.startsWith('idle')) {
+      return MachineStatus.idle;
+    } else if (lowerStatus.startsWith('run')) {
+      return MachineStatus.running;
+    } else if (lowerStatus.startsWith('jog')) {
+      return MachineStatus.jogging;
+    } else if (lowerStatus.startsWith('hold')) {
+      return MachineStatus.hold;
+    } else if (lowerStatus.startsWith('alarm')) {
+      return MachineStatus.alarm;
+    } else if (lowerStatus.startsWith('door') || lowerStatus.contains('door')) {
+      return MachineStatus.door;
+    } else if (lowerStatus.startsWith('check')) {
+      return MachineStatus.check;
+    } else if (lowerStatus.startsWith('home')) {
+      return MachineStatus.homing;
+    } else {
+      return MachineStatus.unknown;
+    }
+  }
+
+  /// Parse status details from full status message (for stream processing)
+  void _parseStatusDetailsForStream(
+    String statusMessage,
+    MachineStatus status,
+    DateTime timestamp,
+  ) {
+    // Parse coordinates, feed rate, spindle speed from status message
+    // Format: <Idle|MPos:0.000,0.000,0.000|WPos:0.000,0.000,0.000|FS:0,0|Ov:100,100,100>
+
+    MachineCoordinates? machinePos;
+    MachineCoordinates? workPos;
+    double? feedRate;
+    double? spindleSpeed;
+
+    // Parse machine position
+    final mPosMatch = RegExp(
+      r'MPos:([0-9.-]+),([0-9.-]+),([0-9.-]+)',
+    ).firstMatch(statusMessage);
+    if (mPosMatch != null) {
+      machinePos = MachineCoordinates(
+        x: double.tryParse(mPosMatch.group(1)!) ?? 0.0,
+        y: double.tryParse(mPosMatch.group(2)!) ?? 0.0,
+        z: double.tryParse(mPosMatch.group(3)!) ?? 0.0,
+        lastUpdated: timestamp,
+      );
+    }
+
+    // Parse work position
+    final wPosMatch = RegExp(
+      r'WPos:([0-9.-]+),([0-9.-]+),([0-9.-]+)',
+    ).firstMatch(statusMessage);
+    if (wPosMatch != null) {
+      workPos = MachineCoordinates(
+        x: double.tryParse(wPosMatch.group(1)!) ?? 0.0,
+        y: double.tryParse(wPosMatch.group(2)!) ?? 0.0,
+        z: double.tryParse(wPosMatch.group(3)!) ?? 0.0,
+        lastUpdated: timestamp,
+      );
+    }
+
+    // Parse feed and spindle rates
+    final fsMatch = RegExp(
+      r'FS:([0-9.-]+),([0-9.-]+)',
+    ).firstMatch(statusMessage);
+    if (fsMatch != null) {
+      feedRate = double.tryParse(fsMatch.group(1)!);
+      spindleSpeed = double.tryParse(fsMatch.group(2)!);
+    }
+
+    // Emit status update events instead of direct state changes
+    add(MachineControllerStatusUpdated(status: status, timestamp: timestamp));
+
+    if (workPos != null || machinePos != null) {
+      add(
+        MachineControllerCoordinatesUpdated(
+          workPosition: workPos,
+          machinePosition: machinePos,
+          timestamp: timestamp,
+        ),
+      );
+    }
+
+    if (feedRate != null) {
+      add(
+        MachineControllerFeedUpdated(
+          feedState: FeedState(
+            rate: feedRate,
+            targetRate: feedRate,
+            lastUpdated: timestamp,
+          ),
+          timestamp: timestamp,
+        ),
+      );
+    }
+
+    if (spindleSpeed != null) {
+      add(
+        MachineControllerSpindleUpdated(
+          spindleState: SpindleState(
+            isRunning: spindleSpeed > 0,
+            speed: spindleSpeed,
+            targetSpeed: spindleSpeed,
+            lastUpdated: timestamp,
+          ),
+          timestamp: timestamp,
+        ),
+      );
+    }
+
+    AppLogger.machineDebug('Status updated: ${status.displayName}');
+    if (machinePos != null) {
+      AppLogger.machineDebug(
+        'Machine position: (${machinePos.x}, ${machinePos.y}, ${machinePos.z}) mm',
+      );
+    }
+  }
+
+  /// Check if message contains grblHAL patterns
+  bool _isGrblHalMessage(String message) {
+    final lowerMessage = message.toLowerCase();
+    return lowerMessage.contains('grblhal') ||
+        lowerMessage.contains('grbl hal') ||
+        (lowerMessage.contains('grbl') && lowerMessage.contains('hal'));
+  }
+
+  /// Extract grblHAL version from message
+  String _extractGrblHalVersion(String message) {
+    final versionMatch = RegExp(
+      r'GrblHAL\s+(\d+\.\d+[a-z]?)',
+      caseSensitive: false,
+    ).firstMatch(message);
+    if (versionMatch != null) {
+      return versionMatch.group(1)!;
+    }
+
+    // Try to extract just GRBL version if grblHAL version not found
+    final grblMatch = RegExp(
+      r'Grbl\s+(\d+\.\d+[a-z]?)',
+      caseSensitive: false,
+    ).firstMatch(message);
+    if (grblMatch != null) {
+      return grblMatch.group(1)!;
+    }
+
+    return 'unknown';
+  }
+
   /// Check if machine is in a valid state for jogging
   bool _canJog() {
     AppLogger.machineDebug('Checking jog eligibility:');
     AppLogger.machineDebug('  hasController: ${state.hasController}');
     AppLogger.machineDebug('  isOnline: ${state.isOnline}');
-    AppLogger.machineDebug('  status: ${state.status.displayName} (${state.status.name})');
+    AppLogger.machineDebug(
+      '  status: ${state.status.displayName} (${state.status.name})',
+    );
     AppLogger.machineDebug('  grblHalDetected: ${state.grblHalDetected}');
-    AppLogger.machineDebug('  autoReportingConfigured: ${state.autoReportingConfigured}');
-    
+    AppLogger.machineDebug(
+      '  autoReportingConfigured: ${state.autoReportingConfigured}',
+    );
+
     if (!state.hasController || !state.isOnline) {
-      AppLogger.machineWarning('Cannot jog - controller not available or offline');
+      AppLogger.machineWarning(
+        'Cannot jog - controller not available or offline',
+      );
       return false;
     }
 
@@ -921,20 +1093,62 @@ class MachineControllerBloc extends Bloc<MachineControllerEvent, MachineControll
 
     // Only allow jogging in Idle, Jog, or Check states
     final currentStatus = state.status;
-    final canJog = currentStatus == MachineStatus.idle || 
-                   currentStatus == MachineStatus.jogging ||
-                   currentStatus == MachineStatus.check;
-                   
+    final canJog =
+        currentStatus == MachineStatus.idle ||
+        currentStatus == MachineStatus.jogging ||
+        currentStatus == MachineStatus.check;
+
     if (!canJog) {
-      AppLogger.machineWarning('Cannot jog - machine in invalid state: ${currentStatus.displayName}');
+      AppLogger.machineWarning(
+        'Cannot jog - machine in invalid state: ${currentStatus.displayName}',
+      );
     }
-    
+
     return canJog;
+  }
+
+  /// Process message received from communication stream
+  void _processStreamMessage(dynamic message) {
+    // Handle CncMessage from the stream
+    if (message is! CncMessage) {
+      AppLogger.machineWarning(
+        'Received non-CncMessage from stream: ${message.runtimeType}',
+      );
+      return;
+    }
+
+    final cncMessage = message;
+    AppLogger.machineInfo(
+      'STREAM: Processing ${cncMessage.type.name} message: "${cncMessage.content}"',
+    );
+
+    // Route message by type for efficient processing
+    switch (cncMessage.type) {
+      case CncMessageType.status:
+        _processStatusMessage(cncMessage.content, cncMessage.timestamp);
+        break;
+      case CncMessageType.configuration:
+        _processConfigurationMessage(cncMessage.content, cncMessage.timestamp);
+        break;
+      case CncMessageType.welcome:
+        _processWelcomeMessage(cncMessage.content, cncMessage.timestamp);
+        break;
+      case CncMessageType.acknowledgment:
+        _processAcknowledgment(cncMessage.content, cncMessage.timestamp);
+        break;
+      case CncMessageType.error:
+        _processErrorMessage(cncMessage.content, cncMessage.timestamp);
+        break;
+      case CncMessageType.other:
+        // Handle other message types as needed
+        break;
+    }
   }
 
   @override
   Future<void> close() {
     _cancelGrblHalDetectionTimeout();
+    _messageStreamSubscription?.cancel();
     return super.close();
   }
 }

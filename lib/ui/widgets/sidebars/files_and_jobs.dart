@@ -223,18 +223,6 @@ class FilesAndJobsSection extends StatelessWidget {
                     color: VSCodeTheme.secondaryText.withValues(alpha: 0.7),
                   ),
                 ),
-                if (isSelected) ...[
-                  const Spacer(),
-                  Text(
-                    'SELECTED',
-                    style: GoogleFonts.inconsolata(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w600,
-                      color: VSCodeTheme.focus,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
               ],
             ),
           ],

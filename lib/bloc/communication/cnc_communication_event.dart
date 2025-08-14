@@ -49,3 +49,49 @@ class CncCommunicationSetControllerAddress extends CncCommunicationEvent {
   
   CncCommunicationSetControllerAddress(this.controllerAddress);
 }
+
+/// Individual message received from CNC controller
+/// Used for event-based message processing instead of accumulating message lists
+class CncCommunicationMessageReceived extends CncCommunicationEvent {
+  final String message;
+  final DateTime timestamp;
+  final CncMessageType messageType;
+  
+  CncCommunicationMessageReceived({
+    required this.message,
+    required this.timestamp,
+    required this.messageType,
+  });
+}
+
+/// Types of messages from CNC controller for efficient processing
+enum CncMessageType {
+  /// Status messages (e.g., "&lt;Idle|MPos:0,0,0|...&gt;")
+  status,
+  /// Configuration responses (e.g., "$0=10")
+  configuration,
+  /// Welcome/version messages (e.g., "Grbl 1.1f ['$' for help]")
+  welcome,
+  /// Acknowledgments (e.g., "ok")
+  acknowledgment,
+  /// Error messages (e.g., "error:1")
+  error,
+  /// Other messages
+  other,
+}
+
+/// Message received from CNC controller with metadata
+class CncMessage {
+  final String content;
+  final DateTime timestamp;
+  final CncMessageType type;
+  
+  const CncMessage({
+    required this.content,
+    required this.timestamp,
+    required this.type,
+  });
+  
+  @override
+  String toString() => 'CncMessage(${type.name}: $content)';
+}

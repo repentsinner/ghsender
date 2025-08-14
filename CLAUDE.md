@@ -105,3 +105,4 @@ hook/build.dart                              # Native assets build hook
 - Must use actual GPU shaders for meaningful performance comparison
 - All BLoC state management designed for 60Hz real-time machine control
 - state management is accomplished via BLoC in this project
+- reference https://github.com/grblHAL/core/wiki/For-sender-developers to understand how best to interact with grblHAL
