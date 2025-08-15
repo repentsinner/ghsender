@@ -334,7 +334,7 @@ class SceneManager {
     const double labelSize = 8.0;
 
     const labelStyle = TextStyle(
-      fontSize: 24,
+      fontSize: 18,  // UI-appropriate size, will be rendered at high DPI
       fontWeight: FontWeight.bold,
       color: Colors.white,
     );

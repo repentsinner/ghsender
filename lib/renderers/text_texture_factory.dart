@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_scene/scene.dart';
+import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:vector_math/vector_math.dart' as vm;
 import '../utils/logger.dart';
 import 'billboard_geometry.dart';
@@ -8,19 +9,16 @@ import 'billboard_geometry.dart';
 /// Factory for creating textures from Flutter text rendering
 /// Converts TextPainter output to flutter_scene textures for 3D billboard text
 class TextTextureFactory {
-  static const int _defaultTextureWidth = 512;
-  static const int _defaultTextureHeight = 128;
-  
   /// Create a texture from text using Flutter's TextPainter
-  /// Returns both the texture and the actual text dimensions for proper billboard sizing
+  /// Renders text at high resolution for crisp display
+  /// renderScale: multiplier for resolution (e.g., 7.0 renders 18pt at ~126px)
   static Future<TextTextureResult> createTextTexture({
     required String text,
     required TextStyle textStyle,
     TextAlign textAlign = TextAlign.center,
-    int maxWidth = _defaultTextureWidth,
-    int maxHeight = _defaultTextureHeight,
     Color backgroundColor = Colors.transparent,
     EdgeInsets padding = const EdgeInsets.all(8.0),
+    double renderScale = 7.0,  // Scale factor for high-DPI rendering
   }) async {
     try {
       // Create TextPainter to measure and render text
@@ -30,19 +28,23 @@ class TextTextureFactory {
         textDirection: TextDirection.ltr,
       );
       
-      // Layout the text with constraints
-      textPainter.layout(
-        minWidth: 0,
-        maxWidth: maxWidth - padding.horizontal,
-      );
+      // Layout the text at original size for proper font hinting
+      textPainter.layout();
       
-      // Calculate actual texture size needed
+      // Calculate base dimensions
       final textWidth = textPainter.width;
       final textHeight = textPainter.height;
-      final textureWidth = (textWidth + padding.horizontal).ceil();
-      final textureHeight = (textHeight + padding.vertical).ceil();
       
-      AppLogger.info('Creating text texture: "${text.substring(0, text.length.clamp(0, 20))}${text.length > 20 ? "..." : ""}" (${textureWidth}x$textureHeight)');
+      // Scale up for high-DPI rendering
+      final scaledWidth = (textWidth * renderScale).ceil();
+      final scaledHeight = (textHeight * renderScale).ceil();
+      final scaledPaddingH = (padding.horizontal * renderScale).ceil();
+      final scaledPaddingV = (padding.vertical * renderScale).ceil();
+      
+      final textureWidth = scaledWidth + scaledPaddingH;
+      final textureHeight = scaledHeight + scaledPaddingV;
+      
+      AppLogger.info('Creating high-DPI text texture: "${text.substring(0, text.length.clamp(0, 20))}${text.length > 20 ? "..." : ""}" (${textureWidth}x$textureHeight at ${renderScale}x scale)');
       
       // Create image recorder for rendering
       final recorder = ui.PictureRecorder();
@@ -56,10 +58,13 @@ class TextTextureFactory {
         );
       }
       
-      // Draw text with padding offset
+      // Scale canvas and draw text at high resolution
+      canvas.save();
+      canvas.scale(renderScale, renderScale);
       textPainter.paint(canvas, Offset(padding.left, padding.top));
+      canvas.restore();
       
-      // Convert to image
+      // Convert to image at scaled resolution
       final picture = recorder.endRecording();
       final image = await picture.toImage(textureWidth, textureHeight);
       
@@ -69,12 +74,18 @@ class TextTextureFactory {
         throw Exception('Failed to convert text image to byte data');
       }
       
-      // For now, skip texture creation and return dimensions for sizing
-      // TODO: Implement proper texture from ui.Image when flutter_scene API is clear
-      AppLogger.info('Text rendered successfully: ${textureWidth}x$textureHeight pixels (texture creation skipped)');
+      // Create GPU texture from the image data
+      final texture = gpu.gpuContext.createTexture(
+        gpu.StorageMode.hostVisible,
+        textureWidth,
+        textureHeight,
+      );
+      texture.overwrite(byteData);
+      
+      AppLogger.info('Text texture created successfully: ${textureWidth}x$textureHeight pixels');
       
       return TextTextureResult(
-        // texture: null, // Skip texture for now
+        texture: texture,
         textWidth: textWidth,
         textHeight: textHeight,
         textureWidth: textureWidth,
@@ -88,14 +99,17 @@ class TextTextureFactory {
     }
   }
   
-  /// Create a billboard material (without texture for now)
-  static UnlitMaterial createBillboardMaterial({
+  /// Create a billboard material with linear filtering
+  static BillboardMaterial createBillboardMaterial({
+    gpu.Texture? texture,
     double opacity = 1.0,
     Color color = Colors.white,
     bool enableAlphaBlending = true,
   }) {
-    final material = UnlitMaterial();
-    // Skip texture for now, just use solid color
+    // Create material with texture and linear filtering
+    final material = BillboardMaterial(colorTexture: texture);
+    
+    // Set base color factor for tinting/opacity
     material.baseColorFactor = vm.Vector4(
       (color.r * 255.0).round().clamp(0, 255) / 255.0,
       (color.g * 255.0).round().clamp(0, 255) / 255.0,
@@ -118,7 +132,7 @@ class TextTextureFactory {
 
 /// Result of text texture creation
 class TextTextureResult {
-  // final ImageTexture texture; // Skip texture for now
+  final gpu.Texture texture;   // GPU texture with rendered text
   final double textWidth;      // Actual text width in pixels
   final double textHeight;     // Actual text height in pixels
   final int textureWidth;      // Texture width in pixels
@@ -126,11 +140,39 @@ class TextTextureResult {
   final double aspectRatio;    // Texture aspect ratio
   
   const TextTextureResult({
-    // required this.texture, // Skip texture for now
+    required this.texture,
     required this.textWidth,
     required this.textHeight,
     required this.textureWidth,
     required this.textureHeight,
     required this.aspectRatio,
   });
+}
+
+/// Custom UnlitMaterial with linear texture filtering for smooth text rendering
+class BillboardMaterial extends UnlitMaterial {
+  BillboardMaterial({gpu.Texture? colorTexture}) : super(colorTexture: colorTexture);
+  
+  @override
+  void bind(
+    gpu.RenderPass pass,
+    gpu.HostBuffer transientsBuffer,
+    Environment environment,
+  ) {
+    // Call parent bind first for standard setup
+    super.bind(pass, transientsBuffer, environment);
+    
+    // Re-bind texture with linear filtering for smooth interpolation
+    pass.bindTexture(
+      fragmentShader.getUniformSlot('base_color_texture'),
+      baseColorTexture,
+      sampler: gpu.SamplerOptions(
+        minFilter: gpu.MinMagFilter.linear,  // Linear when texture is minified
+        magFilter: gpu.MinMagFilter.linear,  // Linear when texture is magnified
+        mipFilter: gpu.MipFilter.linear,     // Linear between mipmap levels
+        widthAddressMode: gpu.SamplerAddressMode.clampToEdge,  // Don't repeat
+        heightAddressMode: gpu.SamplerAddressMode.clampToEdge, // Don't repeat
+      ),
+    );
+  }
 }

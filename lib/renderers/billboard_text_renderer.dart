@@ -37,8 +37,9 @@ class BillboardTextRenderer {
         height: billboardHeight,
       );
       
-      // Create material (without texture for now)
+      // Create material with text texture
       final material = TextTextureFactory.createBillboardMaterial(
+        texture: textureResult.texture,
         opacity: opacity,
         color: textStyle.color ?? Colors.white,
         enableAlphaBlending: backgroundColor == Colors.transparent,
