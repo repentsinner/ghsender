@@ -10,47 +10,63 @@
 
 ## What is ghSender?
 
-ghSender is a **next-generation CNC controller** designed to make CNC machining **safer, smarter, and more accessible**. Whether you're a complete beginner or an experienced machinist, our adaptive learning system grows with your skills.
+ghSender is a **modern CNC controller** built with Flutter for **grblHAL** firmware. It combines real-time machine control with advanced 3D visualization, providing a responsive touch-first interface for CNC machining.
 
-Built specifically for **grblHAL**, ghSender takes advantage of advanced features like tool changers, probes, and networked communication while maintaining the reliability and precision that CNC users demand.
+**Current Capabilities:**
+- **Real-time grblHAL Communication** - WebSocket connection with <100ms status updates
+- **Advanced 3D Visualization** - High-performance line rendering with 35,000+ segments at 60fps
+- **Manual Machine Control** - Complete jogging system with configurable feed rates and distances
+- **G-code Processing** - Full pipeline from file loading to 3D toolpath visualization
+- **Cross-Platform** - Native performance on macOS, Windows, and iPad
 
-### 🎯 **For Beginners**
-- **Step-by-step guidance** through every operation
-- **Built-in safety checks** prevent costly mistakes
-- **Interactive learning** that adapts to your progress
-- **Clear visual feedback** shows exactly what's happening
+**Planned Features:**
+- **Adaptive Learning System** - Interface complexity that grows with your skills
+- **Advanced Safety Features** - Work envelope protection and pre-flight validation
+- **Tool Change Workflows** - Automated sequences with safety checkpoints
 
-### ⚡ **For Experts** 
-- **Streamlined workflows** for maximum efficiency
-- **Advanced features** unlock automatically as you demonstrate competency
-- **Customizable interface** tailored to your preferences
-- **Professional-grade reliability** for production work
+### 🎯 **Current Features**
+- **Real-time Machine Control** - Direct grblHAL communication with live status updates
+- **3D Toolpath Visualization** - High-performance rendering of G-code programs
+- **Manual Jogging** - Precise machine positioning with configurable step sizes
+- **G-code File Management** - Load, parse, and visualize CNC programs
+
+### ⚡ **In Development** 
+- **Adaptive Learning System** - Interface that grows with your experience level
+- **Safety-First Design** - Pre-flight validation and work envelope protection
+- **Touch-Optimized Interface** - Designed for tablets with desktop compatibility
+- **Advanced Workflows** - Tool changes, probing, and workpiece setup
 
 ## Key Features
 
-### 🛡️ **Safety First**
-- **Pre-flight validation** catches errors before they reach your machine
-- **Work envelope protection** prevents crashes and tool breaks
-- **Emergency stop** integration with visual and audio alerts
-- **Tool change workflows** with built-in safety checkpoints
+### 🔗 **grblHAL Integration** - ✅ Implemented
+- **WebSocket Communication** - Reliable, high-speed control with real-time status
+- **Machine State Management** - Complete tracking of position, status, and configuration
+- **Manual Control** - Jogging, homing, and direct G-code command execution
+- **grblHAL Detection** - Automatic firmware identification and configuration
 
-### 🧠 **Adaptive Learning**
-- **Skill assessment** automatically adjusts interface complexity
-- **Progressive disclosure** reveals advanced features as you're ready
-- **Learning milestones** track your CNC mastery journey
-- **Contextual help** provides guidance exactly when you need it
+### 🎨 **Advanced Graphics** - ✅ Implemented  
+- **High-Performance Rendering** - 35,000+ line segments at 60fps using Flutter Scene
+- **3D Toolpath Visualization** - Real-time G-code program display
+- **Custom Shaders** - Anti-aliased line rendering with configurable thickness
+- **Interactive Camera** - Pan, zoom, and rotate with touch or mouse controls
 
-### 🔗 **grblHAL Integration**
-- **Native TCP/IP** communication for reliable, high-speed control
-- **Real-time status** with <100ms latency
-- **Advanced features** support for tool changers, probes, and sensors
-- **Future-proof** compatibility with grblHAL evolution
+### 📁 **G-code Processing** - ✅ Implemented
+- **File Management** - Load and manage G-code files with native file picker
+- **Advanced Parser** - Support for G0/G1/G2/G3 commands with arc interpolation
+- **Bounds Calculation** - Automatic work envelope detection and validation
+- **Real-time Updates** - Live scene updates as files are processed
 
-### 📱 **Modern Interface**
-- **Touch-first design** optimized for tablets and touchscreens
-- **Responsive layout** works on desktop, tablet, and mobile
-- **Dark/light themes** for any lighting condition
-- **Customizable workspace** arrange panels to fit your workflow
+### 🛡️ **Safety Systems** - 🚧 In Progress
+- **Basic Alarm Handling** - Machine alarm detection and user notification
+- **State Validation** - Proper state transitions and error recovery
+- **Emergency Stop** - Real-time command integration (hardware dependent)
+- **Work Envelope Protection** - Planned for Phase 2
+
+### 🧠 **Adaptive Learning** - 📋 Planned
+- **Skill Assessment** - Interface complexity based on demonstrated competency
+- **Progressive Disclosure** - Advanced features unlock as skills develop
+- **Learning Milestones** - Track CNC mastery progression
+- **Contextual Guidance** - Step-by-step workflows for complex operations
 
 ## Quick Start
 
@@ -82,16 +98,52 @@ wsl --install  # Restart after installation
 
 [📖 **Full Setup Guide**](docs/development/CROSS_PLATFORM_SETUP.md)
 
+## Current Implementation Status
+
+**What Works Now:**
+- ✅ Connect to grblHAL controllers via WebSocket
+- ✅ Real-time machine status monitoring (position, state, alarms)
+- ✅ Manual machine control (jogging, homing, direct G-code commands)
+- ✅ G-code file loading and parsing (G0/G1/G2/G3 support)
+- ✅ 3D toolpath visualization with high-performance rendering
+- ✅ Cross-platform development (macOS, Windows 11)
+
+**In Active Development:**
+- 🚧 Hardware validation with physical machines
+- 🚧 Enhanced safety systems and error handling
+- 🚧 Tool change and probing workflows
+- 🚧 Work envelope protection and collision detection
+
+**Planned Features:**
+- 📋 Adaptive learning system for progressive skill development
+- 📋 Advanced workflow templates and automation
+- 📋 Community plugin marketplace
+- 📋 CAM software integration
+
 ## Development Status
 
-🚧 **Currently in Phase 0 - Technology Validation**
+🚀 **Phase 0 Complete - Moving to Phase 1**
 
-- ✅ **Project Architecture** - Complete development framework established
+### ✅ **Phase 0: Technology Validation** - Complete
+- ✅ **Real-time Communication Spike** - WebSocket communication with grblHAL validated
+- ✅ **Graphics Performance Spike** - Flutter Scene rendering with 35K+ line segments at 60fps
+- ✅ **State Management Stress Test** - BLoC pattern handling 100 events/second
 - ✅ **Cross-Platform Toolchain** - macOS and Windows 11 development ready
 - ✅ **Multi-Agent Development** - Claude Code and Gemini CLI integration
-- 🚧 **Flutter Technology Spikes** - Validating real-time communication and graphics performance
-- ⏳ **Core grblHAL Integration** - TCP/IP communication layer
-- ⏳ **Adaptive Learning Engine** - User skill assessment and progression
+
+### 🚧 **Phase 1: Core Communication** - In Progress
+- ✅ **grblHAL Communication** - WebSocket connection and real-time status streaming
+- ✅ **Machine State Management** - Complete BLoC architecture for machine control
+- ✅ **Manual Jogging Controls** - Full axis control with configurable feed rates
+- ✅ **G-code Processing Pipeline** - File loading, parsing, and 3D visualization
+- 🚧 **Safety Systems** - Basic alarm handling and state validation
+- 📋 **Hardware Integration Testing** - Ready for physical machine validation
+
+### 📋 **Phase 2: Advanced Features** - Ready to Start
+- 📋 **Adaptive Learning Engine** - User skill assessment and progression (scaffolded)
+- 📋 **Advanced Safety Features** - Work envelope protection and pre-flight validation
+- 📋 **Tool Change Workflows** - Automated tool change sequences
+- 📋 **Probe Integration** - Touch-off and measurement workflows
 
 [📋 **Development Plan**](docs/DEVELOPMENT_PLAN.md) | [🏗️ **Architecture**](docs/ARCHITECTURE.md)
 
@@ -110,21 +162,32 @@ We welcome contributions from the CNC community! Whether you're a developer, mac
 ## Technology Stack
 
 - **Framework**: Flutter/Dart for cross-platform native performance
-- **Communication**: TCP/IP for reliable grblHAL integration
-- **State Management**: BLoC pattern for predictable, testable code
-- **AI Integration**: Claude Code and Gemini CLI for development assistance
-- **Platforms**: macOS, Windows 11, iPad (with Android planned)
+- **Graphics**: Flutter Scene with custom GLSL shaders for high-performance 3D rendering
+- **Communication**: WebSocket for reliable grblHAL integration
+- **State Management**: BLoC pattern for predictable, real-time state handling
+- **Architecture**: Layered service architecture with functional programming principles
+- **Development**: Multi-agent AI assistance (Claude Code and Gemini CLI)
+- **Platforms**: macOS, Windows 11, iPad (Android support planned)
 
 [🔧 **Technical Details**](docs/ARCHITECTURE.md)
 
 ## Safety Notice
 
-⚠️ **This software is in active development. Do not use with production machines without proper safety precautions.**
+⚠️ **This software is in active development (Phase 1). Use with appropriate caution.**
 
-- Always test with a simulator first
-- Keep emergency stop within reach
-- Verify all tool paths before running
-- Start with slow feed rates and low spindle speeds
+**Current Safety Status:**
+- ✅ **Basic Communication** - Stable grblHAL connection and status monitoring
+- ✅ **Manual Control** - Jogging and positioning controls functional
+- ✅ **Alarm Detection** - Machine alarms properly detected and displayed
+- 🚧 **Work Envelope Protection** - In development for Phase 2
+- 🚧 **Pre-flight Validation** - G-code safety checks planned for Phase 2
+
+**Recommended Precautions:**
+- Always test with grblHAL simulator first
+- Keep emergency stop within reach during operation
+- Verify all tool paths and work coordinates before running programs
+- Start with conservative feed rates and spindle speeds
+- Ensure proper machine setup and calibration
 
 ## License
 

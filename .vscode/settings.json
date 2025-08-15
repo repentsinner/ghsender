@@ -38,5 +38,6 @@
     "toolchain/**": true,
     ".dart_tool/**": true,
     "build/**": true
-  }
+  },
+  "kiroAgent.configureMCP": "Enabled"
 }
