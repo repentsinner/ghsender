@@ -39,11 +39,13 @@ class FlutterSceneBatchRenderer implements Renderer {
 
   // Coordinate system transformation matrix
   // Converts right-handed CNC coordinates to left-handed Metal/Impeller coordinates
-  // Negates Y-axis to make Y point away from operator (correct CNC convention)
-  static final vm.Matrix4 _coordinateTransform = vm.Matrix4.diagonal3(vm.Vector3(1, -1, 1));
-
-
-  // No longer need the old GPU line primitive - using LineMeshFactory directly
+  // Negates Y-axis to ensure proper display of CNC coordinate conventions
+  //  (X=right, Y=away from operator, Z=up).
+  // Note that Impeller creates a left-handed system regardless of whatever the
+  // underlying GPU API (Vulkan, OpenGL ES) uses.
+  // https://github.com/flutter/engine/blob/main/impeller/docs/coordinate_system.md
+  static final vm.Matrix4 _cncToImpellerCoordinateTransform =
+      vm.Matrix4.diagonal3(vm.Vector3(1, -1, 1));
 
   // Dynamic line style settings
   LineStyle _currentLineStyle = LineStyles.technical;
@@ -93,11 +95,9 @@ class FlutterSceneBatchRenderer implements Renderer {
     // Clear any existing scene objects
     _rootNode.children.clear();
 
-    // Apply coordinate system transformation to convert right-handed CNC coordinates
-    // to left-handed Metal/Impeller coordinates. Negates Y-axis to ensure proper
-    // display of CNC coordinate conventions (X=right, Y=away from operator, Z=up).
-    _rootNode.localTransform = _coordinateTransform;
-    AppLogger.info('Applied Y-axis negation transformation: CNC Y-away from operator');
+    // Apply coordinate system transformation to convert CNC coordinates (right-handed)
+    // to Impeller/(Metal) (left-handed) coordinates.
+    _rootNode.localTransform = _cncToImpellerCoordinateTransform;
 
     AppLogger.info('Creating optimized geometry from SceneManager data...');
 
@@ -132,11 +132,14 @@ class FlutterSceneBatchRenderer implements Renderer {
     }
 
     // Performance metrics calculation using ACTUAL measured values
-    _actualPolygons = actualLineTriangles + actualSquareTriangles + actualTextTriangles;
+    _actualPolygons =
+        actualLineTriangles + actualSquareTriangles + actualTextTriangles;
 
     // Draw calls: lines + filled squares (each square creates 2 draw calls: fill + edges) + text billboards
     _actualDrawCalls =
-        (lineObjects.isNotEmpty ? 1 : 0) + (filledSquareObjects.length * 2) + textBillboardObjects.length;
+        (lineObjects.isNotEmpty ? 1 : 0) +
+        (filledSquareObjects.length * 2) +
+        textBillboardObjects.length;
 
     // Initial camera setup - will be overridden by CameraDirector
     _setupInitialCamera();
@@ -149,7 +152,9 @@ class FlutterSceneBatchRenderer implements Renderer {
     AppLogger.info(
       'Filled squares: ${filledSquareObjects.length} (hybrid fill + edge rendering)',
     );
-    AppLogger.info('Text billboards: ${textBillboardObjects.length} (texture-based)');
+    AppLogger.info(
+      'Text billboards: ${textBillboardObjects.length} (texture-based)',
+    );
     AppLogger.info(
       'ACTUAL performance metrics: $_actualPolygons triangles in $_actualDrawCalls draw calls',
     );
@@ -419,13 +424,16 @@ class FlutterSceneBatchRenderer implements Renderer {
           final billboardNode = await BillboardTextRenderer.createTextBillboard(
             text: billboardObject.text!,
             position: billboardObject.center!,
-            textStyle: billboardObject.textStyle ?? const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
+            textStyle:
+                billboardObject.textStyle ??
+                const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
             worldSize: billboardObject.worldSize ?? 10.0,
-            backgroundColor: billboardObject.textBackgroundColor ?? Colors.transparent,
+            backgroundColor:
+                billboardObject.textBackgroundColor ?? Colors.transparent,
             opacity: billboardObject.opacity ?? 1.0,
             id: billboardObject.id,
           );
@@ -462,96 +470,122 @@ class FlutterSceneBatchRenderer implements Renderer {
   /// Update billboard orientations to face the camera
   void _updateBillboardOrientations(Size viewportSize) {
     if (!_sceneInitialized) return;
-    
+
     final cameraPos = camera.position;
-    
+
     // Recursively find and update billboard nodes
     _updateNodeBillboards(_rootNode, cameraPos, viewportSize);
   }
-  
+
   /// Recursively update billboard orientations in a node hierarchy
-  void _updateNodeBillboards(Node node, vm.Vector3 cameraPosition, Size viewportSize) {
+  void _updateNodeBillboards(
+    Node node,
+    vm.Vector3 cameraPosition,
+    Size viewportSize,
+  ) {
     // Check if this node contains a billboard geometry
     if (_isBillboardNode(node)) {
       _updateBillboardTransform(node, cameraPosition, viewportSize);
     }
-    
+
     // Recursively check children
     for (final child in node.children) {
       _updateNodeBillboards(child, cameraPosition, viewportSize);
     }
   }
-  
+
   /// Check if a node contains billboard geometry
   bool _isBillboardNode(Node node) {
     // Check if node is marked as a billboard by name
     return node.name.startsWith('billboard_');
   }
-  
+
   /// Calculate and apply billboard transform
-  void _updateBillboardTransform(Node billboardNode, vm.Vector3 cameraPosition, Size viewportSize) {
+  void _updateBillboardTransform(
+    Node billboardNode,
+    vm.Vector3 cameraPosition,
+    Size viewportSize,
+  ) {
     // Get the current position from the transform
     final currentTransform = billboardNode.localTransform;
     final billboardPosition = currentTransform.getTranslation();
-    
+
     // Calculate look-at rotation using view matrix
-    final lookAtMatrix = _calculateBillboardLookAt(billboardPosition, cameraPosition, viewportSize);
-    
+    final lookAtMatrix = _calculateBillboardLookAt(
+      billboardPosition,
+      cameraPosition,
+      viewportSize,
+    );
+
     // Apply coordinate transformation to the billboard orientation to account for
     // the Y-axis negation transformation applied to the root node
-    final transformedLookAtMatrix = _coordinateTransform * lookAtMatrix;
-    
+    final transformedLookAtMatrix =
+        _cncToImpellerCoordinateTransform * lookAtMatrix;
+
     // Apply look-at rotation while preserving position
     final finalTransform = transformedLookAtMatrix.clone();
     finalTransform.setTranslation(billboardPosition);
-    
+
     billboardNode.localTransform = finalTransform;
   }
-  
+
   /// Calculate look-at matrix for billboard facing camera
   /// Creates a rotation matrix that aligns the billboard with screen space axes
-  vm.Matrix4 _calculateBillboardLookAt(vm.Vector3 billboardPos, vm.Vector3 cameraPos, Size viewportSize) {
+  vm.Matrix4 _calculateBillboardLookAt(
+    vm.Vector3 billboardPos,
+    vm.Vector3 cameraPos,
+    Size viewportSize,
+  ) {
     // Get the view matrix from the camera
     final viewMatrix = camera.getViewTransform(viewportSize);
-    
+
     // Extract camera basis vectors from the view matrix
     // In column-major matrices, the camera's world-space orientation vectors
     // are in the ROWS of the upper-left 3x3 portion of the view matrix
-    
+
     // Camera right vector (screen X-axis in world space) - Row 0
     final cameraRight = vm.Vector3(
-      viewMatrix[0],  // m[0]
-      viewMatrix[4],  // m[4] 
-      viewMatrix[8]   // m[8]
+      viewMatrix[0], // m[0]
+      viewMatrix[4], // m[4]
+      viewMatrix[8], // m[8]
     ).normalized();
-    
+
     // Camera up vector (screen Y-axis in world space) - Row 1
     final cameraUp = vm.Vector3(
-      viewMatrix[1],  // m[1]
-      viewMatrix[5],  // m[5]
-      viewMatrix[9]   // m[9]
+      viewMatrix[1], // m[1]
+      viewMatrix[5], // m[5]
+      viewMatrix[9], // m[9]
     ).normalized();
-    
+
     // Camera forward vector (view direction) - Row 2
     // Note: This might need negation depending on coordinate system
     final cameraForward = vm.Vector3(
-      viewMatrix[2],  // m[2]
-      viewMatrix[6],  // m[6]
-      viewMatrix[10]  // m[10]
+      viewMatrix[2], // m[2]
+      viewMatrix[6], // m[6]
+      viewMatrix[10], // m[10]
     ).normalized();
-    
+
     // Calculate the view direction from billboard to camera
     final toCamera = (cameraPos - billboardPos).normalized();
-    
+
     // Build the billboard rotation matrix
     // X axis: camera right (screen X)
     // Y axis: camera up (screen Y)
     // Z axis: opposite of view direction (so billboard faces camera)
     final rotationMatrix = vm.Matrix4.identity();
-    rotationMatrix.setColumn(0, vm.Vector4(cameraRight.x, cameraRight.y, cameraRight.z, 0));
-    rotationMatrix.setColumn(1, vm.Vector4(cameraUp.x, cameraUp.y, cameraUp.z, 0));
-    rotationMatrix.setColumn(2, vm.Vector4(-toCamera.x, -toCamera.y, -toCamera.z, 0));
-    
+    rotationMatrix.setColumn(
+      0,
+      vm.Vector4(cameraRight.x, cameraRight.y, cameraRight.z, 0),
+    );
+    rotationMatrix.setColumn(
+      1,
+      vm.Vector4(cameraUp.x, cameraUp.y, cameraUp.z, 0),
+    );
+    rotationMatrix.setColumn(
+      2,
+      vm.Vector4(-toCamera.x, -toCamera.y, -toCamera.z, 0),
+    );
+
     return rotationMatrix;
   }
 
