@@ -20,9 +20,9 @@ class FilledSquareMaterial extends UnlitMaterial {
     // Set base color with opacity
     // Flutter Color properties are already normalized (0.0-1.0)
     baseColorFactor = vm.Vector4(
-      (_fillColor.r * 255.0).round().clamp(0, 255) / 255.0,
-      (_fillColor.g * 255.0).round().clamp(0, 255) / 255.0,
-      (_fillColor.b * 255.0).round().clamp(0, 255) / 255.0,
+      _fillColor.r,
+      _fillColor.g,
+      _fillColor.b,
       _opacity,
     );
 

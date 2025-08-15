@@ -111,9 +111,9 @@ class TextTextureFactory {
     
     // Set base color factor for tinting/opacity
     material.baseColorFactor = vm.Vector4(
-      (color.r * 255.0).round().clamp(0, 255) / 255.0,
-      (color.g * 255.0).round().clamp(0, 255) / 255.0,
-      (color.b * 255.0).round().clamp(0, 255) / 255.0,
+      color.r,
+      color.g,
+      color.b,
       opacity,
     );
     
@@ -152,6 +152,13 @@ class TextTextureResult {
 /// Custom UnlitMaterial with linear texture filtering for smooth text rendering
 class BillboardMaterial extends UnlitMaterial {
   BillboardMaterial({gpu.Texture? colorTexture}) : super(colorTexture: colorTexture);
+  
+  @override
+  bool isOpaque() {
+    // Enable alpha blending for transparent/semi-transparent billboards
+    // Check both the baseColorFactor alpha and assume textures may have alpha
+    return false; // Always use alpha blending for text billboards
+  }
   
   @override
   void bind(

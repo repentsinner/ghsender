@@ -349,7 +349,7 @@ class SceneManager {
         text: 'X',
         textStyle: labelStyle.copyWith(color: Colors.red),
         worldSize: labelSize,
-        textBackgroundColor: Colors.black54,
+        textBackgroundColor: Colors.transparent,  // Test with transparent background
       ),
       // Y-axis label
       SceneObject(
@@ -360,7 +360,7 @@ class SceneManager {
         text: 'Y',
         textStyle: labelStyle.copyWith(color: Colors.green),
         worldSize: labelSize,
-        textBackgroundColor: Colors.black54,
+        textBackgroundColor: Colors.transparent,  // Test with transparent background
       ),
       // Z-axis label
       SceneObject(
@@ -371,7 +371,7 @@ class SceneManager {
         text: 'Z',
         textStyle: labelStyle.copyWith(color: Colors.blue),
         worldSize: labelSize,
-        textBackgroundColor: Colors.black54,
+        textBackgroundColor: Colors.transparent,  // Test with transparent background
       ),
     ];
   }

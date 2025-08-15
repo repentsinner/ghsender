@@ -92,10 +92,10 @@ class LineStyle {
   /// Convert color to normalized float components
   List<double> get colorComponents {
     return [
-      (color.r * 255.0).round().clamp(0, 255) / 255.0,
-      (color.g * 255.0).round().clamp(0, 255) / 255.0,
-      (color.b * 255.0).round().clamp(0, 255) / 255.0,
-      (color.a * 255.0).round().clamp(0, 255) / 255.0 * opacity,
+      color.r,
+      color.g,
+      color.b,
+      color.a * opacity,
     ];
   }
 

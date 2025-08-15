@@ -106,3 +106,5 @@ hook/build.dart                              # Native assets build hook
 - All BLoC state management designed for 60Hz real-time machine control
 - state management is accomplished via BLoC in this project
 - reference https://github.com/grblHAL/core/wiki/For-sender-developers to understand how best to interact with grblHAL
+- "Don't convert a value to a different representation and immediately convert it back to the 
+  original representation - this only degrades precision and adds unnecessary computation."
