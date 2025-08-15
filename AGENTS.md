@@ -108,3 +108,28 @@ hook/build.dart                              # Native assets build hook
 - reference https://github.com/grblHAL/core/wiki/For-sender-developers to understand how best to interact with grblHAL
 - "Don't convert a value to a different representation and immediately convert it back to the 
   original representation - this only degrades precision and adds unnecessary computation."
+
+## Coordinate System Handling
+
+### CNC vs Rendering Coordinate Systems
+- **CNC Machines**: Use right-handed coordinate system with X=right, Y=away from operator, Z=up
+- **Flutter Scene/Impeller**: Uses Metal's left-handed coordinate system as standard across all backends
+- **Key Finding**: Impeller standardizes on Metal coordinates regardless of backend (Metal/Vulkan/OpenGL)
+
+### Platform Backend Behavior
+- **macOS/iOS**: Impeller uses Metal backend
+- **Android**: Impeller uses Vulkan (with OpenGL fallback)
+- **Windows/Linux**: Impeller uses Vulkan when enabled with --enable-impeller
+- **Important**: All platforms use Metal's coordinate system convention - no platform detection needed
+
+### Coordinate Transformation Strategy
+- **Problem**: Right-handed CNC coordinates don't display correctly in left-handed Metal coordinate system
+- **Specific Issue**: Y-axis points toward operator instead of away from operator
+- **Solution**: Apply Y-axis negation transformation matrix at renderer level
+- **Implementation**: Use Y-axis negation transformation matrix applied to root node
+- **Mathematical Basis**: Matrix4.diagonal3(Vector3(1, -1, 1)) negates Y-axis while preserving Z-up orientation
+
+### Documentation References
+- Impeller Coordinate System: https://github.com/flutter/engine/blob/main/impeller/docs/coordinate_system.md
+- "Since the Metal backend was the first Impeller backend, the Metal coordinate system was picked as the Impeller coordinate system"
+- All Impeller sub-systems use this standardized coordinate system regardless of backend API

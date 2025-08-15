@@ -37,6 +37,11 @@ class FlutterSceneBatchRenderer implements Renderer {
   // Single combined mesh node for all geometry
   final Node _combinedMeshNode = Node();
 
+  // Coordinate system transformation matrix
+  // Converts right-handed CNC coordinates to left-handed Metal/Impeller coordinates
+  // Negates Y-axis to make Y point away from operator (correct CNC convention)
+  static final vm.Matrix4 _coordinateTransform = vm.Matrix4.diagonal3(vm.Vector3(1, -1, 1));
+
 
   // No longer need the old GPU line primitive - using LineMeshFactory directly
 
@@ -87,6 +92,12 @@ class FlutterSceneBatchRenderer implements Renderer {
 
     // Clear any existing scene objects
     _rootNode.children.clear();
+
+    // Apply coordinate system transformation to convert right-handed CNC coordinates
+    // to left-handed Metal/Impeller coordinates. Negates Y-axis to ensure proper
+    // display of CNC coordinate conventions (X=right, Y=away from operator, Z=up).
+    _rootNode.localTransform = _coordinateTransform;
+    AppLogger.info('Applied Y-axis negation transformation: CNC Y-away from operator');
 
     AppLogger.info('Creating optimized geometry from SceneManager data...');
 
@@ -486,8 +497,12 @@ class FlutterSceneBatchRenderer implements Renderer {
     // Calculate look-at rotation using view matrix
     final lookAtMatrix = _calculateBillboardLookAt(billboardPosition, cameraPosition, viewportSize);
     
+    // Apply coordinate transformation to the billboard orientation to account for
+    // the Y-axis negation transformation applied to the root node
+    final transformedLookAtMatrix = _coordinateTransform * lookAtMatrix;
+    
     // Apply look-at rotation while preserving position
-    final finalTransform = lookAtMatrix.clone();
+    final finalTransform = transformedLookAtMatrix.clone();
     finalTransform.setTranslation(billboardPosition);
     
     billboardNode.localTransform = finalTransform;

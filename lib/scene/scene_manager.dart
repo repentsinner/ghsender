@@ -295,12 +295,16 @@ class SceneManager {
     );
   }
 
-  /// Create world origin coordinate axes for debugging
+  /// Create world origin coordinate axes following CNC machine conventions
+  /// Uses right-handed coordinate system: X=right, Y=away from operator, Z=up
+  /// 
+  /// Note: Coordinate system conversion is handled by transformation matrix in the renderer,
+  /// not by manually modifying axis definitions. This preserves CNC coordinate semantics.
   List<SceneObject> _createWorldOriginAxes() {
     const double axisLength = 50.0;
 
     return [
-      // X-axis (Red) - from origin to +X
+      // X-axis (Red) - Positive X moves tool to the right of operator
       SceneObject(
         type: SceneObjectType.line,
         startPoint: vm.Vector3(0.0, 0.0, 0.0),
@@ -308,7 +312,7 @@ class SceneManager {
         color: Colors.red,
         id: 'world_axis_x',
       ),
-      // Y-axis (Green) - from origin to +Y
+      // Y-axis (Green) - Positive Y moves tool away from operator (toward back of machine)
       SceneObject(
         type: SceneObjectType.line,
         startPoint: vm.Vector3(0.0, 0.0, 0.0),
@@ -316,7 +320,7 @@ class SceneManager {
         color: Colors.green,
         id: 'world_axis_y',
       ),
-      // Z-axis (Blue) - from origin to +Z
+      // Z-axis (Blue) - Positive Z moves tool up (away from workpiece)
       SceneObject(
         type: SceneObjectType.line,
         startPoint: vm.Vector3(0.0, 0.0, 0.0),
@@ -349,9 +353,9 @@ class SceneManager {
         text: 'X',
         textStyle: labelStyle.copyWith(color: Colors.red),
         worldSize: labelSize,
-        textBackgroundColor: Colors.transparent,  // Test with transparent background
+        textBackgroundColor: Colors.transparent,
       ),
-      // Y-axis label
+      // Y-axis label  
       SceneObject(
         type: SceneObjectType.textBillboard,
         color: Colors.green,
@@ -360,7 +364,7 @@ class SceneManager {
         text: 'Y',
         textStyle: labelStyle.copyWith(color: Colors.green),
         worldSize: labelSize,
-        textBackgroundColor: Colors.transparent,  // Test with transparent background
+        textBackgroundColor: Colors.transparent,
       ),
       // Z-axis label
       SceneObject(
@@ -371,7 +375,7 @@ class SceneManager {
         text: 'Z',
         textStyle: labelStyle.copyWith(color: Colors.blue),
         worldSize: labelSize,
-        textBackgroundColor: Colors.transparent,  // Test with transparent background
+        textBackgroundColor: Colors.transparent,
       ),
     ];
   }
