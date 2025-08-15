@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../utils/logger.dart';
 import 'package:flutter_scene/scene.dart';
@@ -7,6 +8,8 @@ import '../scene/scene_manager.dart';
 import 'renderer_interface.dart';
 import 'line_mesh_factory.dart';
 import 'line_style.dart';
+import 'filled_square_renderer.dart';
+import 'billboard_text_renderer.dart';
 
 /// Custom UnlitMaterial that supports transparency
 class TransparentUnlitMaterial extends UnlitMaterial {
@@ -33,6 +36,7 @@ class FlutterSceneBatchRenderer implements Renderer {
 
   // Single combined mesh node for all geometry
   final Node _combinedMeshNode = Node();
+
 
   // No longer need the old GPU line primitive - using LineMeshFactory directly
 
@@ -91,16 +95,37 @@ class FlutterSceneBatchRenderer implements Renderer {
         .where((obj) => obj.type == SceneObjectType.line)
         .toList();
 
+    // Process filled squares
+    final filledSquareObjects = sceneData.objects
+        .where((obj) => obj.type == SceneObjectType.filledSquare)
+        .toList();
+
+    // Process text billboards
+    final textBillboardObjects = sceneData.objects
+        .where((obj) => obj.type == SceneObjectType.textBillboard)
+        .toList();
+
     int actualLineTriangles = 0;
     if (lineObjects.isNotEmpty) {
       actualLineTriangles = await _processLinesWithLineMeshFactory(lineObjects);
     }
 
-    // Performance metrics calculation using ACTUAL measured values
-    _actualPolygons = actualLineTriangles;
+    int actualSquareTriangles = 0;
+    if (filledSquareObjects.isNotEmpty) {
+      actualSquareTriangles = await _processFilledSquares(filledSquareObjects);
+    }
 
-    // Draw calls: 1 for all lines
-    _actualDrawCalls = lineObjects.isNotEmpty ? 1 : 0;
+    int actualTextTriangles = 0;
+    if (textBillboardObjects.isNotEmpty) {
+      actualTextTriangles = await _processTextBillboards(textBillboardObjects);
+    }
+
+    // Performance metrics calculation using ACTUAL measured values
+    _actualPolygons = actualLineTriangles + actualSquareTriangles + actualTextTriangles;
+
+    // Draw calls: lines + filled squares (each square creates 2 draw calls: fill + edges) + text billboards
+    _actualDrawCalls =
+        (lineObjects.isNotEmpty ? 1 : 0) + (filledSquareObjects.length * 2) + textBillboardObjects.length;
 
     // Initial camera setup - will be overridden by CameraDirector
     _setupInitialCamera();
@@ -110,6 +135,10 @@ class FlutterSceneBatchRenderer implements Renderer {
       'FlutterScene renderer setup complete with ${sceneData.objects.length} scene objects',
     );
     AppLogger.info('Lines: ${lineObjects.length} (line tessellated)');
+    AppLogger.info(
+      'Filled squares: ${filledSquareObjects.length} (hybrid fill + edge rendering)',
+    );
+    AppLogger.info('Text billboards: ${textBillboardObjects.length} (texture-based)');
     AppLogger.info(
       'ACTUAL performance metrics: $_actualPolygons triangles in $_actualDrawCalls draw calls',
     );
@@ -155,6 +184,9 @@ class FlutterSceneBatchRenderer implements Renderer {
       Rect.fromLTWH(0, 0, size.width, size.height),
       Paint()..color = const Color.fromARGB(255, 26, 26, 26),
     );
+
+    // Update billboard orientations before rendering (pass viewport size for view matrix)
+    _updateBillboardOrientations(size);
 
     scene.render(camera, canvas, viewport: Offset.zero & size);
   }
@@ -290,6 +322,222 @@ class FlutterSceneBatchRenderer implements Renderer {
       );
       return 0;
     }
+  }
+
+  /// Process filled square objects using FilledSquareRenderer
+  Future<int> _processFilledSquares(
+    List<SceneObject> filledSquareObjects,
+  ) async {
+    try {
+      AppLogger.info(
+        'Processing ${filledSquareObjects.length} filled squares with FilledSquareRenderer',
+      );
+
+      // Get current viewport resolution for line edges
+      final currentResolution = _lastViewportSize != null
+          ? vm.Vector2(_lastViewportSize!.width, _lastViewportSize!.height)
+          : vm.Vector2(1024, 768); // Default resolution
+
+      int totalTriangles = 0;
+
+      // Process each filled square individually
+      for (final squareObject in filledSquareObjects) {
+        try {
+          // Create filled square with both fill and edge meshes
+          final squareResult = FilledSquareRenderer.createFromSceneObject(
+            squareObject,
+            resolution: currentResolution,
+          );
+
+          // Add both fill and edge nodes to the scene
+          final nodes = squareResult.toNodes();
+          for (final node in nodes) {
+            _rootNode.add(node);
+          }
+
+          // Count triangles: 2 for fill + variable for edges (depends on line tessellation)
+          // For now, estimate 2 triangles for fill + 8 for edges (4 line segments * 2 triangles each)
+          totalTriangles += 2 + 8; // Approximation
+
+          AppLogger.info(
+            'Filled square processed: ${squareResult.id} (fill + edges)',
+          );
+        } catch (e) {
+          AppLogger.error(
+            'Failed to process filled square ${squareObject.id}: $e',
+          );
+        }
+      }
+
+      AppLogger.info(
+        'FilledSquareRenderer processing complete: ${filledSquareObjects.length} squares -> ~$totalTriangles triangles',
+      );
+
+      return totalTriangles;
+    } catch (e) {
+      AppLogger.error(
+        'FilledSquareRenderer processing failed - filled squares will not be rendered: $e',
+      );
+      return 0;
+    }
+  }
+
+  /// Process text billboard objects using BillboardTextRenderer
+  Future<int> _processTextBillboards(
+    List<SceneObject> textBillboardObjects,
+  ) async {
+    try {
+      AppLogger.info(
+        'Processing ${textBillboardObjects.length} text billboards with BillboardTextRenderer',
+      );
+
+      int totalTriangles = 0;
+
+      // Process each text billboard individually
+      for (final billboardObject in textBillboardObjects) {
+        try {
+          // Validate required properties
+          if (billboardObject.text == null || billboardObject.center == null) {
+            AppLogger.warning(
+              'Skipping text billboard ${billboardObject.id}: missing text or position',
+            );
+            continue;
+          }
+
+          // Create text billboard node
+          final billboardNode = await BillboardTextRenderer.createTextBillboard(
+            text: billboardObject.text!,
+            position: billboardObject.center!,
+            textStyle: billboardObject.textStyle ?? const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+            worldSize: billboardObject.worldSize ?? 10.0,
+            backgroundColor: billboardObject.textBackgroundColor ?? Colors.transparent,
+            opacity: billboardObject.opacity ?? 1.0,
+            id: billboardObject.id,
+          );
+
+          // Add to scene
+          _rootNode.add(billboardNode);
+
+          // Each billboard uses 2 triangles (quad)
+          totalTriangles += 2;
+
+          AppLogger.info(
+            'Text billboard processed: "${billboardObject.text}" at ${billboardObject.center}',
+          );
+        } catch (e) {
+          AppLogger.error(
+            'Failed to process text billboard ${billboardObject.id}: $e',
+          );
+        }
+      }
+
+      AppLogger.info(
+        'BillboardTextRenderer processing complete: ${textBillboardObjects.length} billboards -> $totalTriangles triangles',
+      );
+
+      return totalTriangles;
+    } catch (e) {
+      AppLogger.error(
+        'BillboardTextRenderer processing failed - text billboards will not be rendered: $e',
+      );
+      return 0;
+    }
+  }
+
+  /// Update billboard orientations to face the camera
+  void _updateBillboardOrientations(Size viewportSize) {
+    if (!_sceneInitialized) return;
+    
+    final cameraPos = camera.position;
+    
+    // Recursively find and update billboard nodes
+    _updateNodeBillboards(_rootNode, cameraPos, viewportSize);
+  }
+  
+  /// Recursively update billboard orientations in a node hierarchy
+  void _updateNodeBillboards(Node node, vm.Vector3 cameraPosition, Size viewportSize) {
+    // Check if this node contains a billboard geometry
+    if (_isBillboardNode(node)) {
+      _updateBillboardTransform(node, cameraPosition, viewportSize);
+    }
+    
+    // Recursively check children
+    for (final child in node.children) {
+      _updateNodeBillboards(child, cameraPosition, viewportSize);
+    }
+  }
+  
+  /// Check if a node contains billboard geometry
+  bool _isBillboardNode(Node node) {
+    // Check if node is marked as a billboard by name
+    return node.name.startsWith('billboard_');
+  }
+  
+  /// Calculate and apply billboard transform
+  void _updateBillboardTransform(Node billboardNode, vm.Vector3 cameraPosition, Size viewportSize) {
+    // Get the current position from the transform
+    final currentTransform = billboardNode.localTransform;
+    final billboardPosition = currentTransform.getTranslation();
+    
+    // Calculate look-at rotation using view matrix
+    final lookAtMatrix = _calculateBillboardLookAt(billboardPosition, cameraPosition, viewportSize);
+    
+    // Apply look-at rotation while preserving position
+    final finalTransform = lookAtMatrix.clone();
+    finalTransform.setTranslation(billboardPosition);
+    
+    billboardNode.localTransform = finalTransform;
+  }
+  
+  /// Calculate look-at matrix for billboard facing camera
+  /// Creates a rotation matrix that aligns the billboard with screen space axes
+  vm.Matrix4 _calculateBillboardLookAt(vm.Vector3 billboardPos, vm.Vector3 cameraPos, Size viewportSize) {
+    // Get the view matrix from the camera
+    final viewMatrix = camera.getViewTransform(viewportSize);
+    
+    // Extract camera basis vectors from the view matrix
+    // In column-major matrices, the camera's world-space orientation vectors
+    // are in the ROWS of the upper-left 3x3 portion of the view matrix
+    
+    // Camera right vector (screen X-axis in world space) - Row 0
+    final cameraRight = vm.Vector3(
+      viewMatrix[0],  // m[0]
+      viewMatrix[4],  // m[4] 
+      viewMatrix[8]   // m[8]
+    ).normalized();
+    
+    // Camera up vector (screen Y-axis in world space) - Row 1
+    final cameraUp = vm.Vector3(
+      viewMatrix[1],  // m[1]
+      viewMatrix[5],  // m[5]
+      viewMatrix[9]   // m[9]
+    ).normalized();
+    
+    // Camera forward vector (view direction) - Row 2
+    // Note: This might need negation depending on coordinate system
+    final cameraForward = vm.Vector3(
+      viewMatrix[2],  // m[2]
+      viewMatrix[6],  // m[6]
+      viewMatrix[10]  // m[10]
+    ).normalized();
+    
+    // Calculate the view direction from billboard to camera
+    final toCamera = (cameraPos - billboardPos).normalized();
+    
+    // Build the billboard rotation matrix
+    // X axis: camera right (screen X)
+    // Y axis: camera up (screen Y)
+    // Z axis: opposite of view direction (so billboard faces camera)
+    final rotationMatrix = vm.Matrix4.identity();
+    rotationMatrix.setColumn(0, vm.Vector4(cameraRight.x, cameraRight.y, cameraRight.z, 0));
+    rotationMatrix.setColumn(1, vm.Vector4(cameraUp.x, cameraUp.y, cameraUp.z, 0));
+    rotationMatrix.setColumn(2, vm.Vector4(-toCamera.x, -toCamera.y, -toCamera.z, 0));
+    
+    return rotationMatrix;
   }
 
   @override

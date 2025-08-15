@@ -1,11 +1,13 @@
 import 'dart:math';
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../utils/logger.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import '../gcode/gcode_parser.dart';
 import '../gcode/gcode_scene.dart';
 import '../gcode/gcode_processor.dart';
+import 'filled_square_factory.dart';
 
 /// Centralized scene manager that creates and manages the 3D scene
 /// All renderers receive the same scene data from this manager
@@ -15,7 +17,9 @@ class SceneManager {
 
   SceneManager._() {
     // Listen to G-code processor events for automatic scene updates
-    _processorSubscription = GCodeProcessor.instance.events.listen(_onGCodeProcessingEvent);
+    _processorSubscription = GCodeProcessor.instance.events.listen(
+      _onGCodeProcessingEvent,
+    );
   }
 
   // Scene data - created dynamically based on selected G-code file
@@ -24,7 +28,7 @@ class SceneManager {
   StreamSubscription<GCodeProcessingEvent>? _processorSubscription;
 
   // Stream controller for scene updates
-  final StreamController<SceneData?> _sceneUpdateController = 
+  final StreamController<SceneData?> _sceneUpdateController =
       StreamController<SceneData?>.broadcast();
 
   bool get initialized => _initialized;
@@ -42,7 +46,9 @@ class SceneManager {
     if (GCodeProcessor.instance.hasValidFile) {
       await _buildSceneFromProcessor();
     } else {
-      AppLogger.info('Scene manager initialized - waiting for G-code file selection');
+      AppLogger.info(
+        'Scene manager initialized - waiting for G-code file selection',
+      );
       // Initialize with empty scene (just world axes)
       await _initializeEmptyScene();
     }
@@ -89,7 +95,14 @@ class SceneManager {
 
       // Add world origin axes for debugging
       final worldAxes = _createWorldOriginAxes();
-      final allObjects = [...gcodeObjects, ...worldAxes];
+
+      // Add example filled squares for testing
+      final filledSquares = _createExampleFilledSquares(gcodePath);
+
+      // Add axis labels for better visualization
+      final axisLabels = _createAxisLabels();
+
+      final allObjects = [...gcodeObjects, ...worldAxes, ...filledSquares, ...axisLabels];
 
       // Create camera configuration based on G-code content
       final cameraConfig = _createCameraConfiguration(gcodePath);
@@ -97,7 +110,11 @@ class SceneManager {
       // Create lighting configuration
       final lightConfig = LightingConfiguration(
         directionalLight: DirectionalLightData(
-          direction: vm.Vector3(0, 0, -1), // Top-down lighting for CNC visualization
+          direction: vm.Vector3(
+            0,
+            0,
+            -1,
+          ), // Top-down lighting for CNC visualization
           color: Colors.white,
           intensity: 1.0,
         ),
@@ -118,8 +135,9 @@ class SceneManager {
         '- ${gcodeObjects.length} G-code objects + ${worldAxes.length} world axes = ${allObjects.length} total objects',
       );
       AppLogger.info('- Camera at ${cameraConfig.position}');
-      AppLogger.info('- Bounds: ${gcodePath.minBounds} to ${gcodePath.maxBounds}');
-
+      AppLogger.info(
+        '- Bounds: ${gcodePath.minBounds} to ${gcodePath.maxBounds}',
+      );
     } catch (e) {
       AppLogger.error('Failed to build scene from G-code data: $e');
       _initializeEmptyScene();
@@ -132,6 +150,9 @@ class SceneManager {
 
     // Create scene with just world origin axes
     final worldAxes = _createWorldOriginAxes();
+    
+    // Add axis labels for empty scene too
+    final axisLabels = _createAxisLabels();
 
     // Default camera position for empty scene
     final cameraConfig = CameraConfiguration(
@@ -151,7 +172,7 @@ class SceneManager {
     );
 
     _sceneData = SceneData(
-      objects: worldAxes,
+      objects: [...worldAxes, ...axisLabels],
       camera: cameraConfig,
       lighting: lightConfig,
     );
@@ -159,7 +180,9 @@ class SceneManager {
     // Notify listeners of scene update
     _sceneUpdateController.add(_sceneData);
 
-    AppLogger.info('Empty scene initialized with ${worldAxes.length} world axes');
+    AppLogger.info(
+      'Empty scene initialized with ${worldAxes.length} world axes',
+    );
   }
 
   /// Get scene objects filtered by type
@@ -175,6 +198,77 @@ class SceneManager {
   void dispose() {
     _processorSubscription?.cancel();
     _sceneUpdateController.close();
+  }
+
+  /// Create example filled squares for testing and demonstration
+  List<SceneObject> _createExampleFilledSquares(GCodePath gcodePath) {
+    final squares = <SceneObject>[];
+
+    try {
+      // Calculate scene bounds for positioning
+      final center = (gcodePath.minBounds + gcodePath.maxBounds) * 0.5;
+      final size = gcodePath.maxBounds - gcodePath.minBounds;
+      final maxDimension = math.max(math.max(size.x, size.y), size.z);
+
+      // Work area boundary - semi-transparent blue square in XY plane
+      squares.add(
+        FilledSquareFactory.createWorkAreaBoundary(
+          width: maxDimension * 1.2,
+          height: maxDimension * 1.2,
+          center: vm.Vector3(center.x, center.y, gcodePath.minBounds.z - 0.1),
+          fillColor: Colors.blue,
+          opacity: 0.15,
+          edgeWidth: 1.5,
+          id: 'work_area_boundary',
+        ),
+      );
+
+      // Tool path boundary - subtle yellow outline
+      squares.add(
+        FilledSquareFactory.createToolPathBoundary(
+          center: center,
+          size: maxDimension * 1.05,
+          plane: SquarePlane.xy,
+          color: Colors.yellow,
+          id: 'toolpath_boundary',
+        ),
+      );
+
+      // Coordinate system indicator at origin
+      squares.add(
+        FilledSquareFactory.createCoordinateIndicator(
+          origin: vm.Vector3(0, 0, 0),
+          size: maxDimension * 0.05,
+          plane: SquarePlane.xy,
+          color: Colors.green,
+          id: 'origin_indicator',
+        ),
+      );
+
+      // Safety zone example (if there's space)
+      if (maxDimension > 10) {
+        squares.add(
+          FilledSquareFactory.createSafetyZone(
+            center: vm.Vector3(
+              center.x + maxDimension * 0.6,
+              center.y,
+              center.z,
+            ),
+            size: maxDimension * 0.2,
+            plane: SquarePlane.xy,
+            id: 'example_safety_zone',
+          ),
+        );
+      }
+
+      AppLogger.info('Created ${squares.length} example filled squares');
+    } catch (e) {
+      AppLogger.warning('Failed to create example filled squares: $e');
+      // Return empty list if creation fails
+      return [];
+    }
+
+    return squares;
   }
 
   /// Create camera configuration optimized for the scene bounds
@@ -232,6 +326,55 @@ class SceneManager {
       ),
     ];
   }
+
+  /// Create axis labels for world coordinate system
+  List<SceneObject> _createAxisLabels() {
+    const double axisLength = 50.0;
+    const double labelOffset = 5.0;
+    const double labelSize = 8.0;
+
+    const labelStyle = TextStyle(
+      fontSize: 24,
+      fontWeight: FontWeight.bold,
+      color: Colors.white,
+    );
+
+    return [
+      // X-axis label
+      SceneObject(
+        type: SceneObjectType.textBillboard,
+        color: Colors.red,
+        id: 'axis_label_x',
+        center: vm.Vector3(axisLength + labelOffset, 0, 0),
+        text: 'X',
+        textStyle: labelStyle.copyWith(color: Colors.red),
+        worldSize: labelSize,
+        textBackgroundColor: Colors.black54,
+      ),
+      // Y-axis label
+      SceneObject(
+        type: SceneObjectType.textBillboard,
+        color: Colors.green,
+        id: 'axis_label_y',
+        center: vm.Vector3(0, axisLength + labelOffset, 0),
+        text: 'Y',
+        textStyle: labelStyle.copyWith(color: Colors.green),
+        worldSize: labelSize,
+        textBackgroundColor: Colors.black54,
+      ),
+      // Z-axis label
+      SceneObject(
+        type: SceneObjectType.textBillboard,
+        color: Colors.blue,
+        id: 'axis_label_z',
+        center: vm.Vector3(0, 0, axisLength + labelOffset),
+        text: 'Z',
+        textStyle: labelStyle.copyWith(color: Colors.blue),
+        worldSize: labelSize,
+        textBackgroundColor: Colors.black54,
+      ),
+    ];
+  }
 }
 
 /// Complete scene data that all renderers receive
@@ -257,6 +400,22 @@ class SceneObject {
   final vm.Vector3? startPoint; // Start point for line segments
   final vm.Vector3? endPoint; // End point for line segments
 
+  // Filled square properties (for SceneObjectType.filledSquare)
+  final vm.Vector3? center; // Square center point
+  final double? size; // Square side length
+  final SquarePlane? plane; // Which plane (XY, XZ, YZ)
+  final double? rotation; // Rotation around plane normal (radians)
+  final Color? fillColor; // Interior fill color
+  final Color? edgeColor; // Edge outline color
+  final double? edgeWidth; // Edge line width
+  final double? opacity; // Overall opacity (0.0-1.0)
+
+  // Text billboard properties (for SceneObjectType.textBillboard)
+  final String? text; // Text content to display
+  final TextStyle? textStyle; // Flutter text style
+  final double? worldSize; // Size in world units
+  final Color? textBackgroundColor; // Background color for text
+
   // G-code specific properties
   final int? operationIndex; // Index in the G-code operation sequence
   final double?
@@ -271,6 +430,18 @@ class SceneObject {
     required this.id,
     this.startPoint,
     this.endPoint,
+    this.center,
+    this.size,
+    this.plane,
+    this.rotation,
+    this.fillColor,
+    this.edgeColor,
+    this.edgeWidth,
+    this.opacity,
+    this.text,
+    this.textStyle,
+    this.worldSize,
+    this.textBackgroundColor,
     this.operationIndex,
     this.estimatedTime,
     this.isRapidMove = false,
@@ -282,6 +453,14 @@ class SceneObject {
 enum SceneObjectType {
   line, // For G-code path segments and coordinate axes
   cube, // For 3D cube objects
+  filledSquare, // For filled squares with outlined edges
+  textBillboard, // For 3D-positioned, screen-aligned text
+}
+
+enum SquarePlane {
+  xy, // Square in XY plane (normal = Z axis)
+  xz, // Square in XZ plane (normal = Y axis)
+  yz, // Square in YZ plane (normal = X axis)
 }
 
 /// Camera configuration for the scene
