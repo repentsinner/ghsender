@@ -24,8 +24,7 @@ NC='\033[0m' # No Color
 
 # Project paths to analyze (relative to git root)
 FLUTTER_PROJECTS=(
-    "spike/ghsender"
-    "spike/communication-spike"
+    "."  # Root-level Flutter project
 )
 
 echo -e "${BLUE}🔍 Running static analysis on Flutter projects (errors only)...${NC}"
@@ -88,12 +87,72 @@ run_flutter_analysis() {
     return 0
 }
 
+# Function to run GLSL shader validation (errors-only mode)
+run_shader_validation() {
+    echo -e "${BLUE}🔧 Validating GLSL shaders (errors only)...${NC}"
+    
+    # Check if glslangValidator is available
+    if ! command -v glslangValidator &> /dev/null; then
+        echo -e "${RED}❌ glslangValidator command not found. Please ensure it's installed and in PATH.${NC}"
+        return 1
+    fi
+    
+    # Find all shader files
+    local shader_files=($(find "$GIT_ROOT" -name "*.vert" -o -name "*.frag" | grep -v "/toolchain/" | grep -v "/build/"))
+    
+    if [ ${#shader_files[@]} -eq 0 ]; then
+        echo -e "${BLUE}ℹ️  No shader files found, skipping shader validation${NC}"
+        return 0
+    fi
+    
+    local validation_failed=false
+    
+    for shader_file in "${shader_files[@]}"; do
+        local relative_path="${shader_file#$GIT_ROOT/}"
+        echo -e "${BLUE}📄 Validating: $relative_path${NC}"
+        
+        # Capture validation output
+        local validation_output
+        if ! validation_output=$(glslangValidator "$shader_file" 2>&1); then
+            # Check if the output contains actual errors (not just warnings)
+            if echo "$validation_output" | grep -q "ERROR:"; then
+                echo -e "${RED}❌ Shader validation found ERRORS for $relative_path${NC}"
+                echo "$validation_output"
+                validation_failed=true
+            else
+                echo -e "${YELLOW}⚠️  Shader validation found warnings for $relative_path, but no errors${NC}"
+                echo -e "${GREEN}✅ Proceeding with commit (warnings allowed)${NC}"
+            fi
+        else
+            echo -e "${GREEN}✅ Shader validation passed for $relative_path${NC}"
+        fi
+    done
+    
+    if [ "$validation_failed" = true ]; then
+        echo -e "${RED}❌ One or more shaders failed validation with ERRORS${NC}"
+        echo -e "${YELLOW}📋 To fix shader errors:${NC}"
+        echo -e "   1. Review the shader validation errors above"
+        echo -e "   2. Fix GLSL syntax, version directives, and precision qualifiers"
+        echo -e "   3. Test with: glslangValidator path/to/shader.vert"
+        echo -e "   4. Commit your changes again"
+        return 1
+    fi
+    
+    echo -e "${GREEN}✅ All shaders passed validation (or had warnings only)${NC}"
+    return 0
+}
+
 # Analyze each Flutter project
 for project in "${FLUTTER_PROJECTS[@]}"; do
     if ! run_flutter_analysis "$project"; then
         ANALYSIS_FAILED=true
     fi
 done
+
+# Run shader validation
+if ! run_shader_validation; then
+    ANALYSIS_FAILED=true
+fi
 
 # Check if any analysis failed
 if [ "$ANALYSIS_FAILED" = true ]; then
@@ -102,7 +161,8 @@ if [ "$ANALYSIS_FAILED" = true ]; then
     echo -e "${YELLOW}📋 To fix these issues:${NC}"
     echo -e "   1. Review and fix the reported ERRORS (warnings are OK)"
     echo -e "   2. Run 'dart analyze' in the project directory"
-    echo -e "   3. Commit your changes again"
+    echo -e "   3. Run 'glslangValidator' on shader files if shader errors were reported"
+    echo -e "   4. Commit your changes again"
     echo ""
     echo -e "${YELLOW}💡 To bypass this hook (not recommended):${NC}"
     echo -e "   git commit --no-verify"

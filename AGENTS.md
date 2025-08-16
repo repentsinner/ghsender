@@ -78,8 +78,8 @@ lib/
     └── widgets/                    # Reusable UI components
 
 shaders/
-├── line_vertex.vert               # Line rendering vertex shader
-└── line_fragment.frag             # Line rendering fragment shader
+├── line.vert                      # Line rendering vertex shader
+└── line.frag                      # Line rendering fragment shader
 
 shaders/ghsender.shaderbundle.json             # Shader compilation config
 hook/build.dart                              # Native assets build hook
@@ -108,6 +108,31 @@ hook/build.dart                              # Native assets build hook
 - reference https://github.com/grblHAL/core/wiki/For-sender-developers to understand how best to interact with grblHAL
 - "Don't convert a value to a different representation and immediately convert it back to the 
   original representation - this only degrades precision and adds unnecessary computation."
+
+## DRY (Don't Repeat Yourself) Guidelines
+
+### Core Principle
+Every piece of knowledge must have a single, unambiguous, authoritative representation within a system.
+
+### Critical DRY Rules
+- **Configuration Files**: Never generate config files from scripts. Maintain them as source-controlled files.
+- **Version Management**: `tools/versions.sh` is the single source of truth for all version information
+- **Path Configuration**: Environment scripts should reference toolchain paths consistently
+- **Setup Logic**: Each setup script should have one clear responsibility
+- **Activation Scripts**: Use existing `tools/activate-env.{sh,fish}` - never create duplicates
+
+### Examples of DRY Violations to Avoid
+❌ **Multiple activation scripts with different PATH configurations**
+❌ **Setup scripts generating configuration files they also read from**  
+❌ **Hardcoded versions in multiple files**
+❌ **Duplicate shader compilation logic across renderers**
+❌ **Repeated coordinate transformation calculations**
+
+### DRY Enforcement
+- Before adding new functionality, check if similar logic already exists
+- Extract common patterns into reusable utilities
+- Centralize configuration and constants
+- When in doubt, consolidate rather than duplicate
 
 ## Coordinate System Handling
 

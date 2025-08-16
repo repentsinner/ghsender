@@ -49,6 +49,21 @@ else
     print_warning "Run ./tools/setup-toolchain.sh first"
 end
 
+# Add glslangValidator to PATH  
+if test -d $TOOLCHAIN_DIR/glslang/bin
+    set -gx PATH $TOOLCHAIN_DIR/glslang/bin $PATH
+    print_status "GLSL validation tools added to PATH"
+end
+
+# Add CMake to PATH (if installed directly, not via asdf)
+if test -d $TOOLCHAIN_DIR/cmake/CMake.app/Contents/bin
+    set -gx PATH $TOOLCHAIN_DIR/cmake/CMake.app/Contents/bin $PATH
+    print_status "CMake added to PATH"
+else if test -d $TOOLCHAIN_DIR/cmake/bin
+    set -gx PATH $TOOLCHAIN_DIR/cmake/bin $PATH
+    print_status "CMake added to PATH"
+end
+
 # Set up pub cache
 set -gx PUB_CACHE $TOOLCHAIN_DIR/cache/pub
 mkdir -p $PUB_CACHE
@@ -107,4 +122,10 @@ if command -v cmake >/dev/null 2>&1
     echo "  ✅ CMake: "(cmake --version | head -n1 | cut -d' ' -f3)
 else
     echo "  ❌ CMake: not available"
+end
+
+if command -v glslangValidator >/dev/null 2>&1
+    echo "  ✅ glslangValidator: "(glslangValidator --version | head -n1 | cut -d' ' -f3)
+else
+    echo "  ❌ glslangValidator: not available"
 end

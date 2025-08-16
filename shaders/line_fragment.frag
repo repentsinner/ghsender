@@ -1,9 +1,13 @@
+#version 320 es
+
 /*
  * Three.js Line2-style Anti-aliased Line Fragment Shader
  * 
  * Implements distance-based anti-aliasing using UV coordinates from vertex shader
  * Compatible with flutter_scene UnlitMaterial architecture
  */
+
+precision mediump float;
 
 uniform FrameInfo {
   mat4 model_transform;

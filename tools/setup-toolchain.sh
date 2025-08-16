@@ -36,31 +36,38 @@ print_step() {
     echo -e "${BLUE}[STEP]${NC} $1"
 }
 
-# Load version configuration
-source "$PROJECT_ROOT/tools/versions.env"
+# Version configuration is already loaded via load_versions() from setup-utils.sh
 
 # Create toolchain directory structure
 setup_directories() {
     print_step "Setting up toolchain directory structure..."
     
-    mkdir -p "$TOOLCHAIN_DIR"/{flutter,cmake,scripts,cache,config}
+    mkdir -p "$TOOLCHAIN_DIR"/{flutter,cmake,glslang,scripts,cache,config}
     
     print_status "Created toolchain directories"
 }
 
-# Download and install Flutter SDK locally
+# Install Flutter SDK from git repository
 install_flutter() {
-    print_step "Installing Flutter SDK locally..."
+    print_step "Installing Flutter SDK from git repository..."
     
     local flutter_dir="$TOOLCHAIN_DIR/flutter"
     
+    # Check if Flutter is already installed and on correct channel
     if [[ -d "$flutter_dir" && -x "$flutter_dir/bin/flutter" ]]; then
+        local current_channel=$("$flutter_dir/bin/flutter" channel | grep "^*" | awk '{print $2}')
         local current_version=$("$flutter_dir/bin/flutter" --version | head -n1 | awk '{print $2}')
-        if [[ "$current_version" == "$FLUTTER_VERSION" ]]; then
-            print_status "Flutter $FLUTTER_VERSION already installed"
+        
+        if [[ "$current_channel" == "$FLUTTER_CHANNEL" ]]; then
+            print_status "Flutter on $FLUTTER_CHANNEL channel already installed (version: $current_version)"
+            
+            # Update to latest on the channel
+            print_status "Updating Flutter to latest on $FLUTTER_CHANNEL channel..."
+            (cd "$flutter_dir" && git pull)
+            "$flutter_dir/bin/flutter" --version
             return 0
         else
-            print_warning "Found Flutter $current_version, but need $FLUTTER_VERSION"
+            print_warning "Found Flutter on $current_channel channel, but need $FLUTTER_CHANNEL channel"
             rm -rf "$flutter_dir"
         fi
     elif [[ -d "$flutter_dir" ]]; then
@@ -68,68 +75,29 @@ install_flutter() {
         rm -rf "$flutter_dir"
     fi
     
-    # Determine architecture and download URL
-    local arch=$(uname -m)
-    local os=$(uname -s | tr '[:upper:]' '[:lower:]')
-    local flutter_url
+    print_status "Cloning Flutter from git repository..."
     
-    case "$os-$arch" in
-        "darwin-arm64")
-            flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_${FLUTTER_VERSION}-stable.zip"
-            ;;
-        "darwin-x86_64")
-            flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_${FLUTTER_VERSION}-stable.zip"
-            ;;
-        "linux-x86_64")
-            flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
-            ;;
-        *)
-            print_error "Unsupported platform: $os-$arch"
-            exit 1
-            ;;
-    esac
-    
-    print_status "Downloading Flutter $FLUTTER_VERSION for $os-$arch..."
-    
-    # Download Flutter
-    local temp_dir=$(mktemp -d)
-    local filename=$(basename "$flutter_url")
-    
-    if ! curl -L -o "$temp_dir/$filename" "$flutter_url"; then
-        print_error "Failed to download Flutter"
-        rm -rf "$temp_dir"
+    # Clone Flutter repository
+    if ! git clone https://github.com/flutter/flutter.git "$flutter_dir"; then
+        print_error "Failed to clone Flutter repository"
         exit 1
     fi
     
-    # Extract Flutter
-    print_status "Extracting Flutter to $flutter_dir..."
+    # Switch to the desired channel
+    print_status "Switching to $FLUTTER_CHANNEL channel..."
+    (
+        cd "$flutter_dir"
+        git checkout "$FLUTTER_CHANNEL"
+        git pull origin "$FLUTTER_CHANNEL"
+    )
     
-    case "$filename" in
-        *.zip)
-            if ! unzip -q "$temp_dir/$filename" -d "$temp_dir"; then
-                print_error "Failed to extract Flutter zip"
-                exit 1
-            fi
-            ;;
-        *.tar.xz)
-            if ! tar -xJf "$temp_dir/$filename" -C "$temp_dir"; then
-                print_error "Failed to extract Flutter tar.xz"
-                exit 1
-            fi
-            ;;
-    esac
+    # Run flutter doctor to download dependencies
+    print_status "Initializing Flutter (this may take a few minutes)..."
+    "$flutter_dir/bin/flutter" doctor
     
-    # Debug: Check what was extracted
-    print_status "Contents of temp directory after extraction:"
-    ls -la "$temp_dir"
-    
-    # Move Flutter to toolchain directory  
-    if [[ -d "$temp_dir/flutter" ]]; then
-        mv "$temp_dir/flutter" "$flutter_dir"
-        print_status "Moved Flutter to $flutter_dir"
-    else
-        print_warning "Ruby dependencies script not found, skipping..."
-    fi
+    # Display version info
+    local installed_version=$("$flutter_dir/bin/flutter" --version | head -n1 | awk '{print $2}')
+    print_status "Flutter $installed_version installed successfully on $FLUTTER_CHANNEL channel"
 }
 
 # Download and install CMake locally
@@ -219,58 +187,14 @@ install_cmake() {
     fi
 }
 
-# Create environment activation script
-create_activation_script() {
-    print_step "Creating environment activation script..."
-    
-    local activation_script="$TOOLCHAIN_DIR/scripts/activate-env.sh"
-    
-    cat > "$activation_script" << 'EOF'
-#!/bin/bash
-# Activate local toolchain environment
-# Usage: source ./toolchain/scripts/activate-env.sh
-
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    echo "Error: This script must be sourced, not executed directly"
-    echo "Usage: source ./toolchain/scripts/activate-env.sh"
-    exit 1
-fi
-
-# Get project root (toolchain parent directory)
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TOOLCHAIN_DIR="$PROJECT_ROOT/toolchain"
-
-# Add Flutter to PATH
-export FLUTTER_HOME="$TOOLCHAIN_DIR/flutter"
-export PATH="$FLUTTER_HOME/bin:$PATH"
-
-# Add CMake to PATH
-export CMAKE_HOME="$TOOLCHAIN_DIR/cmake"
-if [[ -d "$CMAKE_HOME/CMake.app/Contents/bin" ]]; then
-    # macOS CMake app bundle
-    export PATH="$CMAKE_HOME/CMake.app/Contents/bin:$PATH"
-elif [[ -d "$CMAKE_HOME/bin" ]]; then
-    # Linux CMake binary
-    export PATH="$CMAKE_HOME/bin:$PATH"
-fi
-
-# Set Flutter/Dart cache directories to local toolchain
-export PUB_CACHE="$TOOLCHAIN_DIR/cache/pub"
-export FLUTTER_ROOT="$FLUTTER_HOME"
-
-# Create cache directories if they don't exist
-mkdir -p "$PUB_CACHE"
-
-echo "✅ Activated local toolchain environment"
-echo "   Flutter: $(which flutter)"
-echo "   Dart: $(which dart)"
-echo "   CMake: $(which cmake)"
-echo "   Pub Cache: $PUB_CACHE"
-EOF
-    
-    chmod +x "$activation_script"
-    print_status "Created activation script: $activation_script"
+# Install GLSL shader validation tools
+setup_glslang() {
+    print_step "Setting up GLSL shader validation tools..."
+    "$SCRIPT_DIR/setup-glslang.sh"
 }
+
+# Note: Environment activation is handled by existing tools/activate-env.sh
+# No need to create duplicate activation scripts
 
 # Run Flutter setup
 setup_flutter() {
@@ -291,38 +215,8 @@ update_build_scripts() {
     fi
 }
 
-# Create version tracking file
-create_versions_file() {
-    print_step "Creating versions.env file..."
-    
-    local versions_file="$PROJECT_ROOT/tools/versions.env"
-    
-    if [[ ! -f "$versions_file" ]]; then
-        cat > "$versions_file" << EOF
-# Tool versions for local toolchain
-# Single source of truth for all development dependencies
-
-# Flutter/Dart versions
-FLUTTER_VERSION="3.24.5"
-DART_VERSION="3.5.4"
-
-# Platform tool minimum versions
-XCODE_MIN_VERSION="15.0"
-ANDROID_SDK_VERSION="34.0.0"
-COCOAPODS_MIN_VERSION="1.11.0"
-
-# Node.js (if needed for web builds)
-NODE_VERSION="20.10.0"
-
-# Build tool versions
-CMAKE_VERSION="3.28.1"
-CMAKE_MIN_VERSION="3.18.0"
-EOF
-        print_status "Created versions.env file"
-    else
-        print_status "versions.env file already exists"
-    fi
-}
+# Note: tools/versions.sh is manually maintained as the single source of truth
+# Setup scripts should NOT generate configuration files
 
 # Run Flutter doctor to check system dependencies
 # Install git hooks for code quality
@@ -398,14 +292,11 @@ main() {
     print_status "Target directory: $TOOLCHAIN_DIR"
     echo
     
-    create_versions_file
     setup_directories
     install_flutter
     install_cmake
-    create_activation_script
-    create_tools_activation_script
+    setup_glslang
     update_build_scripts
-    create_vscode_config
     setup_git_hooks
     
     if [[ -n "$component" && "$component" != "doctor" ]]; then

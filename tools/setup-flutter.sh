@@ -186,7 +186,7 @@ show_usage() {
     echo "Options:"
     echo "  -h, --help    Show this help message"
     echo
-    echo "Configuration is loaded from tools/versions.env"
+    echo "Configuration is loaded from tools/versions.sh"
 }
 
 # Main execution

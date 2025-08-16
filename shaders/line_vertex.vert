@@ -1,3 +1,5 @@
+#version 320 es
+
 /*
  * Impeller-Compatible Screen-Space Line Expansion Vertex Shader
  * Based on Three.js Line2/LineSegments2 approach, w/o instanced geometry

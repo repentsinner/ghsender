@@ -17,7 +17,7 @@ This directory contains various utility scripts to assist with development, setu
 - `setup-toolchain.sh`: Bash script for setting up the development toolchain (for Linux/macOS).
 - `setup-git-hooks.sh`: Script for installing git pre-commit hooks for code quality enforcement.
 - `setup-verification.sh`: Script to verify the development setup.
-- `versions.env`: Environment variables related to tool versions.
+- `versions.sh`: Shell script containing environment variables for tool versions.
 
 ## Environment Activation
 

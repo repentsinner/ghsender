@@ -218,7 +218,7 @@ class LineGeometry extends UnskinnedGeometry {
 
     try {
       // Use custom line vertex shader that handles screen-space expansion
-      final customVertexShader = _shaderLibrary!['UnskinnedVertex'];
+      final customVertexShader = _shaderLibrary!['LineVertex'];
       if (customVertexShader != null) {
         return customVertexShader;
       } else {

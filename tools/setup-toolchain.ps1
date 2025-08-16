@@ -50,15 +50,18 @@ Write-Host "Platform: Windows $(Get-ComputerInfo | Select-Object -ExpandProperty
 Write-Host ""
 
 # Load version configuration
-$VersionsFile = Join-Path $ProjectRoot "tools" "versions.env"
+$VersionsFile = Join-Path $ProjectRoot "tools" "versions.sh"
 if (Test-Path $VersionsFile) {
-    Get-Content $VersionsFile | Where-Object { $_ -match "^[^#].*=" } | ForEach-Object {
-        $key, $value = $_ -split "=", 2
-        $value = $value.Trim('"')
-        Set-Variable -Name $key -Value $value -Scope Script
+    # Parse shell script format for environment variables
+    Get-Content $VersionsFile | Where-Object { $_ -match "^export\s+\w+=" } | ForEach-Object {
+        if ($_ -match "^export\s+(\w+)=(.*)$") {
+            $key = $matches[1]
+            $value = $matches[2].Trim('"')
+            Set-Variable -Name $key -Value $value -Scope Script
+        }
     }
 } else {
-    Write-Error "versions.env file not found at $VersionsFile"
+    Write-Error "versions.sh file not found at $VersionsFile"
     exit 1
 }
 

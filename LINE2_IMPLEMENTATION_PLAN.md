@@ -29,8 +29,8 @@ lib/renderers/
 └── line_mesh_factory.dart  # Factory for creating Line2/LineSegments2 meshes
 
 shaders/
-├── line_vertex.vert        # Instanced quad tessellation vertex shader
-├── line_fragment.frag      # Anti-aliased line fragment shader
+├── line.vert               # Instanced quad tessellation vertex shader
+├── line.frag               # Anti-aliased line fragment shader
 └── line.shaderbundle.json  # Line shader bundle configuration
 
 shaders/ghsender.shaderbundle.json                  # Updated with line shaders
@@ -104,14 +104,14 @@ final instanceColorEnd = Float32List.fromList([...]);   // End colors
 
 **Important:** The actual shader implementation will be extracted and adapted from Three.js LineMaterial source code, stored in separate `.glsl` files with proper source attribution.
 
-**Vertex Shader (line_vertex.vert):** 
+**Vertex Shader (line.vert):** 
 - Will be adapted from Three.js LineMaterial vertex shader
 - Instanced quad tessellation algorithm
 - Screen-space line expansion calculations
 - Perspective-correct rendering
 - Source attribution in header comments
 
-**Fragment Shader (line_fragment.frag):**
+**Fragment Shader (line.frag):**
 - Will be adapted from Three.js LineMaterial fragment shader  
 - Distance-based anti-aliasing algorithm
 - Round line caps implementation
@@ -147,11 +147,11 @@ final instanceColorEnd = Float32List.fromList([...]);   // End colors
 {
   "LineVertex": {
     "type": "vertex",
-    "file": "shaders/line_vertex.vert"
+    "file": "shaders/line.vert"
   },
   "LineFragment": {
     "type": "fragment", 
-    "file": "shaders/line_fragment.frag"
+    "file": "shaders/line.frag"
   }
 }
 ```

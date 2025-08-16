@@ -137,7 +137,7 @@ class LineMaterial extends UnlitMaterial {
     }
 
     try {
-      final customFragmentShader = _shaderLibrary!['UnlitFragment'];
+      final customFragmentShader = _shaderLibrary!['LineFragment'];
       if (customFragmentShader != null) {
         return customFragmentShader;
       } else {

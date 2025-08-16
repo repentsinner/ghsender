@@ -38,10 +38,10 @@ print_step() {
 # Load version configuration
 load_versions() {
     local project_root="$(get_project_root)"
-    if [[ -f "$project_root/tools/versions.env" ]]; then
-        source "$project_root/tools/versions.env"
+    if [[ -f "$project_root/tools/versions.sh" ]]; then
+        source "$project_root/tools/versions.sh"
     else
-        print_error "versions.env not found at $project_root/tools/versions.env"
+        print_error "versions.sh not found at $project_root/tools/versions.sh"
         exit 1
     fi
 }

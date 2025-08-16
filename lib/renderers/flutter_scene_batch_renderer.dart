@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../utils/logger.dart';
 import 'package:flutter_scene/scene.dart';
@@ -558,12 +557,6 @@ class FlutterSceneBatchRenderer implements Renderer {
     ).normalized();
 
     // Camera forward vector (view direction) - Row 2
-    // Note: This might need negation depending on coordinate system
-    final cameraForward = vm.Vector3(
-      viewMatrix[2], // m[2]
-      viewMatrix[6], // m[6]
-      viewMatrix[10], // m[10]
-    ).normalized();
 
     // Calculate the view direction from billboard to camera
     final toCamera = (cameraPos - billboardPos).normalized();

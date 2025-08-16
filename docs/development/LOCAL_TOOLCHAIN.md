@@ -117,7 +117,7 @@ flutter --version  # Uses toolchain/flutter/bin/flutter
 
 ### Pinned Versions Strategy
 ```bash
-# tools/versions.env - Single source of truth for tool versions
+# tools/versions.sh - Single source of truth for tool versions
 FLUTTER_VERSION="3.24.5"
 DART_VERSION="3.5.4"  
 ANDROID_SDK_VERSION="34.0.0"

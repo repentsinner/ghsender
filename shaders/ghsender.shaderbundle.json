@@ -1,9 +1,9 @@
 {
-  "UnskinnedVertex": {
+  "LineVertex": {
     "type": "vertex",
     "file": "shaders/line_vertex.vert"
   },
-  "UnlitFragment": {
+  "LineFragment": {
     "type": "fragment",
     "file": "shaders/line_fragment.frag"
   }

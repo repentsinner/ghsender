@@ -151,7 +151,7 @@ class TextTextureResult {
 
 /// Custom UnlitMaterial with linear texture filtering for smooth text rendering
 class BillboardMaterial extends UnlitMaterial {
-  BillboardMaterial({gpu.Texture? colorTexture}) : super(colorTexture: colorTexture);
+  BillboardMaterial({super.colorTexture});
   
   @override
   bool isOpaque() {
