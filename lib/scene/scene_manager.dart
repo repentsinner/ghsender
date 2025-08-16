@@ -8,6 +8,7 @@ import '../gcode/gcode_parser.dart';
 import '../gcode/gcode_scene.dart';
 import '../gcode/gcode_processor.dart';
 import 'filled_square_factory.dart';
+import 'axes_factory.dart';
 
 /// Centralized scene manager that creates and manages the 3D scene
 /// All renderers receive the same scene data from this manager
@@ -94,7 +95,7 @@ class SceneManager {
       final gcodeObjects = GCodeSceneGenerator.generateSceneObjects(gcodePath);
 
       // Add world origin axes for debugging
-      final worldAxes = _createWorldOriginAxes();
+      final worldAxes = AxesFactory.createWorldAxes();
 
       // Add example filled squares for testing
       final filledSquares = _createExampleFilledSquares(gcodePath);
@@ -102,10 +103,7 @@ class SceneManager {
       // Add example cube for demonstration
       final cubeSquares = _createExampleCube();
 
-      // Add axis labels for better visualization
-      final axisLabels = _createAxisLabels();
-
-      final allObjects = [...gcodeObjects, ...worldAxes, ...filledSquares, ...cubeSquares, ...axisLabels];
+      final allObjects = [...gcodeObjects, ...worldAxes, ...filledSquares, ...cubeSquares];
 
       // Create camera configuration based on G-code content
       final cameraConfig = _createCameraConfiguration(gcodePath);
@@ -152,13 +150,7 @@ class SceneManager {
     AppLogger.info('Initializing empty scene');
 
     // Create scene with just world origin axes
-    final worldAxes = _createWorldOriginAxes();
-    
-    // Add example cube for demonstration
-    final cubeSquares = _createExampleCube();
-    
-    // Add axis labels for empty scene too
-    final axisLabels = _createAxisLabels();
+    final worldAxes = AxesFactory.createWorldAxes();
 
     // Default camera position for empty scene
     final cameraConfig = CameraConfiguration(
@@ -177,8 +169,11 @@ class SceneManager {
       ),
     );
 
+    // Add example cube for demonstration
+    final cubeSquares = _createExampleCube();
+    
     _sceneData = SceneData(
-      objects: [...worldAxes, ...cubeSquares, ...axisLabels],
+      objects: [...worldAxes, ...cubeSquares],
       camera: cameraConfig,
       lighting: lightConfig,
     );
@@ -409,90 +404,7 @@ class SceneManager {
     );
   }
 
-  /// Create world origin coordinate axes following CNC machine conventions
-  /// Uses right-handed coordinate system: X=right, Y=away from operator, Z=up
-  /// 
-  /// Note: Coordinate system conversion is handled by transformation matrix in the renderer,
-  /// not by manually modifying axis definitions. This preserves CNC coordinate semantics.
-  List<SceneObject> _createWorldOriginAxes() {
-    const double axisLength = 50.0;
 
-    return [
-      // X-axis (Red) - Positive X moves tool to the right of operator
-      SceneObject(
-        type: SceneObjectType.line,
-        startPoint: vm.Vector3(0.0, 0.0, 0.0),
-        endPoint: vm.Vector3(axisLength, 0.0, 0.0),
-        color: Colors.red,
-        id: 'world_axis_x',
-      ),
-      // Y-axis (Green) - Positive Y moves tool away from operator (toward back of machine)
-      SceneObject(
-        type: SceneObjectType.line,
-        startPoint: vm.Vector3(0.0, 0.0, 0.0),
-        endPoint: vm.Vector3(0.0, axisLength, 0.0),
-        color: Colors.green,
-        id: 'world_axis_y',
-      ),
-      // Z-axis (Blue) - Positive Z moves tool up (away from workpiece)
-      SceneObject(
-        type: SceneObjectType.line,
-        startPoint: vm.Vector3(0.0, 0.0, 0.0),
-        endPoint: vm.Vector3(0.0, 0.0, axisLength),
-        color: Colors.blue,
-        id: 'world_axis_z',
-      ),
-    ];
-  }
-
-  /// Create axis labels for world coordinate system
-  List<SceneObject> _createAxisLabels() {
-    const double axisLength = 50.0;
-    const double labelOffset = 5.0;
-    const double labelSize = 8.0;
-
-    const labelStyle = TextStyle(
-      fontSize: 18,  // UI-appropriate size, will be rendered at high DPI
-      fontWeight: FontWeight.bold,
-      color: Colors.white,
-    );
-
-    return [
-      // X-axis label
-      SceneObject(
-        type: SceneObjectType.textBillboard,
-        color: Colors.red,
-        id: 'axis_label_x',
-        center: vm.Vector3(axisLength + labelOffset, 0, 0),
-        text: 'X',
-        textStyle: labelStyle.copyWith(color: Colors.red),
-        worldSize: labelSize,
-        textBackgroundColor: Colors.transparent,
-      ),
-      // Y-axis label  
-      SceneObject(
-        type: SceneObjectType.textBillboard,
-        color: Colors.green,
-        id: 'axis_label_y',
-        center: vm.Vector3(0, axisLength + labelOffset, 0),
-        text: 'Y',
-        textStyle: labelStyle.copyWith(color: Colors.green),
-        worldSize: labelSize,
-        textBackgroundColor: Colors.transparent,
-      ),
-      // Z-axis label
-      SceneObject(
-        type: SceneObjectType.textBillboard,
-        color: Colors.blue,
-        id: 'axis_label_z',
-        center: vm.Vector3(0, 0, axisLength + labelOffset),
-        text: 'Z',
-        textStyle: labelStyle.copyWith(color: Colors.blue),
-        worldSize: labelSize,
-        textBackgroundColor: Colors.transparent,
-      ),
-    ];
-  }
 }
 
 /// Complete scene data that all renderers receive
