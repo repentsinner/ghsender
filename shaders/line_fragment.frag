@@ -5,6 +5,11 @@
  * 
  * Implements distance-based anti-aliasing using UV coordinates from vertex shader
  * Compatible with flutter_scene UnlitMaterial architecture
+ 
+ * Note that the Impeller shader compiler appears to have an issue with
+ * processing this file if it doesn't have "_fragment" in the filename. I'm
+ * unclear why an extension of ".frag" and marking it as a fragment shader in the
+ * shaderbundle isn't sufficient.
  */
 
 precision mediump float;

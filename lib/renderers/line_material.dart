@@ -37,7 +37,7 @@ class LineMaterial extends UnlitMaterial {
        _opacity = opacity,
        _sharpness = sharpness,
        _resolution = resolution ?? vm.Vector2(1024, 768) {
-    // Set base color for UnlitMaterial (fallback when custom shader isn't available)
+    // Set base color for UnlitMaterial 
     // Flutter Color properties are already normalized (0.0-1.0)
     baseColorFactor = vm.Vector4(color.r, color.g, color.b, opacity);
 
@@ -109,7 +109,7 @@ class LineMaterial extends UnlitMaterial {
     if (resolution != null) this.resolution = resolution;
   }
 
-  /// Load custom fragment shaders matching flutter_scene's UnlitMaterial
+  /// Load custom fragment shaders - REQUIRED for line rendering
   static Future<void> _loadShaders() async {
     _shaderLoadingAttempted = true;
     try {
@@ -117,13 +117,13 @@ class LineMaterial extends UnlitMaterial {
         'build/shaderbundles/ghsender.shaderbundle',
       );
       _shadersLoaded = true;
-      AppLogger.info('Custom fragment shaders loaded successfully');
+      AppLogger.info('Custom line fragment shaders loaded successfully');
     } catch (e) {
-      AppLogger.warning(
-        'Failed to load custom fragment shaders, falling back to default: $e',
+      AppLogger.error('Failed to load custom line fragment shaders: $e');
+      throw Exception(
+        'LineMaterial requires custom fragment shaders. '
+        'Shader bundle not found or failed to load: $e',
       );
-      // Fall back to UnlitMaterial behavior if shaders fail to load
-      _shadersLoaded = false;
     }
   }
 
@@ -132,24 +132,21 @@ class LineMaterial extends UnlitMaterial {
   @override
   gpu.Shader get fragmentShader {
     if (!_shadersLoaded || _shaderLibrary == null) {
-      // Fallback: use flutter_scene's base shader library directly
-      return baseShaderLibrary['UnlitFragment']!;
+      throw Exception(
+        'LineMaterial fragment shader not available. '
+        'Custom shaders must be loaded before using line rendering.',
+      );
     }
 
-    try {
-      final customFragmentShader = _shaderLibrary!['LineFragment'];
-      if (customFragmentShader != null) {
-        return customFragmentShader;
-      } else {
-        AppLogger.warning(
-          'Custom fragment shader not found in bundle, using flutter_scene default',
-        );
-        return baseShaderLibrary['UnlitFragment']!;
-      }
-    } catch (e) {
-      AppLogger.error('Failed to get custom fragment shader: $e');
-      return baseShaderLibrary['UnlitFragment']!;
+    final customFragmentShader = _shaderLibrary!['LineFragment'];
+    if (customFragmentShader == null) {
+      throw Exception(
+        'LineFragment shader not found in shader bundle. '
+        'Check that ghsender.shaderbundle.json contains "LineFragment" entry.',
+      );
     }
+
+    return customFragmentShader;
   }
 
   // Enable alpha blending for anti-aliased lines

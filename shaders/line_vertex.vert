@@ -6,6 +6,11 @@
  * 
  * Interprets vertex attributes as line segment data and performs 
  * screen-space expansion for consistent line thickness.
+ * 
+ * Note that the Impeller shader compiler appears to have an issue with
+ * processing this file if it doesn't have "_vertex" in the filename. I'm
+ * unclear why an extension of ".vert" and marking it as a vertex shader in the
+ * shaderbundle isn't sufficient.
  */
 
 uniform FrameInfo {

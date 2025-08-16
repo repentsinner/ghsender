@@ -189,7 +189,7 @@ class LineGeometry extends UnskinnedGeometry {
     return segments;
   }
 
-  /// Load custom vertex shaders matching flutter_scene's UnskinnedGeometry
+  /// Load custom vertex shaders - REQUIRED for line rendering
   static Future<void> _loadShaders() async {
     _shaderLoadingAttempted = true;
     try {
@@ -197,13 +197,13 @@ class LineGeometry extends UnskinnedGeometry {
         'build/shaderbundles/ghsender.shaderbundle',
       );
       _shadersLoaded = true;
-      AppLogger.info('Custom vertex shaders loaded successfully');
+      AppLogger.info('Custom line vertex shaders loaded successfully');
     } catch (e) {
-      AppLogger.warning(
-        'Failed to load custom vertex shaders, falling back to default: $e',
+      AppLogger.error('Failed to load custom line vertex shaders: $e');
+      throw Exception(
+        'LineGeometry requires custom vertex shaders. '
+        'Shader bundle not found or failed to load: $e',
       );
-      // Fall back to UnskinnedGeometry behavior if shaders fail to load
-      _shadersLoaded = false;
     }
   }
 
@@ -212,25 +212,21 @@ class LineGeometry extends UnskinnedGeometry {
   @override
   gpu.Shader get vertexShader {
     if (!_shadersLoaded || _shaderLibrary == null) {
-      // Fallback: use flutter_scene's base shader library directly
-      return baseShaderLibrary['UnskinnedVertex']!;
+      throw Exception(
+        'LineGeometry vertex shader not available. '
+        'Custom shaders must be loaded before using line rendering.',
+      );
     }
 
-    try {
-      // Use custom line vertex shader that handles screen-space expansion
-      final customVertexShader = _shaderLibrary!['LineVertex'];
-      if (customVertexShader != null) {
-        return customVertexShader;
-      } else {
-        AppLogger.warning(
-          'Custom line vertex shader not found in bundle, using UnskinnedVertex default',
-        );
-        return baseShaderLibrary['UnskinnedVertex']!;
-      }
-    } catch (e) {
-      AppLogger.error('Failed to get custom vertex shader: $e');
-      return baseShaderLibrary['UnskinnedVertex']!;
+    final customVertexShader = _shaderLibrary!['LineVertex'];
+    if (customVertexShader == null) {
+      throw Exception(
+        'LineVertex shader not found in shader bundle. '
+        'Check that ghsender.shaderbundle.json contains "LineVertex" entry.',
+      );
     }
+
+    return customVertexShader;
   }
 
   // Using standard UnskinnedGeometry binding - no custom binding needed
