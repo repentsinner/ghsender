@@ -5,6 +5,7 @@ import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:vector_math/vector_math.dart' as vm;
 import '../utils/logger.dart';
 import 'billboard_geometry.dart';
+import 'transparent_material.dart';
 
 /// Factory for creating textures from Flutter text rendering
 /// Converts TextPainter output to flutter_scene textures for 3D billboard text
@@ -149,16 +150,9 @@ class TextTextureResult {
   });
 }
 
-/// Custom UnlitMaterial with linear texture filtering for smooth text rendering
-class BillboardMaterial extends UnlitMaterial {
+/// Custom TransparentMaterial with linear texture filtering for smooth text rendering
+class BillboardMaterial extends TransparentMaterial {
   BillboardMaterial({super.colorTexture});
-  
-  @override
-  bool isOpaque() {
-    // Enable alpha blending for transparent/semi-transparent billboards
-    // Check both the baseColorFactor alpha and assume textures may have alpha
-    return false; // Always use alpha blending for text billboards
-  }
   
   @override
   void bind(
@@ -166,10 +160,10 @@ class BillboardMaterial extends UnlitMaterial {
     gpu.HostBuffer transientsBuffer,
     Environment environment,
   ) {
-    // Call parent bind first for standard setup
+    // Call parent bind first for blend mode setup and standard material setup
     super.bind(pass, transientsBuffer, environment);
     
-    // Re-bind texture with linear filtering for smooth interpolation
+    // Re-bind texture with linear filtering for smooth text interpolation
     pass.bindTexture(
       fragmentShader.getUniformSlot('base_color_texture'),
       baseColorTexture,
