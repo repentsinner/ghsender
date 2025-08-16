@@ -73,18 +73,27 @@ install_flutter() {
     local os=$(uname -s | tr '[:upper:]' '[:lower:]')
     local flutter_url
     
-    case "$os-$arch" in
-        "darwin-arm64")
-            flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_${FLUTTER_VERSION}-stable.zip"
+    # Handle Windows Git Bash
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            # Windows - use the Windows Flutter SDK
+            flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_${FLUTTER_VERSION}-stable.zip"
             ;;
-        "darwin-x86_64")
-            flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_${FLUTTER_VERSION}-stable.zip"
+        Darwin)
+            case "$arch" in
+                arm64)
+                    flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_arm64_${FLUTTER_VERSION}-stable.zip"
+                    ;;
+                x86_64)
+                    flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/stable/macos/flutter_macos_${FLUTTER_VERSION}-stable.zip"
+                    ;;
+            esac
             ;;
-        "linux-x86_64")
+        Linux)
             flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
             ;;
         *)
-            print_error "Unsupported platform: $os-$arch"
+            print_error "Unsupported platform: $(uname -s)-$arch"
             exit 1
             ;;
     esac
@@ -138,8 +147,17 @@ install_cmake() {
     
     local cmake_dir="$TOOLCHAIN_DIR/cmake"
     
-    if [[ -d "$cmake_dir" && -x "$cmake_dir/CMake.app/Contents/bin/cmake" ]]; then
-        local current_version=$("$cmake_dir/CMake.app/Contents/bin/cmake" --version | head -n1 | awk '{print $3}')
+    local cmake_exe
+    if [[ -x "$cmake_dir/bin/cmake.exe" ]]; then
+        cmake_exe="$cmake_dir/bin/cmake.exe"
+    elif [[ -x "$cmake_dir/bin/cmake" ]]; then
+        cmake_exe="$cmake_dir/bin/cmake"
+    elif [[ -x "$cmake_dir/CMake.app/Contents/bin/cmake" ]]; then
+        cmake_exe="$cmake_dir/CMake.app/Contents/bin/cmake"
+    fi
+    
+    if [[ -d "$cmake_dir" && -n "$cmake_exe" ]]; then
+        local current_version=$("$cmake_exe" --version | head -n1 | awk '{print $3}')
         if [[ "$current_version" == "$CMAKE_VERSION" ]]; then
             print_status "CMake $CMAKE_VERSION already installed"
             return 0
@@ -157,15 +175,20 @@ install_cmake() {
     local os=$(uname -s | tr '[:upper:]' '[:lower:]')
     local cmake_url
     
-    case "$os-$arch" in
-        "darwin-"*) # Both x86_64 and arm64 use universal binary
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            # Windows - use the Windows CMake installer (zip version)
+            cmake_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-windows-x86_64.zip"
+            ;;
+        Darwin)
+            # macOS - Both x86_64 and arm64 use universal binary
             cmake_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-macos-universal.tar.gz"
             ;;
-        "linux-x86_64")
+        Linux)
             cmake_url="https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz"
             ;;
         *)
-            print_error "Unsupported platform for CMake: $os-$arch"
+            print_error "Unsupported platform for CMake: $(uname -s)-$arch"
             exit 1
             ;;
     esac
@@ -185,17 +208,36 @@ install_cmake() {
     # Extract CMake
     print_status "Extracting CMake to $cmake_dir..."
     
-    if ! tar -xzf "$temp_dir/$filename" -C "$temp_dir"; then
-        print_error "Failed to extract CMake"
-        rm -rf "$temp_dir"
-        exit 1
-    fi
+    case "$filename" in
+        *.zip)
+            if ! unzip -q "$temp_dir/$filename" -d "$temp_dir"; then
+                print_error "Failed to extract CMake zip"
+                rm -rf "$temp_dir"
+                exit 1
+            fi
+            ;;
+        *.tar.gz)
+            if ! tar -xzf "$temp_dir/$filename" -C "$temp_dir"; then
+                print_error "Failed to extract CMake"
+                rm -rf "$temp_dir"
+                exit 1
+            fi
+            ;;
+    esac
     
     # Move CMake to toolchain directory
-    local extracted_dir="$temp_dir/cmake-${CMAKE_VERSION}-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
-    if [[ "$os" == "darwin" ]]; then
-        extracted_dir="$temp_dir/cmake-${CMAKE_VERSION}-macos-universal"
-    fi
+    local extracted_dir
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            extracted_dir="$temp_dir/cmake-${CMAKE_VERSION}-windows-x86_64"
+            ;;
+        Darwin)
+            extracted_dir="$temp_dir/cmake-${CMAKE_VERSION}-macos-universal"
+            ;;
+        Linux)
+            extracted_dir="$temp_dir/cmake-${CMAKE_VERSION}-linux-x86_64"
+            ;;
+    esac
     
     if [[ -d "$extracted_dir" ]]; then
         mv "$extracted_dir" "$cmake_dir"
@@ -211,7 +253,7 @@ install_cmake() {
     rm -rf "$temp_dir"
     
     # Verify installation
-    if [[ -x "$cmake_dir/CMake.app/Contents/bin/cmake" ]] || [[ -x "$cmake_dir/bin/cmake" ]]; then
+    if [[ -x "$cmake_dir/CMake.app/Contents/bin/cmake" ]] || [[ -x "$cmake_dir/bin/cmake" ]] || [[ -x "$cmake_dir/bin/cmake.exe" ]]; then
         print_status "CMake $CMAKE_VERSION installed successfully"
     else
         print_error "CMake installation failed - binary not found"
@@ -250,7 +292,7 @@ if [[ -d "$CMAKE_HOME/CMake.app/Contents/bin" ]]; then
     # macOS CMake app bundle
     export PATH="$CMAKE_HOME/CMake.app/Contents/bin:$PATH"
 elif [[ -d "$CMAKE_HOME/bin" ]]; then
-    # Linux CMake binary
+    # Linux/Windows CMake binary
     export PATH="$CMAKE_HOME/bin:$PATH"
 fi
 
@@ -324,11 +366,98 @@ EOF
     fi
 }
 
+# Create convenience activation script in tools/
+create_tools_activation_script() {
+    print_step "Creating tools/activate-env.sh convenience script..."
+    
+    local tools_script="$PROJECT_ROOT/tools/activate-env.sh"
+    
+    cat > "$tools_script" << 'EOF'
+#!/bin/bash
+# Convenience script to activate local toolchain
+# Usage: source ./tools/activate-env.sh
+
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    echo "Error: This script must be sourced, not executed directly"
+    echo "Usage: source ./tools/activate-env.sh"
+    exit 1
+fi
+
+# Get project root and source the main activation script
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ACTIVATION_SCRIPT="$PROJECT_ROOT/toolchain/scripts/activate-env.sh"
+
+if [[ -f "$ACTIVATION_SCRIPT" ]]; then
+    source "$ACTIVATION_SCRIPT"
+else
+    echo "Error: Activation script not found at $ACTIVATION_SCRIPT"
+    echo "Run ./tools/setup-toolchain.sh first"
+fi
+EOF
+    
+    chmod +x "$tools_script"
+    print_status "Created convenience script: $tools_script"
+}
+
+# Create VS Code configuration
+create_vscode_config() {
+    print_step "Creating VS Code configuration for local toolchain..."
+    
+    local vscode_dir="$PROJECT_ROOT/.vscode"
+    if [[ ! -d "$vscode_dir" ]]; then
+        mkdir -p "$vscode_dir"
+    fi
+    
+    local settings_file="$vscode_dir/settings.json"
+    
+    if [[ ! -f "$settings_file" ]]; then
+        cat > "$settings_file" << 'EOF'
+{
+    "dart.flutterSdkPath": "./toolchain/flutter",
+    "dart.sdkPath": "./toolchain/flutter/bin/cache/dart-sdk",
+    "dart.debugExternalPackageLibraries": false,
+    "dart.debugSdkLibraries": false,
+    "flutter.hotReloadOnSave": true,
+    "flutter.hotRestartOnSave": false,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": true
+    },
+    "files.associations": {
+        "*.arb": "json"
+    },
+    "terminal.integrated.env.windows": {
+        "PATH": "${workspaceFolder}/toolchain/flutter/bin;${env:PATH}",
+        "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub",
+        "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter"
+    },
+    "terminal.integrated.env.linux": {
+        "PATH": "${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
+        "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub",
+        "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter"
+    },
+    "terminal.integrated.env.osx": {
+        "PATH": "${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
+        "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub",
+        "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter"
+    }
+}
+EOF
+        print_status "Created VS Code settings.json"
+    else
+        print_status "VS Code settings.json already exists"
+    fi
+}
+
 # Run Flutter doctor to check system dependencies
 # Install git hooks for code quality
 setup_git_hooks() {
     print_step "Setting up git hooks..."
-    "$SCRIPT_DIR/setup-git-hooks.sh"
+    if [[ -f "$SCRIPT_DIR/setup-git-hooks.sh" ]]; then
+        "$SCRIPT_DIR/setup-git-hooks.sh"
+    else
+        print_warning "Git hooks setup script not found, skipping..."
+    fi
 }
 
 check_system_dependencies() {

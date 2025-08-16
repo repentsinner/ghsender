@@ -71,6 +71,14 @@ is_linux() {
     [[ "$(uname -s)" == "Linux" ]]
 }
 
+# Check if we're on Windows (Git Bash/MSYS/MinGW)
+is_windows() {
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # Get architecture
 get_arch() {
     uname -m
