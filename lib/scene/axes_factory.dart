@@ -7,9 +7,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart' as vm;
+import '../ui/themes/visualizer_theme.dart';
 import 'scene_manager.dart';
 
-/// Color mode for coordinate axes rendering
+/// Color mode for coordinate axes rendering (extends theme enum)
 enum AxesColorMode {
   /// Full color: X=red, Y=green, Z=blue (standard CNC colors)
   fullColor,
@@ -52,27 +53,29 @@ class AxesConfiguration {
 
 class AxesFactory {
   /// Create coordinate axes at world origin (machine origin)
-  /// Uses standard CNC colors: X=red, Y=green, Z=blue
+  /// Uses theme-based colors or specified color mode
   static List<SceneObject> createWorldAxes({
-    double length = 50.0,
+    double? length,
     bool showLabels = true,
     TextStyle? labelStyle,
     AxesColorMode colorMode = AxesColorMode.fullColor,
+    VisualizerThemeData? theme,
   }) {
+    // Use theme values or defaults
+    final themeData = theme ?? VisualizerTheme.createTheme(VisualizerThemeVariant.classic);
+    final axisLength = length ?? VisualizerTheme.axisLength;
     final config = AxesConfiguration(
       origin: vm.Vector3.zero(),
-      length: length,
+      length: axisLength,
       showLabels: showLabels,
-      labelStyle: labelStyle ?? const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Colors.white,
-      ),
+      labelStyle: labelStyle ?? VisualizerTheme.axisLabelStyle,
       colorMode: colorMode,
       idPrefix: 'world_axis',
+      labelOffset: VisualizerTheme.axisLabelOffset,
+      labelSize: VisualizerTheme.axisLabelSize,
     );
 
-    return createCustomAxes(config);
+    return createCustomAxes(config, theme: themeData);
   }
 
   /// Create coordinate axes at workpiece origin
@@ -83,29 +86,33 @@ class AxesFactory {
     bool showLabels = true,
     TextStyle? labelStyle,
     AxesColorMode colorMode = AxesColorMode.grayscale,
+    VisualizerThemeData? theme,
   }) {
+    final themeData = theme ?? VisualizerTheme.createTheme(VisualizerThemeVariant.classic);
     final config = AxesConfiguration(
       origin: workpieceOrigin,
       length: length,
       showLabels: showLabels,
-      labelStyle: labelStyle ?? const TextStyle(
+      labelStyle: labelStyle ?? VisualizerTheme.axisLabelStyle.copyWith(
         fontSize: 16,
         fontWeight: FontWeight.normal,
         color: Colors.white70,
       ),
       colorMode: colorMode,
       idPrefix: 'workpiece_axis',
+      labelOffset: VisualizerTheme.axisLabelOffset,
+      labelSize: VisualizerTheme.axisLabelSize,
     );
 
-    return createCustomAxes(config);
+    return createCustomAxes(config, theme: themeData);
   }
 
   /// Create fully customized coordinate axes
-  static List<SceneObject> createCustomAxes(AxesConfiguration config) {
+  static List<SceneObject> createCustomAxes(AxesConfiguration config, {VisualizerThemeData? theme}) {
     final axes = <SceneObject>[];
 
-    // Get colors for each axis based on color mode
-    final colors = _getAxisColors(config.colorMode, config.customColors);
+    // Get colors for each axis based on color mode and theme
+    final colors = _getAxisColors(config.colorMode, config.customColors, theme);
 
     // Create X-axis (positive X moves tool to the right of operator)
     axes.add(
@@ -190,25 +197,24 @@ class AxesFactory {
     ];
   }
 
-  /// Get colors for axes based on color mode
+  /// Get colors for axes based on color mode and theme
   static Map<String, Color> _getAxisColors(
     AxesColorMode colorMode,
     Map<String, Color>? customColors,
+    VisualizerThemeData? theme,
   ) {
+    final themeData = theme ?? VisualizerTheme.createTheme(VisualizerThemeVariant.classic);
+    
     switch (colorMode) {
       case AxesColorMode.fullColor:
         return {
-          'x': Colors.red,     // Standard CNC X-axis color
-          'y': Colors.green,   // Standard CNC Y-axis color  
-          'z': Colors.blue,    // Standard CNC Z-axis color
+          'x': themeData.xAxisColor,
+          'y': themeData.yAxisColor,
+          'z': themeData.zAxisColor,
         };
 
       case AxesColorMode.grayscale:
-        return {
-          'x': Colors.grey[400]!,  // Light gray for X
-          'y': Colors.grey[600]!,  // Medium gray for Y
-          'z': Colors.grey[800]!,  // Dark gray for Z
-        };
+        return VisualizerTheme.getAxisColors(AxisColorMode.grayscale);
 
       case AxesColorMode.custom:
         if (customColors == null || 

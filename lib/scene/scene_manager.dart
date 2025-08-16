@@ -7,6 +7,7 @@ import 'package:vector_math/vector_math.dart' as vm;
 import '../gcode/gcode_parser.dart';
 import '../gcode/gcode_scene.dart';
 import '../gcode/gcode_processor.dart';
+import '../ui/themes/visualizer_theme.dart';
 import 'filled_square_factory.dart';
 import 'axes_factory.dart';
 
@@ -211,26 +212,27 @@ class SceneManager {
       final size = gcodePath.maxBounds - gcodePath.minBounds;
       final maxDimension = math.max(math.max(size.x, size.y), size.z);
 
-      // Work area boundary - semi-transparent blue square in XY plane
+      // Work area boundary - semi-transparent square in XY plane (themed)
+      final theme = VisualizerTheme.createTheme(VisualizerThemeVariant.classic);
       squares.add(
         FilledSquareFactory.createWorkAreaBoundary(
           width: maxDimension * 1.2,
           height: maxDimension * 1.2,
           center: vm.Vector3(center.x, center.y, gcodePath.minBounds.z - 0.1),
-          fillColor: Colors.blue,
-          opacity: 0.15,
-          edgeWidth: 1.5,
+          fillColor: theme.workAreaFillColor,
+          opacity: theme.workAreaOpacity,
+          edgeWidth: VisualizerTheme.workAreaEdgeWidth,
           id: 'work_area_boundary',
         ),
       );
 
-      // Tool path boundary - subtle yellow outline
+      // Tool path boundary - themed outline
       squares.add(
         FilledSquareFactory.createToolPathBoundary(
           center: center,
           size: maxDimension * 1.05,
           plane: SquarePlane.xy,
-          color: Colors.yellow,
+          color: VisualizerTheme.toolPathBoundaryColor,
           id: 'toolpath_boundary',
         ),
       );
@@ -241,12 +243,12 @@ class SceneManager {
           origin: vm.Vector3(0, 0, 0),
           size: maxDimension * 0.05,
           plane: SquarePlane.xy,
-          color: Colors.green,
+          color: VisualizerTheme.originIndicatorColor,
           id: 'origin_indicator',
         ),
       );
 
-      // Safety zone example (if there's space)
+      // Safety zone example (if there's space) - themed
       if (maxDimension > 10) {
         squares.add(
           FilledSquareFactory.createSafetyZone(
@@ -282,9 +284,9 @@ class SceneManager {
     // Cube center is at (-15, -15, -15) since it extends from 0 to -30 in each axis
     final cubeCenter = vm.Vector3(-halfSize, -halfSize, -halfSize);
     
-    // Semi-transparent cube with distinct colors for each face pair
-    const double opacity = 0.3;
-    const double edgeWidth = 1.0;
+    // Semi-transparent cube with distinct themed colors for each face pair
+    const double opacity = VisualizerTheme.cubeOpacity;
+    const double edgeWidth = VisualizerTheme.cubeEdgeWidth;
 
     // XY plane faces (top and bottom)
     cubeSquares.addAll([
@@ -294,11 +296,11 @@ class SceneManager {
         center: vm.Vector3(cubeCenter.x, cubeCenter.y, 0.0),
         size: cubeSize,
         plane: SquarePlane.xy,
-        fillColor: Colors.red,
-        edgeColor: Colors.red.withValues(alpha: 0.8),
+        fillColor: VisualizerTheme.cubeXYFaceColor,
+        edgeColor: VisualizerTheme.cubeXYFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
-        color: Colors.red,
+        color: VisualizerTheme.cubeXYFaceColor,
         id: 'cube_face_top_xy',
       ),
       // Bottom face (Z = -30)
@@ -307,11 +309,11 @@ class SceneManager {
         center: vm.Vector3(cubeCenter.x, cubeCenter.y, -cubeSize),
         size: cubeSize,
         plane: SquarePlane.xy,
-        fillColor: Colors.red.withValues(alpha: 0.5),
-        edgeColor: Colors.red.withValues(alpha: 0.8),
+        fillColor: VisualizerTheme.cubeXYFaceColor.withValues(alpha: 0.5),
+        edgeColor: VisualizerTheme.cubeXYFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
-        color: Colors.red,
+        color: VisualizerTheme.cubeXYFaceColor,
         id: 'cube_face_bottom_xy',
       ),
     ]);
@@ -324,11 +326,11 @@ class SceneManager {
         center: vm.Vector3(cubeCenter.x, 0.0, cubeCenter.z),
         size: cubeSize,
         plane: SquarePlane.xz,
-        fillColor: Colors.green,
-        edgeColor: Colors.green.withValues(alpha: 0.8),
+        fillColor: VisualizerTheme.cubeXZFaceColor,
+        edgeColor: VisualizerTheme.cubeXZFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
-        color: Colors.green,
+        color: VisualizerTheme.cubeXZFaceColor,
         id: 'cube_face_front_xz',
       ),
       // Back face (Y = -30)
@@ -337,11 +339,11 @@ class SceneManager {
         center: vm.Vector3(cubeCenter.x, -cubeSize, cubeCenter.z),
         size: cubeSize,
         plane: SquarePlane.xz,
-        fillColor: Colors.green.withValues(alpha: 0.5),
-        edgeColor: Colors.green.withValues(alpha: 0.8),
+        fillColor: VisualizerTheme.cubeXZFaceColor.withValues(alpha: 0.5),
+        edgeColor: VisualizerTheme.cubeXZFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
-        color: Colors.green,
+        color: VisualizerTheme.cubeXZFaceColor,
         id: 'cube_face_back_xz',
       ),
     ]);
@@ -354,11 +356,11 @@ class SceneManager {
         center: vm.Vector3(0.0, cubeCenter.y, cubeCenter.z),
         size: cubeSize,
         plane: SquarePlane.yz,
-        fillColor: Colors.blue,
-        edgeColor: Colors.blue.withValues(alpha: 0.8),
+        fillColor: VisualizerTheme.cubeYZFaceColor,
+        edgeColor: VisualizerTheme.cubeYZFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
-        color: Colors.blue,
+        color: VisualizerTheme.cubeYZFaceColor,
         id: 'cube_face_right_yz',
       ),
       // Left face (X = -30)
@@ -367,11 +369,11 @@ class SceneManager {
         center: vm.Vector3(-cubeSize, cubeCenter.y, cubeCenter.z),
         size: cubeSize,
         plane: SquarePlane.yz,
-        fillColor: Colors.blue.withValues(alpha: 0.5),
-        edgeColor: Colors.blue.withValues(alpha: 0.8),
+        fillColor: VisualizerTheme.cubeYZFaceColor.withValues(alpha: 0.5),
+        edgeColor: VisualizerTheme.cubeYZFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
-        color: Colors.blue,
+        color: VisualizerTheme.cubeYZFaceColor,
         id: 'cube_face_left_yz',
       ),
     ]);

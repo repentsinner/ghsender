@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../utils/logger.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import '../scene/scene_manager.dart';
+import '../ui/themes/visualizer_theme.dart';
 import 'gcode_parser.dart';
 
 /// Types of G-code path segments for rendering
@@ -37,8 +38,16 @@ class GCodeSegment {
 
 /// Converts G-code path to scene objects for rendering
 class GCodeSceneGenerator {
-  static const double _cuttingThickness = 1.0; // Thickness for cutting moves (increased for visibility)
-  static const double _rapidThickness = 0.5;   // Thickness for rapid moves (increased for visibility)
+  /// Current theme for visualization colors and settings
+  static VisualizerThemeData _currentTheme = VisualizerTheme.createTheme(VisualizerThemeVariant.classic);
+  
+  /// Set the theme for G-code visualization
+  static void setTheme(VisualizerThemeData theme) {
+    _currentTheme = theme;
+  }
+  
+  /// Get current theme
+  static VisualizerThemeData get currentTheme => _currentTheme;
   
   /// Convert G-code path to scene objects with timing and state information
   static List<SceneObject> generateSceneObjects(GCodePath gcodePath) {
@@ -127,24 +136,24 @@ class GCodeSceneGenerator {
     
     switch (command.type) {
       case GCodeCommandType.rapidMove:
-        segmentColor = Colors.blue;
+        segmentColor = _currentTheme.rapidMoveColor;
         segmentType = GCodeSegmentType.rapidMove;
-        thickness = _rapidThickness;
+        thickness = _currentTheme.rapidMoveThickness;
         break;
       case GCodeCommandType.linearMove:
-        segmentColor = Colors.green;
+        segmentColor = _currentTheme.linearMoveColor;
         segmentType = GCodeSegmentType.line;
-        thickness = _cuttingThickness;
+        thickness = _currentTheme.cuttingMoveThickness;
         break;
       case GCodeCommandType.clockwiseArc:
-        segmentColor = Colors.red;
+        segmentColor = _currentTheme.clockwiseArcColor;
         segmentType = GCodeSegmentType.arc;
-        thickness = _cuttingThickness;
+        thickness = _currentTheme.cuttingMoveThickness;
         break;
       case GCodeCommandType.counterClockwiseArc:
-        segmentColor = Colors.orange;
+        segmentColor = _currentTheme.counterClockwiseArcColor;
         segmentType = GCodeSegmentType.arc;
-        thickness = _cuttingThickness;
+        thickness = _currentTheme.cuttingMoveThickness;
         break;
     }
     
