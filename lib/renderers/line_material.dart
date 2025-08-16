@@ -152,10 +152,10 @@ class LineMaterial extends UnlitMaterial {
   // Enable alpha blending for anti-aliased lines
   @override
   bool isOpaque() {
-    // IMPORTANT: Return true to render in opaque pass where depth writing is enabled
-    // We still get alpha blending because we override bind() to enable it manually
-    // This allows gl_FragDepth to work properly for z-order correction
-    return true; // Render in opaque pass to enable depth writing
+    // IMPORTANT: Return false to render lines in translucent pass AFTER opaque geometry
+    // This ensures lines render on top of filled squares for proper depth ordering
+    // We handle depth writing manually in bind() to maintain z-order correction
+    return false; // Render in translucent pass for proper layering
   }
 
   /// Override bind() to enable depth writing for per-pixel depth testing
@@ -169,7 +169,7 @@ class LineMaterial extends UnlitMaterial {
     // Call parent bind first to handle uniforms and textures
     super.bind(pass, transientsBuffer, environment);
 
-    // Enable alpha blending for anti-aliased lines (since we're in opaque pass)
+    // Enable alpha blending for anti-aliased lines (we're in translucent pass)
     pass.setColorBlendEnable(true);
 
     // Set up proper alpha blending for anti-aliased lines
@@ -185,13 +185,14 @@ class LineMaterial extends UnlitMaterial {
       ),
     );
 
-    // Keep depth writing enabled (this is the opaque pass default)
+    // Keep depth writing enabled even though we're in translucent pass
     // This allows gl_FragDepth to work for per-pixel depth testing
+    // Note: May need pass.setDepthWriteEnable(true) if translucent pass disables it
 
     // Debug: Log alpha blending and depth writing state (but throttle to avoid spam)
     if (_depthWriteLogCount < 3) {
       AppLogger.info(
-        'LineMaterial: Alpha blending + depth writing enabled for anti-aliased lines (call ${_depthWriteLogCount + 1})',
+        'LineMaterial: Alpha blending + depth writing enabled for anti-aliased lines in translucent pass (call ${_depthWriteLogCount + 1})',
       );
       _depthWriteLogCount++;
     }

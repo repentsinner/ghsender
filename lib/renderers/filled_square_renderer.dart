@@ -27,11 +27,12 @@ class FilledSquareResult {
     required this.id,
   });
 
-  /// Get both meshes as scene nodes
+  /// Get both meshes as scene nodes with proper rendering order
+  /// Returns fill first, then edges (edges render after fills for proper depth ordering)
   List<Node> toNodes() {
     final fillNode = Node()..mesh = fillMesh;
     final edgeNode = Node()..mesh = edgeMesh;
-    return [fillNode, edgeNode];
+    return [fillNode, edgeNode]; // Fill renders first, edges render on top
   }
 }
 
