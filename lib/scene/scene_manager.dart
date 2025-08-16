@@ -99,10 +99,13 @@ class SceneManager {
       // Add example filled squares for testing
       final filledSquares = _createExampleFilledSquares(gcodePath);
 
+      // Add example cube for demonstration
+      final cubeSquares = _createExampleCube();
+
       // Add axis labels for better visualization
       final axisLabels = _createAxisLabels();
 
-      final allObjects = [...gcodeObjects, ...worldAxes, ...filledSquares, ...axisLabels];
+      final allObjects = [...gcodeObjects, ...worldAxes, ...filledSquares, ...cubeSquares, ...axisLabels];
 
       // Create camera configuration based on G-code content
       final cameraConfig = _createCameraConfiguration(gcodePath);
@@ -151,6 +154,9 @@ class SceneManager {
     // Create scene with just world origin axes
     final worldAxes = _createWorldOriginAxes();
     
+    // Add example cube for demonstration
+    final cubeSquares = _createExampleCube();
+    
     // Add axis labels for empty scene too
     final axisLabels = _createAxisLabels();
 
@@ -172,7 +178,7 @@ class SceneManager {
     );
 
     _sceneData = SceneData(
-      objects: [...worldAxes, ...axisLabels],
+      objects: [...worldAxes, ...cubeSquares, ...axisLabels],
       camera: cameraConfig,
       lighting: lightConfig,
     );
@@ -269,6 +275,114 @@ class SceneManager {
     }
 
     return squares;
+  }
+
+  /// Create a 30x30x30 cube from origin to (-30, -30, -30) using filled squares
+  /// Demonstrates how to use FilledSquareRenderer to create 3D geometry
+  List<SceneObject> _createExampleCube() {
+    final cubeSquares = <SceneObject>[];
+    const double cubeSize = 30.0;
+    const double halfSize = cubeSize / 2.0;
+    
+    // Cube center is at (-15, -15, -15) since it extends from 0 to -30 in each axis
+    final cubeCenter = vm.Vector3(-halfSize, -halfSize, -halfSize);
+    
+    // Semi-transparent cube with distinct colors for each face pair
+    const double opacity = 0.3;
+    const double edgeWidth = 1.0;
+
+    // XY plane faces (top and bottom)
+    cubeSquares.addAll([
+      // Top face (Z = 0)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(cubeCenter.x, cubeCenter.y, 0.0),
+        size: cubeSize,
+        plane: SquarePlane.xy,
+        fillColor: Colors.red,
+        edgeColor: Colors.red.withOpacity(0.8),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: Colors.red,
+        id: 'cube_face_top_xy',
+      ),
+      // Bottom face (Z = -30)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(cubeCenter.x, cubeCenter.y, -cubeSize),
+        size: cubeSize,
+        plane: SquarePlane.xy,
+        fillColor: Colors.red.withOpacity(0.5),
+        edgeColor: Colors.red.withOpacity(0.8),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: Colors.red,
+        id: 'cube_face_bottom_xy',
+      ),
+    ]);
+
+    // XZ plane faces (front and back)
+    cubeSquares.addAll([
+      // Front face (Y = 0)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(cubeCenter.x, 0.0, cubeCenter.z),
+        size: cubeSize,
+        plane: SquarePlane.xz,
+        fillColor: Colors.green,
+        edgeColor: Colors.green.withOpacity(0.8),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: Colors.green,
+        id: 'cube_face_front_xz',
+      ),
+      // Back face (Y = -30)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(cubeCenter.x, -cubeSize, cubeCenter.z),
+        size: cubeSize,
+        plane: SquarePlane.xz,
+        fillColor: Colors.green.withOpacity(0.5),
+        edgeColor: Colors.green.withOpacity(0.8),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: Colors.green,
+        id: 'cube_face_back_xz',
+      ),
+    ]);
+
+    // YZ plane faces (left and right)
+    cubeSquares.addAll([
+      // Right face (X = 0)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(0.0, cubeCenter.y, cubeCenter.z),
+        size: cubeSize,
+        plane: SquarePlane.yz,
+        fillColor: Colors.blue,
+        edgeColor: Colors.blue.withOpacity(0.8),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: Colors.blue,
+        id: 'cube_face_right_yz',
+      ),
+      // Left face (X = -30)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(-cubeSize, cubeCenter.y, cubeCenter.z),
+        size: cubeSize,
+        plane: SquarePlane.yz,
+        fillColor: Colors.blue.withOpacity(0.5),
+        edgeColor: Colors.blue.withOpacity(0.8),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: Colors.blue,
+        id: 'cube_face_left_yz',
+      ),
+    ]);
+
+    AppLogger.info('Created cube with 6 faces: ${cubeSquares.length} filled squares from origin to (-30, -30, -30)');
+    return cubeSquares;
   }
 
   /// Create camera configuration optimized for the scene bounds
