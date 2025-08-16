@@ -116,15 +116,15 @@ def generate_text_engraving(f, text, start_x, start_y, char_size, operations_cou
     f.write(f"M3 S{spindle_speed}  ; Start spindle at {spindle_speed} RPM\n")
     f.write("G4 P2.0  ; Wait 2 seconds for spindle to reach speed\n")
     
-    # Simple character patterns (flipped Y coordinates to read correctly from top)
+    # Simple character patterns (right-handed coordinate system with Y increasing upward)
     char_patterns = {
-        'g': [(0.4,0.4), (0.4,0.2), (0.2,0.2), (0,0.4), (0,0.6), (0,0.8), (0.2,1), (0.4,1), (0.4,0.8), (0.4,1.2), (0.2,1.2), (0,1.2)],  # lowercase g with descender
-        'h': [(0,1), (0,0), (0,0.5), (0.2,0.5), (0.4,0.5), (0.4,1)],  # lowercase h
-        's': [(0.4,0.2), (0.2,0.2), (0,0.4), (0,0.5), (0.2,0.6), (0.4,0.6), (0.4,0.8), (0.2,1), (0,1)],  # lowercase s
-        'e': [(0,0.6), (0.4,0.6), (0.4,0.4), (0.2,0.2), (0,0.4), (0,0.8), (0.2,1), (0.4,1)],  # lowercase e
-        'n': [(0,1), (0,0.2), (0,0.5), (0.2,0.2), (0.4,0.2), (0.4,1)],  # lowercase n
-        'd': [(0.4,1), (0.4,0), (0.4,0.2), (0.2,0.2), (0,0.4), (0,0.8), (0.2,1), (0.4,1)],  # lowercase d
-        'r': [(0,1), (0,0.2), (0,0.5), (0.2,0.2), (0.4,0.4)]  # lowercase r
+        'g': [(0.4,0.6), (0.4,0.8), (0.2,0.8), (0,0.6), (0,0.4), (0,0.2), (0.2,0), (0.4,0), (0.4,0.2), (0.4,-0.2), (0.2,-0.2), (0,-0.2)],  # lowercase g with descender
+        'h': [(0,0), (0,1), (0,0.5), (0.2,0.5), (0.4,0.5), (0.4,0)],  # lowercase h
+        's': [(0.4,0.8), (0.2,0.8), (0,0.6), (0,0.5), (0.2,0.4), (0.4,0.4), (0.4,0.2), (0.2,0), (0,0)],  # lowercase s
+        'e': [(0,0.4), (0.4,0.4), (0.4,0.6), (0.2,0.8), (0,0.6), (0,0.2), (0.2,0), (0.4,0)],  # lowercase e
+        'n': [(0,0), (0,0.8), (0,0.5), (0.2,0.8), (0.4,0.8), (0.4,0)],  # lowercase n
+        'd': [(0.4,0), (0.4,1), (0.4,0.8), (0.2,0.8), (0,0.6), (0,0.2), (0.2,0), (0.4,0)],  # lowercase d
+        'r': [(0,0), (0,0.8), (0,0.5), (0.2,0.8), (0.4,0.6)]  # lowercase r
     }
     
     op_count = 0
