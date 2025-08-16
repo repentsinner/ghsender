@@ -96,18 +96,26 @@ install_flutter_from_release() {
     local flutter_url
     
     # Determine download URL based on platform
-    case "$os-$arch" in
-        "darwin-arm64")
-            flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/${FLUTTER_CHANNEL}/macos/flutter_macos_arm64_${FLUTTER_VERSION}-${FLUTTER_CHANNEL}.zip"
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*)
+            # Windows - use the Windows Flutter SDK
+            flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/${FLUTTER_CHANNEL}/windows/flutter_windows_${FLUTTER_VERSION}-${FLUTTER_CHANNEL}.zip"
             ;;
-        "darwin-x86_64")
-            flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/${FLUTTER_CHANNEL}/macos/flutter_macos_${FLUTTER_VERSION}-${FLUTTER_CHANNEL}.zip"
+        Darwin)
+            case "$arch" in
+                arm64)
+                    flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/${FLUTTER_CHANNEL}/macos/flutter_macos_arm64_${FLUTTER_VERSION}-${FLUTTER_CHANNEL}.zip"
+                    ;;
+                x86_64)
+                    flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/${FLUTTER_CHANNEL}/macos/flutter_macos_${FLUTTER_VERSION}-${FLUTTER_CHANNEL}.zip"
+                    ;;
+            esac
             ;;
-        "linux-x86_64")
+        Linux)
             flutter_url="https://storage.googleapis.com/flutter_infra_release/releases/${FLUTTER_CHANNEL}/linux/flutter_linux_${FLUTTER_VERSION}-${FLUTTER_CHANNEL}.tar.xz"
             ;;
         *)
-            print_error "Unsupported platform: $os-$arch"
+            print_error "Unsupported platform: $(uname -s)-$arch"
             exit 1
             ;;
     esac

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Activate local toolchain environment
+# Convenience script to activate local toolchain
 # Usage: source ./tools/activate-env.sh
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
