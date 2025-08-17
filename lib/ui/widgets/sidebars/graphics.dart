@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
@@ -89,9 +88,7 @@ class GraphicsSection extends StatelessWidget {
         ),
         label: Text(
           isAutoMode ? 'Switch to Manual' : 'Switch to Auto',
-          style: GoogleFonts.inconsolata(
-            fontWeight: FontWeight.w500,
-          ),
+          style: VSCodeTheme.buttonText,
         ),
         style: ElevatedButton.styleFrom(
           backgroundColor: isAutoMode ? VSCodeTheme.warning : VSCodeTheme.success,

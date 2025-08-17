@@ -7,7 +7,7 @@ import 'utils/logger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Initialize logging system
   AppLogger.initialize();
 
@@ -57,7 +57,32 @@ class _MyAppState extends State<MyApp> {
       ],
       child: MaterialApp(
         title: 'ghsender',
-        theme: ThemeData(primarySwatch: Colors.blue),
+        theme: ThemeData(
+          useMaterial3: true,
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.grey,
+            brightness: Brightness.dark,
+          ).copyWith(
+            primary: Colors.white,
+            onPrimary: Colors.black,
+          ),
+          textTheme: GoogleFonts.inconsolataTextTheme(),
+          elevatedButtonTheme: ElevatedButtonThemeData(
+            style: ElevatedButton.styleFrom(
+              textStyle: GoogleFonts.inconsolata().copyWith(inherit: false),
+            ),
+          ),
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              textStyle: GoogleFonts.inconsolata().copyWith(inherit: false),
+            ),
+          ),
+          textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(
+              textStyle: GoogleFonts.inconsolata().copyWith(inherit: false),
+            ),
+          ),
+        ),
         home: const AppIntegrationLayer(),
       ),
     );

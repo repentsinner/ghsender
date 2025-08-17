@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
@@ -163,15 +162,12 @@ class PerformanceSection extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: GoogleFonts.inconsolata(
-                    color: VSCodeTheme.secondaryText,
-                    fontSize: 11,
-                  ),
+                  style: VSCodeTheme.captionText,
                 ),
                 const SizedBox(height: 2),
                 Text(
                   value,
-                  style: GoogleFonts.inconsolata(
+                  style: VSCodeTheme.sectionTitle.copyWith(
                     color: color,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -180,10 +176,7 @@ class PerformanceSection extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   status,
-                  style: GoogleFonts.inconsolata(
-                    color: VSCodeTheme.secondaryText,
-                    fontSize: 10,
-                  ),
+                  style: VSCodeTheme.smallText,
                 ),
               ],
             ),
@@ -223,19 +216,14 @@ class PerformanceSection extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: GoogleFonts.inconsolata(
+                  style: VSCodeTheme.labelText.copyWith(
                     color: VSCodeTheme.info,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: GoogleFonts.inconsolata(
-                    color: VSCodeTheme.secondaryText,
-                    fontSize: 10,
-                  ),
+                  style: VSCodeTheme.smallText,
                 ),
               ],
             ),
@@ -259,19 +247,14 @@ class PerformanceSection extends StatelessWidget {
         children: [
           Text(
             title,
-            style: GoogleFonts.inconsolata(
+            style: VSCodeTheme.labelText.copyWith(
               color: VSCodeTheme.accentText,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             content,
-            style: GoogleFonts.inconsolata(
-              color: VSCodeTheme.secondaryText,
-              fontSize: 11,
-            ),
+            style: VSCodeTheme.captionText,
           ),
         ],
       ),

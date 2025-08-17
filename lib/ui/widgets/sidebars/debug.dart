@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
@@ -194,11 +193,7 @@ class DebugSection extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         'Current Status',
-                        style: GoogleFonts.inconsolata(
-                          color: VSCodeTheme.primaryText,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: VSCodeTheme.labelText,
                       ),
                     ],
                   ),
@@ -234,11 +229,7 @@ class DebugSection extends StatelessWidget {
                       const SizedBox(width: 8),
                       Text(
                         'Input States',
-                        style: GoogleFonts.inconsolata(
-                          color: VSCodeTheme.primaryText,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
+                        style: VSCodeTheme.labelText,
                       ),
                     ],
                   ),
@@ -272,11 +263,7 @@ class DebugSection extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           'grblHAL Configuration',
-                          style: GoogleFonts.inconsolata(
-                            color: VSCodeTheme.primaryText,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
+                          style: VSCodeTheme.labelText,
                         ),
                       ],
                     ),
@@ -303,8 +290,7 @@ class DebugSection extends StatelessWidget {
                           Expanded(
                             child: Text(
                               'Input polarity settings require \$ config query to be parsed',
-                              style: GoogleFonts.inconsolata(
-                                fontSize: 11,
+                              style: VSCodeTheme.captionText.copyWith(
                                 color: VSCodeTheme.warning,
                               ),
                             ),
@@ -372,18 +358,13 @@ class DebugSection extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.inconsolata(
-                color: VSCodeTheme.secondaryText,
-                fontSize: 11,
-              ),
+              style: VSCodeTheme.captionText,
             ),
           ),
           Text(
             value,
-            style: GoogleFonts.inconsolata(
+            style: VSCodeTheme.statusText.copyWith(
               color: VSCodeTheme.primaryText,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -430,19 +411,12 @@ class DebugSection extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: GoogleFonts.inconsolata(
-                      color: VSCodeTheme.primaryText,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: VSCodeTheme.labelText,
                   ),
                   const SizedBox(height: 2),
                   Text(
                     description,
-                    style: GoogleFonts.inconsolata(
-                      color: VSCodeTheme.secondaryText,
-                      fontSize: 10,
-                    ),
+                    style: VSCodeTheme.smallText,
                   ),
                 ],
               ),
@@ -485,19 +459,14 @@ class DebugSection extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: GoogleFonts.inconsolata(
-                color: VSCodeTheme.primaryText,
-                fontSize: 12,
-              ),
+              style: VSCodeTheme.labelText,
             ),
           ),
           
           Text(
             status,
-            style: GoogleFonts.inconsolata(
+            style: VSCodeTheme.statusText.copyWith(
               color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -510,7 +479,7 @@ class DebugSection extends StatelessWidget {
       SnackBar(
         content: Text(
           'Feature not yet implemented',
-          style: GoogleFonts.inconsolata(),
+          style: VSCodeTheme.labelText,
         ),
         backgroundColor: VSCodeTheme.warning,
         duration: const Duration(seconds: 2),

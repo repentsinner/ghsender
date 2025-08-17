@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
@@ -94,19 +93,16 @@ class _SettingsSectionState extends State<SettingsSection> {
                   const SizedBox(height: 16),
                   Text(
                     'No Machine Profiles',
-                    style: GoogleFonts.inconsolata(
-                      color: VSCodeTheme.primaryText,
+                    style: VSCodeTheme.sectionTitle.copyWith(
                       fontSize: 18,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Create your first machine profile to get started.\nYou\'ll need the WebSocket address of your CNC controller.',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.inconsolata(
+                    style: VSCodeTheme.sectionTitle.copyWith(
                       color: VSCodeTheme.secondaryText,
-                      fontSize: 14,
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -133,7 +129,7 @@ class _SettingsSectionState extends State<SettingsSection> {
               children: [
                 Text(
                   'Failed to load profiles',
-                  style: GoogleFonts.inconsolata(color: VSCodeTheme.error),
+                  style: VSCodeTheme.labelText.copyWith(color: VSCodeTheme.error),
                 ),
                 ElevatedButton(
                   onPressed: () => context.read<ProfileBloc>().add(
@@ -206,10 +202,8 @@ class _SettingsSectionState extends State<SettingsSection> {
         const SizedBox(width: 8),
         Text(
           title,
-          style: GoogleFonts.inconsolata(
-            color: VSCodeTheme.primaryText,
+          style: VSCodeTheme.sectionTitle.copyWith(
             fontSize: 16,
-            fontWeight: FontWeight.w600,
           ),
         ),
         const Spacer(),
@@ -250,10 +244,7 @@ class _SettingsSectionState extends State<SettingsSection> {
                     ? currentProfile.id 
                     : availableProfiles.first.id,
                 dropdownColor: VSCodeTheme.dropdownBackground,
-                style: GoogleFonts.inconsolata(
-                  color: VSCodeTheme.primaryText,
-                  fontSize: 14,
-                ),
+                style: VSCodeTheme.sectionTitle,
                 items: availableProfiles.map((MachineProfile profile) {
                   return DropdownMenuItem<String>(
                     value: profile.id,
@@ -538,9 +529,7 @@ class _SettingsSectionState extends State<SettingsSection> {
   Widget _buildSubsectionHeader(String title) {
     return Text(
       title,
-      style: GoogleFonts.inconsolata(
-        color: VSCodeTheme.primaryText,
-        fontSize: 12,
+      style: VSCodeTheme.labelText.copyWith(
         fontWeight: FontWeight.w600,
       ),
     );
@@ -557,26 +546,18 @@ class _SettingsSectionState extends State<SettingsSection> {
       children: [
         Text(
           label,
-          style: GoogleFonts.inconsolata(
-            color: VSCodeTheme.primaryText,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
+          style: VSCodeTheme.labelText,
         ),
         const SizedBox(height: 4),
         TextFormField(
           initialValue: value,
           onFieldSubmitted: onChanged,
           onChanged: onChanged,
-          style: GoogleFonts.inconsolata(
-            color: VSCodeTheme.primaryText,
-            fontSize: 14,
-          ),
+          style: VSCodeTheme.sectionTitle,
           decoration: InputDecoration(
             hintText: placeholder,
-            hintStyle: GoogleFonts.inconsolata(
+            hintStyle: VSCodeTheme.sectionTitle.copyWith(
               color: VSCodeTheme.secondaryText,
-              fontSize: 14,
             ),
             border: OutlineInputBorder(
               borderSide: BorderSide(color: VSCodeTheme.border),
@@ -609,11 +590,7 @@ class _SettingsSectionState extends State<SettingsSection> {
       children: [
         Text(
           label,
-          style: GoogleFonts.inconsolata(
-            color: VSCodeTheme.primaryText,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
+          style: VSCodeTheme.labelText,
         ),
         const SizedBox(height: 4),
         TextField(
@@ -628,10 +605,7 @@ class _SettingsSectionState extends State<SettingsSection> {
               onChanged(doubleValue);
             }
           },
-          style: GoogleFonts.inconsolata(
-            color: VSCodeTheme.primaryText,
-            fontSize: 14,
-          ),
+          style: VSCodeTheme.sectionTitle,
           decoration: InputDecoration(
             border: OutlineInputBorder(
               borderSide: BorderSide(color: VSCodeTheme.border),
@@ -663,11 +637,7 @@ class _SettingsSectionState extends State<SettingsSection> {
       children: [
         Text(
           label,
-          style: GoogleFonts.inconsolata(
-            color: VSCodeTheme.primaryText,
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-          ),
+          style: VSCodeTheme.labelText,
         ),
         Switch(
           value: value,
@@ -720,18 +690,12 @@ class _SettingsSectionState extends State<SettingsSection> {
           children: [
             Text(
               label,
-              style: GoogleFonts.inconsolata(
-                color: VSCodeTheme.primaryText,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+              style: VSCodeTheme.labelText,
             ),
             Text(
               formatValue(value),
-              style: GoogleFonts.inconsolata(
+              style: VSCodeTheme.labelText.copyWith(
                 color: VSCodeTheme.accentText,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
               ),
             ),
           ],
@@ -747,10 +711,7 @@ class _SettingsSectionState extends State<SettingsSection> {
         const SizedBox(height: 4),
         Text(
           description,
-          style: GoogleFonts.inconsolata(
-            color: VSCodeTheme.secondaryText,
-            fontSize: 10,
-          ),
+          style: VSCodeTheme.smallText,
         ),
       ],
     );
@@ -767,7 +728,7 @@ class _SettingsSectionState extends State<SettingsSection> {
         backgroundColor: VSCodeTheme.dropdownBackground,
         title: Text(
           'Create New Profile',
-          style: GoogleFonts.inconsolata(color: VSCodeTheme.primaryText),
+          style: VSCodeTheme.sectionTitle,
         ),
         content: SizedBox(
           width: 400,
@@ -780,7 +741,7 @@ class _SettingsSectionState extends State<SettingsSection> {
                   labelText: 'Profile Name',
                   hintText: 'e.g., My CNC Router',
                 ),
-                style: GoogleFonts.inconsolata(color: VSCodeTheme.primaryText),
+                style: VSCodeTheme.sectionTitle,
               ),
               const SizedBox(height: 16),
               TextField(
@@ -789,14 +750,13 @@ class _SettingsSectionState extends State<SettingsSection> {
                   labelText: 'Controller Address',
                   hintText: 'ws://192.168.1.100:80',
                 ),
-                style: GoogleFonts.inconsolata(color: VSCodeTheme.primaryText),
+                style: VSCodeTheme.sectionTitle,
               ),
               const SizedBox(height: 12),
               Text(
                 'Enter the WebSocket address of your CNC controller.\nThis is usually ws://[IP_ADDRESS]:80',
-                style: GoogleFonts.inconsolata(
+                style: VSCodeTheme.labelText.copyWith(
                   color: VSCodeTheme.secondaryText,
-                  fontSize: 12,
                 ),
               ),
             ],
@@ -805,7 +765,7 @@ class _SettingsSectionState extends State<SettingsSection> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel', style: GoogleFonts.inconsolata(color: VSCodeTheme.secondaryText)),
+            child: Text('Cancel', style: VSCodeTheme.labelText.copyWith(color: VSCodeTheme.secondaryText)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -822,7 +782,7 @@ class _SettingsSectionState extends State<SettingsSection> {
               backgroundColor: VSCodeTheme.accent,
               foregroundColor: VSCodeTheme.primaryText,
             ),
-            child: Text('Create', style: GoogleFonts.inconsolata()),
+            child: Text('Create', style: VSCodeTheme.labelText),
           ),
         ],
       ),
@@ -840,11 +800,11 @@ class _SettingsSectionState extends State<SettingsSection> {
         backgroundColor: VSCodeTheme.dropdownBackground,
         title: Text(
           'Copy Profile',
-          style: GoogleFonts.inconsolata(color: VSCodeTheme.primaryText),
+          style: VSCodeTheme.sectionTitle,
         ),
         content: TextField(
           decoration: InputDecoration(hintText: 'Copy of $currentName'),
-          style: GoogleFonts.inconsolata(color: VSCodeTheme.primaryText),
+          style: VSCodeTheme.sectionTitle,
           onSubmitted: (name) {
             if (name.isNotEmpty) {
               context.read<ProfileBloc>().add(ProfileCopied(name));
@@ -855,7 +815,7 @@ class _SettingsSectionState extends State<SettingsSection> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel', style: GoogleFonts.inconsolata(color: VSCodeTheme.secondaryText)),
+            child: Text('Cancel', style: VSCodeTheme.labelText.copyWith(color: VSCodeTheme.secondaryText)),
           ),
         ],
       ),
@@ -869,23 +829,23 @@ class _SettingsSectionState extends State<SettingsSection> {
         backgroundColor: VSCodeTheme.dropdownBackground,
         title: Text(
           'Delete Profile',
-          style: GoogleFonts.inconsolata(color: VSCodeTheme.primaryText),
+          style: VSCodeTheme.sectionTitle,
         ),
         content: Text(
           'Are you sure you want to delete "${profile.name}"?',
-          style: GoogleFonts.inconsolata(color: VSCodeTheme.secondaryText),
+          style: VSCodeTheme.labelText.copyWith(color: VSCodeTheme.secondaryText),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('Cancel', style: GoogleFonts.inconsolata(color: VSCodeTheme.secondaryText)),
+            child: Text('Cancel', style: VSCodeTheme.labelText.copyWith(color: VSCodeTheme.secondaryText)),
           ),
           TextButton(
             onPressed: () {
               context.read<ProfileBloc>().add(ProfileDeleted(profile.id));
               Navigator.of(context).pop();
             },
-            child: Text('Delete', style: GoogleFonts.inconsolata(color: VSCodeTheme.error)),
+            child: Text('Delete', style: VSCodeTheme.labelText.copyWith(color: VSCodeTheme.error)),
           ),
         ],
       ),
@@ -907,14 +867,13 @@ class _SettingsSectionState extends State<SettingsSection> {
         backgroundColor: VSCodeTheme.dropdownBackground,
         title: Text(
           'Machine Settings Help',
-          style: GoogleFonts.inconsolata(color: VSCodeTheme.primaryText),
+          style: VSCodeTheme.sectionTitle,
         ),
         content: Text(
           'Configure machine profiles with WebSocket communication settings, work area dimensions, and safety parameters.\\n\\n'
           'Profile changes are managed through the BLoC state system with automatic persistence.',
-          style: GoogleFonts.inconsolata(
+          style: VSCodeTheme.labelText.copyWith(
             color: VSCodeTheme.secondaryText,
-            fontSize: 12,
           ),
         ),
         actions: [
@@ -922,7 +881,7 @@ class _SettingsSectionState extends State<SettingsSection> {
             onPressed: () => Navigator.of(context).pop(),
             child: Text(
               'Close',
-              style: GoogleFonts.inconsolata(color: VSCodeTheme.accent),
+              style: VSCodeTheme.labelText.copyWith(color: VSCodeTheme.accent),
             ),
           ),
         ],

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../themes/vscode_theme.dart';
+import '../constants/ui_strings.dart';
 import 'vscode_layout.dart';
 
 /// Activity Bar widget - left edge icon bar for navigation
@@ -33,52 +34,61 @@ class _ActivityBarState extends State<ActivityBar> {
               children: [
                 _buildActivityIcon(
                   Icons.power_settings_new,
-                  'Session Initialization',
+                  UIStrings.sessionInitialization,
                   ActivitySection.sessionInitialization,
                 ),
                 _buildActivityIcon(
                   Icons.description,
-                  'Files & Jobs',
+                  UIStrings.filesAndJobs,
                   ActivitySection.filesAndJobs,
                 ),
                 _buildActivityIcon(
+                  Icons.play_arrow,
+                  UIStrings.runJob,
+                  ActivitySection.runJob,
+                ),
+                _buildActivityIcon(
                   Icons.palette,
-                  'Graphics',
+                  UIStrings.graphics,
                   ActivitySection.graphics,
                 ),
                 _buildActivityIcon(
                   Icons.analytics,
-                  'Performance',
+                  UIStrings.performance,
                   ActivitySection.performance,
                 ),
                 _buildActivityIcon(
                   Icons.folder_outlined,
-                  'Scene',
+                  UIStrings.sceneExplorer,
                   ActivitySection.scene,
                 ),
                 _buildActivityIcon(
                   Icons.bug_report,
-                  'Debug',
+                  UIStrings.debug,
                   ActivitySection.debug,
                 ),
               ],
             ),
           ),
-          
+
           // Bottom settings
           _buildActivityIcon(
             Icons.settings,
-            'Settings',
+            UIStrings.settings,
             ActivitySection.settings,
           ),
         ],
       ),
     );
   }
-  
-  Widget _buildActivityIcon(IconData icon, String tooltip, ActivitySection section) {
+
+  Widget _buildActivityIcon(
+    IconData icon,
+    String tooltip,
+    ActivitySection section,
+  ) {
     final isActive = widget.sidebarVisible && widget.activeSection == section;
-    
+
     return Tooltip(
       message: tooltip,
       preferBelow: false,
@@ -88,15 +98,15 @@ class _ActivityBarState extends State<ActivityBar> {
           width: VSCodeTheme.activityBarWidth,
           height: VSCodeTheme.activityBarWidth,
           decoration: BoxDecoration(
-            color: isActive ? VSCodeTheme.selection : null,
-            border: isActive
-                ? const Border(
-                    left: BorderSide(
-                      color: VSCodeTheme.focus,
-                      width: 2,
-                    ),
-                  )
-                : null,
+            //color: isActive ? VSCodeTheme.selection : null,
+            border: Border(
+              left: BorderSide(
+                color: isActive 
+                    ? Theme.of(context).colorScheme.primary 
+                    : Colors.transparent,
+                width: 2,
+              ),
+            ),
           ),
           child: Icon(
             icon,
@@ -107,5 +117,4 @@ class _ActivityBarState extends State<ActivityBar> {
       ),
     );
   }
-  
 }

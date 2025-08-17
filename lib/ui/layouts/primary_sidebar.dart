@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../themes/vscode_theme.dart';
+import '../constants/ui_strings.dart';
 import 'vscode_layout.dart';
 import '../widgets/sidebars/session_initialization.dart';
 import '../widgets/sidebars/files_and_jobs.dart';
+import '../widgets/sidebars/run_job.dart';
 import '../widgets/sidebars/graphics.dart';
 import '../widgets/sidebars/settings.dart';
 import '../widgets/sidebars/performance.dart';
@@ -42,36 +44,31 @@ class PrimarySidebar extends StatelessWidget {
 
   Widget _buildSectionHeader() {
     String title;
-    IconData icon;
 
     switch (activeSection) {
       case ActivitySection.sessionInitialization:
-        title = 'Session Initialization';
-        icon = Icons.power_settings_new;
+        title = UIStrings.sessionInitialization;
         break;
       case ActivitySection.filesAndJobs:
-        title = 'Files & Jobs';
-        icon = Icons.description;
+        title = UIStrings.filesAndJobs;
+        break;
+      case ActivitySection.runJob:
+        title = UIStrings.runJob;
         break;
       case ActivitySection.graphics:
-        title = 'Graphics';
-        icon = Icons.palette;
+        title = UIStrings.graphics;
         break;
       case ActivitySection.settings:
-        title = 'Settings';
-        icon = Icons.settings;
+        title = UIStrings.settings;
         break;
       case ActivitySection.performance:
-        title = 'Performance';
-        icon = Icons.analytics;
+        title = UIStrings.performance;
         break;
       case ActivitySection.scene:
-        title = 'Scene Explorer';
-        icon = Icons.folder_outlined;
+        title = UIStrings.sceneExplorer;
         break;
       case ActivitySection.debug:
-        title = 'Debug';
-        icon = Icons.bug_report;
+        title = UIStrings.debug;
         break;
     }
 
@@ -80,16 +77,7 @@ class PrimarySidebar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          Icon(icon, color: VSCodeTheme.primaryText, size: 16),
-          const SizedBox(width: 8),
-          Text(
-            title,
-            style: const TextStyle(
-              color: VSCodeTheme.primaryText,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
+          Text(title.toUpperCase(), style: VSCodeTheme.sidebarOrPanelHeading),
         ],
       ),
     );
@@ -101,6 +89,8 @@ class PrimarySidebar extends StatelessWidget {
         return const SessionInitializationSection();
       case ActivitySection.filesAndJobs:
         return const FilesAndJobsSection();
+      case ActivitySection.runJob:
+        return const RunJobSection();
       case ActivitySection.graphics:
         return const GraphicsSection();
       case ActivitySection.settings:

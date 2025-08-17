@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -156,6 +155,7 @@ class _SessionInitializationSectionState
                         vertical: 12,
                         horizontal: 16,
                       ),
+                      textStyle: VSCodeTheme.buttonText,
                     ),
                   ),
                 ),
@@ -212,9 +212,7 @@ class _SessionInitializationSectionState
             // Jog Distance Selector
             Text(
               'Jog Distance (mm)',
-              style: GoogleFonts.inconsolata(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+              style: VSCodeTheme.labelText.copyWith(
                 color: VSCodeTheme.secondaryText,
               ),
             ),
@@ -238,9 +236,7 @@ class _SessionInitializationSectionState
             // XY Movement Controls
             Text(
               'XY Movement',
-              style: GoogleFonts.inconsolata(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+              style: VSCodeTheme.labelText.copyWith(
                 color: VSCodeTheme.secondaryText,
               ),
             ),
@@ -277,10 +273,7 @@ class _SessionInitializationSectionState
                         child: Center(
                           child: Text(
                             'XY',
-                            style: GoogleFonts.inconsolata(
-                              fontSize: 10,
-                              color: VSCodeTheme.secondaryText,
-                            ),
+                            style: VSCodeTheme.smallText,
                           ),
                         ),
                       ),
@@ -310,9 +303,7 @@ class _SessionInitializationSectionState
             // Z Movement Controls
             Text(
               'Z Movement',
-              style: GoogleFonts.inconsolata(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+              style: VSCodeTheme.labelText.copyWith(
                 color: VSCodeTheme.secondaryText,
               ),
             ),
@@ -356,9 +347,7 @@ class _SessionInitializationSectionState
           children: [
             Text(
               'Set Current Position as Work Zero',
-              style: GoogleFonts.inconsolata(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+              style: VSCodeTheme.labelText.copyWith(
                 color: VSCodeTheme.secondaryText,
               ),
             ),
@@ -424,18 +413,12 @@ class _SessionInitializationSectionState
                 children: [
                   Text(
                     'Distance (mm)',
-                    style: GoogleFonts.inconsolata(
-                      fontSize: 11,
-                      color: VSCodeTheme.secondaryText,
-                    ),
+                    style: VSCodeTheme.captionText,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _probeDistance.toStringAsFixed(1),
-                    style: GoogleFonts.inconsolata(
-                      fontSize: 14,
-                      color: VSCodeTheme.primaryText,
-                    ),
+                    style: VSCodeTheme.sectionTitle,
                   ),
                 ],
               ),
@@ -447,18 +430,12 @@ class _SessionInitializationSectionState
                 children: [
                   Text(
                     'Feed Rate',
-                    style: GoogleFonts.inconsolata(
-                      fontSize: 11,
-                      color: VSCodeTheme.secondaryText,
-                    ),
+                    style: VSCodeTheme.captionText,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _probeFeedRate.toStringAsFixed(0),
-                    style: GoogleFonts.inconsolata(
-                      fontSize: 14,
-                      color: VSCodeTheme.primaryText,
-                    ),
+                    style: VSCodeTheme.sectionTitle,
                   ),
                 ],
               ),
@@ -514,8 +491,7 @@ class _SessionInitializationSectionState
               Expanded(
                 child: Text(
                   'Ensure probe is connected and positioned above work surface',
-                  style: GoogleFonts.inconsolata(
-                    fontSize: 11,
+                  style: VSCodeTheme.captionText.copyWith(
                     color: VSCodeTheme.warning,
                   ),
                 ),
@@ -544,7 +520,7 @@ class _SessionInitializationSectionState
           distance == distance.toInt()
               ? distance.toInt().toString()
               : distance.toString(),
-          style: GoogleFonts.inconsolata(fontSize: 12),
+          style: VSCodeTheme.labelText,
         ),
       ),
     );

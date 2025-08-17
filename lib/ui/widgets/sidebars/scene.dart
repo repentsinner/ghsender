@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
 
@@ -154,18 +153,11 @@ class SceneSection extends StatelessWidget {
               children: [
                 Text(
                   name,
-                  style: GoogleFonts.inconsolata(
-                    color: VSCodeTheme.primaryText,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: VSCodeTheme.labelText,
                 ),
                 Text(
                   count,
-                  style: GoogleFonts.inconsolata(
-                    color: VSCodeTheme.secondaryText,
-                    fontSize: 10,
-                  ),
+                  style: VSCodeTheme.smallText,
                 ),
               ],
             ),
@@ -205,25 +197,18 @@ class SceneSection extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: GoogleFonts.inconsolata(
-                    color: VSCodeTheme.secondaryText,
-                    fontSize: 10,
-                  ),
+                  style: VSCodeTheme.smallText,
                 ),
                 Text(
                   value,
-                  style: GoogleFonts.inconsolata(
+                  style: VSCodeTheme.labelText.copyWith(
                     color: VSCodeTheme.accentText,
-                    fontSize: 12,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   description,
-                  style: GoogleFonts.inconsolata(
-                    color: VSCodeTheme.secondaryText,
-                    fontSize: 10,
-                  ),
+                  style: VSCodeTheme.smallText,
                 ),
               ],
             ),

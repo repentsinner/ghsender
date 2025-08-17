@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
 import 'package:file_picker/file_picker.dart';
@@ -76,19 +75,12 @@ class FilesAndJobsSection extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             'Upload G-Code Files',
-            style: GoogleFonts.inconsolata(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: VSCodeTheme.primaryText,
-            ),
+            style: VSCodeTheme.sectionTitle,
           ),
           const SizedBox(height: 4),
           Text(
             'Drop files here or click to browse',
-            style: GoogleFonts.inconsolata(
-              fontSize: 11,
-              color: VSCodeTheme.secondaryText,
-            ),
+            style: VSCodeTheme.captionText,
           ),
           const SizedBox(height: 12),
           ElevatedButton.icon(
@@ -99,6 +91,7 @@ class FilesAndJobsSection extends StatelessWidget {
               backgroundColor: VSCodeTheme.focus,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+              textStyle: VSCodeTheme.buttonText,
             ),
           ),
         ],
@@ -156,8 +149,7 @@ class FilesAndJobsSection extends StatelessWidget {
                 Expanded(
                   child: Text(
                     file.name,
-                    style: GoogleFonts.inconsolata(
-                      fontSize: 14,
+                    style: VSCodeTheme.sectionTitle.copyWith(
                       fontWeight: isSelected
                           ? FontWeight.w600
                           : FontWeight.w500,
@@ -188,25 +180,17 @@ class FilesAndJobsSection extends StatelessWidget {
                 const SizedBox(width: 24), // Align with text above
                 Text(
                   file.formattedSize,
-                  style: GoogleFonts.inconsolata(
-                    fontSize: 11,
-                    color: VSCodeTheme.secondaryText,
-                  ),
+                  style: VSCodeTheme.captionText,
                 ),
                 const Text(' • '),
                 Text(
                   file.formattedTime,
-                  style: GoogleFonts.inconsolata(
-                    fontSize: 11,
-                    color: VSCodeTheme.secondaryText,
-                  ),
+                  style: VSCodeTheme.captionText,
                 ),
                 const Text(' • '),
                 Text(
                   file.status,
-                  style: GoogleFonts.inconsolata(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
+                  style: VSCodeTheme.statusText.copyWith(
                     color: statusColor,
                   ),
                 ),
@@ -218,8 +202,7 @@ class FilesAndJobsSection extends StatelessWidget {
                 const SizedBox(width: 24), // Align with text above
                 Text(
                   'Uploaded ${file.formattedDate}',
-                  style: GoogleFonts.inconsolata(
-                    fontSize: 10,
+                  style: VSCodeTheme.smallText.copyWith(
                     color: VSCodeTheme.secondaryText.withValues(alpha: 0.7),
                   ),
                 ),
@@ -245,16 +228,14 @@ class FilesAndJobsSection extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             'No G-Code files uploaded',
-            style: GoogleFonts.inconsolata(
-              fontSize: 14,
+            style: VSCodeTheme.sectionTitle.copyWith(
               color: VSCodeTheme.secondaryText,
             ),
           ),
           const SizedBox(height: 4),
           Text(
             'Upload files to get started',
-            style: GoogleFonts.inconsolata(
-              fontSize: 11,
+            style: VSCodeTheme.captionText.copyWith(
               color: VSCodeTheme.secondaryText.withValues(alpha: 0.7),
             ),
           ),

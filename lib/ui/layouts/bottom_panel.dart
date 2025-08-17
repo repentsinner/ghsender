@@ -40,7 +40,20 @@ class _BottomPanelState extends State<BottomPanel>
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: VSCodeTheme.panelTheme,
+      data: VSCodeTheme.panelTheme.copyWith(
+        tabBarTheme: VSCodeTheme.panelTheme.tabBarTheme.copyWith(
+          indicator: UnderlineTabIndicator(
+            borderSide: BorderSide(
+              color: Theme.of(context).colorScheme.primary,
+              width: 2,
+            ),
+          ),
+          labelStyle: VSCodeTheme.sidebarOrPanelHeading,
+          unselectedLabelStyle: VSCodeTheme.sidebarOrPanelHeading.copyWith(
+            color: VSCodeTheme.secondaryText,
+          ),
+        ),
+      ),
       child: Container(
         color: VSCodeTheme.panelBackground,
         child: Column(
@@ -67,7 +80,7 @@ class _BottomPanelState extends State<BottomPanel>
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text('Problems'),
+                                  Text('Problems'.toUpperCase()),
                                   if (problemsState.hasProblems) ...[
                                     const SizedBox(width: 4),
                                     Container(
@@ -96,8 +109,8 @@ class _BottomPanelState extends State<BottomPanel>
                                 ],
                               ),
                             ),
-                            const Tab(text: 'Console'),
-                            const Tab(text: 'Output'),
+                            Tab(text: 'Console'.toUpperCase()),
+                            Tab(text: 'Output'.toUpperCase()),
                           ],
                         );
                       },
