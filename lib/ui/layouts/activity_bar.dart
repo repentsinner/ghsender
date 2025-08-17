@@ -102,7 +102,7 @@ class _ActivityBarState extends State<ActivityBar> {
             border: Border(
               left: BorderSide(
                 color: isActive 
-                    ? Theme.of(context).colorScheme.primary 
+                    ? Colors.white 
                     : Colors.transparent,
                 width: 2,
               ),

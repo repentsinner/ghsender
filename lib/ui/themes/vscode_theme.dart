@@ -104,7 +104,7 @@ class VSCodeTheme {
   );
 
   /// Panel theme data
-  static ThemeData get panelTheme => ThemeData(
+  static final ThemeData panelTheme = ThemeData(
     scaffoldBackgroundColor: panelBackground,
     tabBarTheme: const TabBarThemeData(
       labelColor: primaryText,
@@ -123,6 +123,19 @@ class VSCodeTheme {
         color: secondaryText,
         fontSize: 11,
         fontFamily: 'Inconsolata',
+      ),
+    ),
+  );
+
+  /// Custom panel theme with white indicator for bottom panel
+  static final ThemeData customPanelTheme = panelTheme.copyWith(
+    tabBarTheme: panelTheme.tabBarTheme.copyWith(
+      indicator: const UnderlineTabIndicator(
+        borderSide: BorderSide(color: Colors.white, width: 1),
+      ),
+      labelStyle: sidebarOrPanelHeading,
+      unselectedLabelStyle: sidebarOrPanelHeading.copyWith(
+        color: secondaryText,
       ),
     ),
   );
@@ -183,54 +196,54 @@ class VSCodeTheme {
   );
 
   /// Comprehensive text styles for consistent UI patterns
-  static TextStyle get sectionTitle => GoogleFonts.inconsolata(
+  static final TextStyle sectionTitle = GoogleFonts.inconsolata(
     color: primaryText,
     fontSize: 14,
     fontWeight: FontWeight.w600,
   );
 
-  static TextStyle get labelText => GoogleFonts.inconsolata(
+  static final TextStyle labelText = GoogleFonts.inconsolata(
     color: primaryText,
     fontSize: 12,
     fontWeight: FontWeight.w500,
   );
 
-  static TextStyle get bodyText => GoogleFonts.inconsolata(
+  static final TextStyle bodyText = GoogleFonts.inconsolata(
     color: primaryText,
     fontSize: 12,
     fontWeight: FontWeight.w400,
   );
 
-  static TextStyle get captionText => GoogleFonts.inconsolata(
+  static final TextStyle captionText = GoogleFonts.inconsolata(
     color: secondaryText,
     fontSize: 11,
     fontWeight: FontWeight.w400,
   );
 
-  static TextStyle get smallText => GoogleFonts.inconsolata(
+  static final TextStyle smallText = GoogleFonts.inconsolata(
     color: secondaryText,
     fontSize: 10,
     fontWeight: FontWeight.w400,
   );
 
-  static TextStyle get buttonText => GoogleFonts.inconsolata(
+  static final TextStyle buttonText = GoogleFonts.inconsolata(
     fontSize: 12,
     fontWeight: FontWeight.w500,
   );
 
-  static TextStyle get statusText => GoogleFonts.inconsolata(
+  static final TextStyle statusText = GoogleFonts.inconsolata(
     fontSize: 11,
     fontWeight: FontWeight.w500,
   );
 
-  static TextStyle get valueText => GoogleFonts.inconsolata(
+  static final TextStyle valueText = GoogleFonts.inconsolata(
     color: primaryText,
     fontSize: 12,
     fontWeight: FontWeight.w600,
   );
 
   /// Sidebar and panel heading text style
-  static TextStyle get sidebarOrPanelHeading => GoogleFonts.inconsolata(
+  static final TextStyle sidebarOrPanelHeading = GoogleFonts.inconsolata(
     color: primaryText,
     fontSize: 13,
     fontWeight: FontWeight.w600,

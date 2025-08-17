@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../themes/vscode_theme.dart';
 import '../widgets/problem_item.dart';
 import '../widgets/log_output_panel.dart';
@@ -40,27 +39,15 @@ class _BottomPanelState extends State<BottomPanel>
   @override
   Widget build(BuildContext context) {
     return Theme(
-      data: VSCodeTheme.panelTheme.copyWith(
-        tabBarTheme: VSCodeTheme.panelTheme.tabBarTheme.copyWith(
-          indicator: UnderlineTabIndicator(
-            borderSide: BorderSide(
-              color: Theme.of(context).colorScheme.primary,
-              width: 2,
-            ),
-          ),
-          labelStyle: VSCodeTheme.sidebarOrPanelHeading,
-          unselectedLabelStyle: VSCodeTheme.sidebarOrPanelHeading.copyWith(
-            color: VSCodeTheme.secondaryText,
-          ),
-        ),
-      ),
+      data: VSCodeTheme.customPanelTheme,
       child: Container(
         color: VSCodeTheme.panelBackground,
         child: Column(
           children: [
             // Panel header with tabs and close button
+            SizedBox(height: 6),
             SizedBox(
-              height: 35,
+              height: 22,
               // decoration: const BoxDecoration(
               //   border: Border(bottom: BorderSide(color: VSCodeTheme.border)),
               // ),
@@ -98,9 +85,8 @@ class _BottomPanelState extends State<BottomPanel>
                                       ),
                                       child: Text(
                                         '${problemsState.totalCount}',
-                                        style: GoogleFonts.inconsolata(
+                                        style: VSCodeTheme.smallText.copyWith(
                                           color: Colors.white,
-                                          fontSize: 10,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
@@ -166,6 +152,7 @@ class _BottomPanelState extends State<BottomPanel>
                 ],
               ),
             ),
+            SizedBox(height: 6),
 
             // Panel content
             Expanded(
@@ -208,13 +195,7 @@ class _BottomPanelState extends State<BottomPanel>
                   ),
                 ] else ...[
                   // No problems message
-                  Text(
-                    'No problems detected',
-                    style: GoogleFonts.inconsolata(
-                      color: VSCodeTheme.secondaryText,
-                      fontSize: 11,
-                    ),
-                  ),
+                  Text('No problems detected', style: VSCodeTheme.captionText),
                 ],
 
                 // Debug info for development
@@ -229,9 +210,8 @@ class _BottomPanelState extends State<BottomPanel>
                     ),
                     child: Text(
                       'Debug: ${problemsState.toString()}',
-                      style: GoogleFonts.inconsolata(
+                      style: VSCodeTheme.smallText.copyWith(
                         color: VSCodeTheme.secondaryText.withValues(alpha: 0.7),
-                        fontSize: 9,
                       ),
                     ),
                   ),
@@ -274,9 +254,8 @@ class _BottomPanelState extends State<BottomPanel>
                   const SizedBox(width: 8),
                   Text(
                     'Communication Console - ${_getConnectionStatus(commState)}',
-                    style: GoogleFonts.inconsolata(
+                    style: VSCodeTheme.captionText.copyWith(
                       color: VSCodeTheme.accentText,
-                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -295,11 +274,7 @@ class _BottomPanelState extends State<BottomPanel>
                   width: double.infinity,
                   child: SelectableText(
                     consoleContent,
-                    style: GoogleFonts.inconsolata(
-                      color: VSCodeTheme.secondaryText,
-                      fontSize: 11,
-                      height: 1.4,
-                    ),
+                    style: VSCodeTheme.captionText.copyWith(height: 1.4),
                   ),
                 ),
               ),
