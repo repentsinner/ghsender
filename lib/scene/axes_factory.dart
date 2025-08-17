@@ -26,6 +26,7 @@ enum AxesColorMode {
 class AxesConfiguration {
   final vm.Vector3 origin;
   final double length;
+  final double lineThickness;
   final bool showLabels;
   final TextStyle labelStyle;
   final AxesColorMode colorMode;
@@ -37,6 +38,7 @@ class AxesConfiguration {
   const AxesConfiguration({
     required this.origin,
     this.length = 50.0,
+    this.lineThickness = 1.5,
     this.showLabels = true,
     this.labelStyle = const TextStyle(
       fontSize: 18,
@@ -56,6 +58,7 @@ class AxesFactory {
   /// Uses theme-based colors or specified color mode
   static List<SceneObject> createWorldAxes({
     double? length,
+    double? lineThickness,
     bool showLabels = true,
     TextStyle? labelStyle,
     AxesColorMode colorMode = AxesColorMode.fullColor,
@@ -64,9 +67,11 @@ class AxesFactory {
     // Use theme values or defaults
     final themeData = theme ?? VisualizerTheme.createTheme(VisualizerThemeVariant.classic);
     final axisLength = length ?? VisualizerTheme.axisLength;
+    final axisThickness = lineThickness ?? themeData.axisLineThickness;
     final config = AxesConfiguration(
       origin: vm.Vector3.zero(),
       length: axisLength,
+      lineThickness: axisThickness,
       showLabels: showLabels,
       labelStyle: labelStyle ?? VisualizerTheme.axisLabelStyle,
       colorMode: colorMode,
@@ -83,15 +88,18 @@ class AxesFactory {
   static List<SceneObject> createWorkpieceAxes({
     required vm.Vector3 workpieceOrigin,
     double length = 30.0,
+    double? lineThickness,
     bool showLabels = true,
     TextStyle? labelStyle,
     AxesColorMode colorMode = AxesColorMode.grayscale,
     VisualizerThemeData? theme,
   }) {
     final themeData = theme ?? VisualizerTheme.createTheme(VisualizerThemeVariant.classic);
+    final axisThickness = lineThickness ?? (themeData.axisLineThickness * 0.8); // Slightly thinner for workpiece axes
     final config = AxesConfiguration(
       origin: workpieceOrigin,
       length: length,
+      lineThickness: axisThickness,
       showLabels: showLabels,
       labelStyle: labelStyle ?? VisualizerTheme.axisLabelStyle.copyWith(
         fontSize: 16,
@@ -121,6 +129,7 @@ class AxesFactory {
         startPoint: config.origin,
         endPoint: config.origin + vm.Vector3(config.length, 0.0, 0.0),
         color: colors['x']!,
+        thickness: config.lineThickness, // Use thickness for line rendering
         id: '${config.idPrefix}_x',
       ),
     );
@@ -132,6 +141,7 @@ class AxesFactory {
         startPoint: config.origin,
         endPoint: config.origin + vm.Vector3(0.0, config.length, 0.0),
         color: colors['y']!,
+        thickness: config.lineThickness, // Use thickness for line rendering
         id: '${config.idPrefix}_y',
       ),
     );
@@ -143,6 +153,7 @@ class AxesFactory {
         startPoint: config.origin,
         endPoint: config.origin + vm.Vector3(0.0, 0.0, config.length),
         color: colors['z']!,
+        thickness: config.lineThickness, // Use thickness for line rendering
         id: '${config.idPrefix}_z',
       ),
     );

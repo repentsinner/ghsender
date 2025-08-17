@@ -1,6 +1,5 @@
-import 'dart:math';
 import 'dart:async';
-import 'dart:math' as math;
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../utils/logger.dart';
 import 'package:vector_math/vector_math.dart' as vm;
@@ -8,7 +7,6 @@ import '../gcode/gcode_parser.dart';
 import '../gcode/gcode_scene.dart';
 import '../gcode/gcode_processor.dart';
 import '../ui/themes/visualizer_theme.dart';
-import 'filled_square_factory.dart';
 import 'axes_factory.dart';
 
 /// Centralized scene manager that creates and manages the 3D scene
@@ -99,12 +97,12 @@ class SceneManager {
       final worldAxes = AxesFactory.createWorldAxes();
 
       // Add example filled squares for testing
-      final filledSquares = _createExampleFilledSquares(gcodePath);
+      final toolpathVisualization = _createToolpathVisualization(gcodePath);
 
       // Add example cube for demonstration
       final cubeSquares = _createExampleCube();
 
-      final allObjects = [...gcodeObjects, ...worldAxes, ...filledSquares, ...cubeSquares];
+      final allObjects = [...gcodeObjects, ...worldAxes, ...toolpathVisualization, ...cubeSquares];
 
       // Create camera configuration based on G-code content
       final cameraConfig = _createCameraConfiguration(gcodePath);
@@ -202,76 +200,30 @@ class SceneManager {
     _sceneUpdateController.close();
   }
 
-  /// Create example filled squares for testing and demonstration
-  List<SceneObject> _createExampleFilledSquares(GCodePath gcodePath) {
-    final squares = <SceneObject>[];
+  /// Create toolpath visualization elements (bounding box, etc.)
+  List<SceneObject> _createToolpathVisualization(GCodePath gcodePath) {
+    final visualizationElements = <SceneObject>[];
 
     try {
-      // Calculate scene bounds for positioning
-      final center = (gcodePath.minBounds + gcodePath.maxBounds) * 0.5;
-      final size = gcodePath.maxBounds - gcodePath.minBounds;
-      final maxDimension = math.max(math.max(size.x, size.y), size.z);
+      // TODO: Work area boundary should be based on machine controller limits (3D volume)
+      // not derived from G-code bounds. Will be implemented in machine controller system.
 
-      // Work area boundary - semi-transparent square in XY plane (themed)
-      final theme = VisualizerTheme.createTheme(VisualizerThemeVariant.classic);
-      squares.add(
-        FilledSquareFactory.createWorkAreaBoundary(
-          width: maxDimension * 1.2,
-          height: maxDimension * 1.2,
-          center: vm.Vector3(center.x, center.y, gcodePath.minBounds.z - 0.1),
-          fillColor: theme.workAreaFillColor,
-          opacity: theme.workAreaOpacity,
-          edgeWidth: VisualizerTheme.workAreaEdgeWidth,
-          id: 'work_area_boundary',
-        ),
-      );
+      // Tool path bounding box - 3D wireframe cube encompassing all G-code
+      visualizationElements.addAll(_createToolPathBoundingBox(gcodePath));
 
-      // Tool path boundary - themed outline
-      squares.add(
-        FilledSquareFactory.createToolPathBoundary(
-          center: center,
-          size: maxDimension * 1.05,
-          plane: SquarePlane.xy,
-          color: VisualizerTheme.toolPathBoundaryColor,
-          id: 'toolpath_boundary',
-        ),
-      );
+      // Origin indication handled by axes visualizer
 
-      // Coordinate system indicator at origin
-      squares.add(
-        FilledSquareFactory.createCoordinateIndicator(
-          origin: vm.Vector3(0, 0, 0),
-          size: maxDimension * 0.05,
-          plane: SquarePlane.xy,
-          color: VisualizerTheme.originIndicatorColor,
-          id: 'origin_indicator',
-        ),
-      );
+      // TODO: Safety zones will be implemented in machine controller system
+      // based on actual sensor positions and physical obstacles
 
-      // Safety zone example (if there's space) - themed
-      if (maxDimension > 10) {
-        squares.add(
-          FilledSquareFactory.createSafetyZone(
-            center: vm.Vector3(
-              center.x + maxDimension * 0.6,
-              center.y,
-              center.z,
-            ),
-            size: maxDimension * 0.2,
-            plane: SquarePlane.xy,
-            id: 'example_safety_zone',
-          ),
-        );
-      }
-
-      AppLogger.info('Created ${squares.length} example filled squares');
+      AppLogger.info('Created ${visualizationElements.length} toolpath visualization elements');
     } catch (e) {
-      AppLogger.warning('Failed to create example filled squares: $e');
+      AppLogger.warning('Failed to create toolpath visualization elements: $e');
       // Return empty list if creation fails
       return [];
     }
 
-    return squares;
+    return visualizationElements;
   }
 
   /// Create a 30x30x30 cube from origin to (-30, -30, -30) using filled squares
@@ -406,6 +358,137 @@ class SceneManager {
     );
   }
 
+  /// Create a 3D wireframe bounding box that encompasses all G-code movements
+  /// Includes feeds, rapids, and any other movements in the G-code file
+  List<SceneObject> _createToolPathBoundingBox(GCodePath gcodePath) {
+    final lines = <SceneObject>[];
+    
+    try {
+      // Get the actual G-code bounds (not derived size)
+      final minBounds = gcodePath.minBounds;
+      final maxBounds = gcodePath.maxBounds;
+      
+      // Use the actual G-code bounds for the cube, not a derived square
+      final color = VisualizerTheme.toolPathBoundaryColor;
+      const double thickness = VisualizerTheme.boundaryLineThickness;
+      
+      // Bottom face (Z = minBounds.z)
+      lines.addAll([
+        // Bottom edges
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(minBounds.x, minBounds.y, minBounds.z),
+          endPoint: vm.Vector3(maxBounds.x, minBounds.y, minBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_bottom_front',
+        ),
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(maxBounds.x, minBounds.y, minBounds.z),
+          endPoint: vm.Vector3(maxBounds.x, maxBounds.y, minBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_bottom_right',
+        ),
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(maxBounds.x, maxBounds.y, minBounds.z),
+          endPoint: vm.Vector3(minBounds.x, maxBounds.y, minBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_bottom_back',
+        ),
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(minBounds.x, maxBounds.y, minBounds.z),
+          endPoint: vm.Vector3(minBounds.x, minBounds.y, minBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_bottom_left',
+        ),
+      ]);
+      
+      // Top face (Z = maxBounds.z)
+      lines.addAll([
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(minBounds.x, minBounds.y, maxBounds.z),
+          endPoint: vm.Vector3(maxBounds.x, minBounds.y, maxBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_top_front',
+        ),
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(maxBounds.x, minBounds.y, maxBounds.z),
+          endPoint: vm.Vector3(maxBounds.x, maxBounds.y, maxBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_top_right',
+        ),
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(maxBounds.x, maxBounds.y, maxBounds.z),
+          endPoint: vm.Vector3(minBounds.x, maxBounds.y, maxBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_top_back',
+        ),
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(minBounds.x, maxBounds.y, maxBounds.z),
+          endPoint: vm.Vector3(minBounds.x, minBounds.y, maxBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_top_left',
+        ),
+      ]);
+      
+      // Vertical edges connecting bottom to top
+      lines.addAll([
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(minBounds.x, minBounds.y, minBounds.z),
+          endPoint: vm.Vector3(minBounds.x, minBounds.y, maxBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_vertical_front_left',
+        ),
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(maxBounds.x, minBounds.y, minBounds.z),
+          endPoint: vm.Vector3(maxBounds.x, minBounds.y, maxBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_vertical_front_right',
+        ),
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(maxBounds.x, maxBounds.y, minBounds.z),
+          endPoint: vm.Vector3(maxBounds.x, maxBounds.y, maxBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_vertical_back_right',
+        ),
+        SceneObject(
+          type: SceneObjectType.line,
+          startPoint: vm.Vector3(minBounds.x, maxBounds.y, minBounds.z),
+          endPoint: vm.Vector3(minBounds.x, maxBounds.y, maxBounds.z),
+          color: color,
+          thickness: thickness,
+          id: 'toolpath_bbox_vertical_back_left',
+        ),
+      ]);
+      
+      AppLogger.info('Created ${lines.length} toolpath bounding box edges');
+    } catch (e) {
+      AppLogger.warning('Failed to create toolpath bounding box: $e');
+    }
+    
+    return lines;
+  }
+
 
 }
 
@@ -431,6 +514,7 @@ class SceneObject {
   // Line segment properties (for SceneObjectType.line)
   final vm.Vector3? startPoint; // Start point for line segments
   final vm.Vector3? endPoint; // End point for line segments
+  final double? thickness; // Line thickness for rendering
 
   // Filled square properties (for SceneObjectType.filledSquare)
   final vm.Vector3? center; // Square center point
@@ -462,6 +546,7 @@ class SceneObject {
     required this.id,
     this.startPoint,
     this.endPoint,
+    this.thickness,
     this.center,
     this.size,
     this.plane,

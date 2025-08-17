@@ -182,6 +182,7 @@ class GCodeSceneGenerator {
       // Use startPoint/endPoint for proper line segment rendering
       startPoint: segment.start,
       endPoint: segment.end,
+      thickness: segment.thickness, // Pass through thickness from segment
       operationIndex: index,
       estimatedTime: operationTime,
       isRapidMove: isRapid,
@@ -209,6 +210,7 @@ class GCodeSceneGenerator {
         id: obj.id,
         startPoint: obj.startPoint,
         endPoint: obj.endPoint,
+        thickness: arcSegment.thickness, // Preserve thickness from original arc
         operationIndex: baseIndex,
         estimatedTime: timePerSegment,
         isRapidMove: false,

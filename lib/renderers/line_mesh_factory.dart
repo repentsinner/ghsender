@@ -147,11 +147,12 @@ class LineMeshFactory {
             final points = [lineObj.startPoint!, lineObj.endPoint!];
 
             final color = defaultColor ?? lineObj.color;
+            final thickness = lineObj.thickness ?? lineWidth; // Use object thickness or fallback
 
             // Use segments for discrete line segments (LineSegments2 equivalent)
             final mesh = createSegments(
               points,
-              lineWidth: lineWidth,
+              lineWidth: thickness,
               color: color,
               opacity: opacity,
               sharpness: sharpness,
@@ -187,11 +188,12 @@ class LineMeshFactory {
 
           if (polylinePoints.length >= 2) {
             final color = defaultColor ?? group.first.color;
+            final thickness = group.first.thickness ?? lineWidth; // Use group thickness or fallback
 
             // Use polyline for continuous line segments (Line2 equivalent)
             final mesh = createPolyline(
               polylinePoints,
-              lineWidth: lineWidth,
+              lineWidth: thickness,
               color: color,
               opacity: opacity,
               sharpness: sharpness,
@@ -219,11 +221,12 @@ class LineMeshFactory {
           final points = [lineObj.startPoint!, lineObj.endPoint!];
 
           final color = defaultColor ?? lineObj.color;
+          final thickness = lineObj.thickness ?? lineWidth; // Use object thickness or fallback
 
           // Use segments for discrete line segments (LineSegments2 equivalent)
           final mesh = createSegments(
             points,
-            lineWidth: lineWidth,
+            lineWidth: thickness,
             color: color,
             opacity: opacity,
             sharpness: sharpness,
@@ -279,9 +282,11 @@ class LineMeshFactory {
 
         final distance = _calculateDistance(lastEnd, currentStart);
 
-        // Only group lines if they are consecutive AND have the same color
-        // This prevents mixing blue rapids with green linear moves
-        if (distance < tolerance && lastInGroup.color == currentLine.color) {
+        // Only group lines if they are consecutive AND have the same color AND thickness
+        // This prevents mixing rapids (thin) with cutting moves (thick)
+        if (distance < tolerance && 
+            lastInGroup.color == currentLine.color &&
+            lastInGroup.thickness == currentLine.thickness) {
           // Lines are consecutive with same color - add to current group
           currentGroup.add(currentLine);
         } else {

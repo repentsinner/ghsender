@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:vector_math/vector_math.dart' as vm;
 import 'dart:async';
 
 import '../../utils/logger.dart';
@@ -77,7 +78,10 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
 
       // Initialize CameraDirector with scene data
       final renderer = _flutterSceneRenderer as FlutterSceneBatchRenderer;
-      _cameraDirector.initializeFromSceneData(renderer.getOrbitTarget());
+      final cncTarget = renderer.getOrbitTarget();
+      // Transform from CNC coordinates to display coordinates (Y-negation for Impeller)
+      final displayTarget = vm.Vector3(cncTarget.x, -cncTarget.y, cncTarget.z);
+      _cameraDirector.initializeFromSceneData(displayTarget);
     }
     AppLogger.info('FlutterScene renderer initialized: $flutterSceneSuccess');
 
@@ -136,7 +140,10 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
 
       // Update camera if needed
       final renderer = _flutterSceneRenderer as FlutterSceneBatchRenderer;
-      _cameraDirector.initializeFromSceneData(renderer.getOrbitTarget());
+      final cncTarget = renderer.getOrbitTarget();
+      // Transform from CNC coordinates to display coordinates (Y-negation for Impeller)
+      final displayTarget = vm.Vector3(cncTarget.x, -cncTarget.y, cncTarget.z);
+      _cameraDirector.initializeFromSceneData(displayTarget);
 
       AppLogger.info('Renderer updated with new scene data');
 
