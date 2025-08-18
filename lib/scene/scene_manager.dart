@@ -8,6 +8,7 @@ import '../gcode/gcode_scene.dart';
 import '../gcode/gcode_processor.dart';
 import '../ui/themes/visualizer_theme.dart';
 import 'axes_factory.dart';
+import '../models/machine_controller.dart';
 
 /// Centralized scene manager that creates and manages the 3D scene
 /// All renderers receive the same scene data from this manager
@@ -27,6 +28,9 @@ class SceneManager {
   bool _initialized = false;
   StreamSubscription<GCodeProcessingEvent>? _processorSubscription;
 
+  // Current machine position for debug cube
+  vm.Vector3? _currentMachinePosition;
+
   // Stream controller for scene updates
   final StreamController<SceneData?> _sceneUpdateController =
       StreamController<SceneData?>.broadcast();
@@ -34,6 +38,33 @@ class SceneManager {
   bool get initialized => _initialized;
   SceneData? get sceneData => _sceneData;
   Stream<SceneData?> get sceneUpdates => _sceneUpdateController.stream;
+
+  /// Update the machine position using efficient transform-only updates
+  /// This method provides high-performance position updates without rebuilding the scene
+  void updateMachinePosition(MachineCoordinates? machineCoords) {
+    if (machineCoords != null) {
+      _currentMachinePosition = vm.Vector3(
+        machineCoords.x, 
+        machineCoords.y, 
+        machineCoords.z,
+      );
+    } else {
+      _currentMachinePosition = null;
+    }
+    
+    // Update renderer directly with new position (no scene rebuild required)
+    _updateRendererMachinePosition();
+  }
+
+  /// Update renderer with machine position using transform-only method
+  void _updateRendererMachinePosition() {
+    // Note: This will be called from the visualizer to update all active renderers
+    // For now, we store the position and let the visualizer handle renderer updates
+    AppLogger.debug('Machine position updated to: $_currentMachinePosition');
+  }
+
+  /// Get current machine position for renderer updates
+  vm.Vector3? get currentMachinePosition => _currentMachinePosition;
 
   /// Initialize the scene manager (sets up processor listening)
   Future<void> initialize() async {
@@ -102,7 +133,10 @@ class SceneManager {
       // Add example cube for demonstration
       final cubeSquares = _createExampleCube();
 
-      final allObjects = [...gcodeObjects, ...worldAxes, ...toolpathVisualization, ...cubeSquares];
+      // Add machine position debug cube (will be positioned via renderer transform updates)
+      final machinePositionCube = _createMachinePositionCube(vm.Vector3.zero());
+
+      final allObjects = [...gcodeObjects, ...worldAxes, ...toolpathVisualization, ...cubeSquares, ...machinePositionCube];
 
       // Create camera configuration based on G-code content
       final cameraConfig = _createCameraConfiguration(gcodePath);
@@ -170,9 +204,12 @@ class SceneManager {
 
     // Add example cube for demonstration
     final cubeSquares = _createExampleCube();
+
+    // Add machine position debug cube (will be positioned via renderer transform updates)
+    final machinePositionCube = _createMachinePositionCube(vm.Vector3.zero());
     
     _sceneData = SceneData(
-      objects: [...worldAxes, ...cubeSquares],
+      objects: [...worldAxes, ...cubeSquares, ...machinePositionCube],
       camera: cameraConfig,
       lighting: lightConfig,
     );
@@ -224,6 +261,114 @@ class SceneManager {
     }
 
     return visualizationElements;
+  }
+
+  /// Create a 3x3x3 cube centered on the machine position for debugging
+  /// High visibility colors for easy identification during debugging
+  List<SceneObject> _createMachinePositionCube(vm.Vector3 machinePosition) {
+    final cubeSquares = <SceneObject>[];
+    const double cubeSize = 3.0; // 3x3x3 cube
+    const double halfSize = cubeSize / 2.0;
+    
+    // Cube center is at the machine position
+    final cubeCenter = machinePosition;
+    
+    // High visibility cube with distinct themed colors for each face pair
+    const double opacity = VisualizerTheme.machinePositionCubeOpacity;
+    const double edgeWidth = VisualizerTheme.machinePositionCubeEdgeWidth;
+
+    // XY plane faces (top and bottom)
+    cubeSquares.addAll([
+      // Top face (Z = machinePos.z + halfSize)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(cubeCenter.x, cubeCenter.y, cubeCenter.z + halfSize),
+        size: cubeSize,
+        plane: SquarePlane.xy,
+        fillColor: VisualizerTheme.machinePositionCubeXYFaceColor,
+        edgeColor: VisualizerTheme.machinePositionCubeXYFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: VisualizerTheme.machinePositionCubeXYFaceColor,
+        id: 'machine_position_cube_face_top_xy',
+      ),
+      // Bottom face (Z = machinePos.z - halfSize)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(cubeCenter.x, cubeCenter.y, cubeCenter.z - halfSize),
+        size: cubeSize,
+        plane: SquarePlane.xy,
+        fillColor: VisualizerTheme.machinePositionCubeXYFaceColor.withValues(alpha: 0.6),
+        edgeColor: VisualizerTheme.machinePositionCubeXYFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: VisualizerTheme.machinePositionCubeXYFaceColor,
+        id: 'machine_position_cube_face_bottom_xy',
+      ),
+    ]);
+
+    // XZ plane faces (front and back)
+    cubeSquares.addAll([
+      // Front face (Y = machinePos.y + halfSize)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(cubeCenter.x, cubeCenter.y + halfSize, cubeCenter.z),
+        size: cubeSize,
+        plane: SquarePlane.xz,
+        fillColor: VisualizerTheme.machinePositionCubeXZFaceColor,
+        edgeColor: VisualizerTheme.machinePositionCubeXZFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: VisualizerTheme.machinePositionCubeXZFaceColor,
+        id: 'machine_position_cube_face_front_xz',
+      ),
+      // Back face (Y = machinePos.y - halfSize)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(cubeCenter.x, cubeCenter.y - halfSize, cubeCenter.z),
+        size: cubeSize,
+        plane: SquarePlane.xz,
+        fillColor: VisualizerTheme.machinePositionCubeXZFaceColor.withValues(alpha: 0.6),
+        edgeColor: VisualizerTheme.machinePositionCubeXZFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: VisualizerTheme.machinePositionCubeXZFaceColor,
+        id: 'machine_position_cube_face_back_xz',
+      ),
+    ]);
+
+    // YZ plane faces (left and right)
+    cubeSquares.addAll([
+      // Right face (X = machinePos.x + halfSize)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(cubeCenter.x + halfSize, cubeCenter.y, cubeCenter.z),
+        size: cubeSize,
+        plane: SquarePlane.yz,
+        fillColor: VisualizerTheme.machinePositionCubeYZFaceColor,
+        edgeColor: VisualizerTheme.machinePositionCubeYZFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: VisualizerTheme.machinePositionCubeYZFaceColor,
+        id: 'machine_position_cube_face_right_yz',
+      ),
+      // Left face (X = machinePos.x - halfSize)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(cubeCenter.x - halfSize, cubeCenter.y, cubeCenter.z),
+        size: cubeSize,
+        plane: SquarePlane.yz,
+        fillColor: VisualizerTheme.machinePositionCubeYZFaceColor.withValues(alpha: 0.6),
+        edgeColor: VisualizerTheme.machinePositionCubeYZFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: VisualizerTheme.machinePositionCubeYZFaceColor,
+        id: 'machine_position_cube_face_left_yz',
+      ),
+    ]);
+
+    AppLogger.info('Created machine position debug cube with 6 faces at position: $machinePosition');
+    return cubeSquares;
   }
 
   /// Create a 30x30x30 cube from origin to (-30, -30, -30) using filled squares

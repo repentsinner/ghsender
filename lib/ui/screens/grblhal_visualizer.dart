@@ -16,6 +16,8 @@ import '../../bloc/performance/performance_event.dart';
 import '../../bloc/graphics/graphics_bloc.dart';
 import '../../bloc/graphics/graphics_event.dart';
 import '../layouts/vscode_layout.dart';
+import '../../bloc/machine_controller/machine_controller_bloc.dart';
+import '../../bloc/machine_controller/machine_controller_state.dart';
 
 enum RendererType { flutterSceneLines }
 
@@ -42,6 +44,9 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
 
   // Scene update subscription
   StreamSubscription<SceneData?>? _sceneUpdateSubscription;
+  
+  // Machine controller subscription for position updates
+  StreamSubscription<MachineControllerState>? _machineControllerSubscription;
 
   // Current active renderer
   final RendererType _currentRenderer = RendererType.flutterSceneLines;
@@ -91,6 +96,9 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
     );
     AppLogger.info('Scene update listener established');
 
+    // Set up machine controller subscription for position updates
+    _setupMachineControllerListener();
+
     _renderersInitialized = true;
     AppLogger.info(
       'All renderers ready - starting with ${_currentRenderer.name}',
@@ -120,6 +128,34 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
       }
     });
     _ticker?.start();
+  }
+
+  /// Set up machine controller listener for position updates
+  void _setupMachineControllerListener() {
+    final machineControllerBloc = context.read<MachineControllerBloc>();
+    _machineControllerSubscription = machineControllerBloc.stream.listen((state) {
+      // Update scene manager with current machine position
+      SceneManager.instance.updateMachinePosition(state.machinePosition);
+      
+      // Directly update renderer for high-performance position updates (125Hz)
+      if (_renderersInitialized && _flutterSceneRenderer is FlutterSceneBatchRenderer) {
+        final renderer = _flutterSceneRenderer as FlutterSceneBatchRenderer;
+        
+        // Convert machine coordinates to Vector3 for renderer
+        vm.Vector3? machinePos;
+        if (state.machinePosition != null) {
+          machinePos = vm.Vector3(
+            state.machinePosition!.x,
+            state.machinePosition!.y,
+            state.machinePosition!.z,
+          );
+        }
+        
+        // Update cube position without rebuilding scene
+        renderer.updateMachinePositionCube(machinePos);
+      }
+    });
+    AppLogger.info('Machine controller listener established for position updates');
   }
 
   /// Handle scene updates from SceneManager
@@ -158,6 +194,7 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
   void dispose() {
     _ticker?.dispose();
     _sceneUpdateSubscription?.cancel();
+    _machineControllerSubscription?.cancel();
     if (_renderersInitialized) {
       _flutterSceneRenderer.dispose();
     }

@@ -78,6 +78,13 @@ class VisualizerTheme {
   static const double cubeOpacity = 0.3;
   static const double cubeEdgeWidth = 1.0;
 
+  /// Machine position debug cube colors (high visibility)
+  static const Color machinePositionCubeXYFaceColor = Colors.orange;
+  static const Color machinePositionCubeXZFaceColor = Colors.deepOrange;
+  static const Color machinePositionCubeYZFaceColor = Colors.red;
+  static const double machinePositionCubeOpacity = 0.8; // High opacity for debugging
+  static const double machinePositionCubeEdgeWidth = 2.0; // Thicker edges for visibility
+
   // ==================== LINE WEIGHT SETTINGS ====================
 
   /// G-code path line weights

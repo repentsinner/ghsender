@@ -36,6 +36,9 @@ class FlutterSceneBatchRenderer implements Renderer {
   // Single combined mesh node for all geometry
   final Node _combinedMeshNode = Node();
 
+  // Dedicated node for machine position debug cube (updated via transform only)
+  Node? _machinePositionCubeNode;
+
   // Coordinate system transformation matrix
   // Converts right-handed CNC coordinates to left-handed Metal/Impeller coordinates
   // Negates Y-axis to ensure proper display of CNC coordinate conventions
@@ -124,6 +127,9 @@ class FlutterSceneBatchRenderer implements Renderer {
     if (filledSquareObjects.isNotEmpty) {
       actualSquareTriangles = await _processFilledSquares(filledSquareObjects);
     }
+
+    // Process machine position cube separately for efficient updates
+    await _setupMachinePositionCubeFromScene(filledSquareObjects);
 
     int actualTextTriangles = 0;
     if (textBillboardObjects.isNotEmpty) {
@@ -290,6 +296,111 @@ class FlutterSceneBatchRenderer implements Renderer {
     _currentLineStyle = newStyle;
   }
 
+  /// Update machine position cube without rebuilding the entire scene
+  /// This provides high-performance position updates at machine polling rate (125Hz)
+  void updateMachinePositionCube(vm.Vector3? machinePosition) {
+    if (!_sceneInitialized) return;
+
+    if (machinePosition == null) {
+      // Hide the cube when position is unavailable
+      if (_machinePositionCubeNode != null) {
+        _machinePositionCubeNode!.localTransform =
+            vm.Matrix4.zero(); // Hide by zeroing transform
+      }
+      return;
+    }
+
+    // Machine position cube should already exist from scene setup
+    if (_machinePositionCubeNode == null) {
+      AppLogger.warning(
+        'Machine position cube node not found - was scene set up correctly?',
+      );
+      return;
+    }
+
+    if (_machinePositionCubeNode != null) {
+      // Update only the translation component of the transform matrix
+      // This is much faster than rebuilding the entire scene
+      final transform = vm.Matrix4.identity();
+      transform.setTranslation(machinePosition);
+      _machinePositionCubeNode!.localTransform = transform;
+    }
+  }
+
+  /// Process cube square objects into Flutter Scene nodes
+  List<Node> _processCubeSquareObjects(List<SceneObject> cubeSquares) {
+    final nodes = <Node>[];
+
+    // Get current viewport resolution for line edges
+    final currentResolution = _lastViewportSize != null
+        ? vm.Vector2(_lastViewportSize!.width, _lastViewportSize!.height)
+        : vm.Vector2(1024, 768); // Default resolution
+
+    // Process each filled square individually
+    for (final squareObject in cubeSquares) {
+      try {
+        // Create filled square with both fill and edge meshes
+        final squareResult = FilledSquareRenderer.createFromSceneObject(
+          squareObject,
+          resolution: currentResolution,
+        );
+
+        // Add both fill and edge nodes to the result
+        final squareNodes = squareResult.toNodes();
+        nodes.addAll(squareNodes);
+      } catch (e) {
+        AppLogger.error(
+          'Failed to process machine cube square ${squareObject.id}: $e',
+        );
+      }
+    }
+
+    return nodes;
+  }
+
+  /// Set up machine position cube from scene objects for efficient transform updates
+  Future<void> _setupMachinePositionCubeFromScene(
+    List<SceneObject> filledSquareObjects,
+  ) async {
+    try {
+      // Find machine position cube objects by ID pattern
+      final machinePositionObjects = filledSquareObjects
+          .where((obj) => obj.id.startsWith('machine_position_cube_'))
+          .toList();
+
+      if (machinePositionObjects.isEmpty) {
+        AppLogger.debug('No machine position cube objects found in scene');
+        return;
+      }
+
+      // Clear any existing machine position cube node
+      if (_machinePositionCubeNode != null) {
+        _rootNode.children.remove(_machinePositionCubeNode!);
+        _machinePositionCubeNode = null;
+      }
+
+      // Create a parent node for the cube
+      _machinePositionCubeNode = Node();
+      _machinePositionCubeNode!.name = 'machine_position_debug_cube';
+
+      // Process the cube squares and add them as child nodes
+      final nodes = _processCubeSquareObjects(machinePositionObjects);
+      for (final node in nodes) {
+        _machinePositionCubeNode!.add(node);
+      }
+
+      // Add to root node
+      _rootNode.add(_machinePositionCubeNode!);
+
+      AppLogger.info(
+        'Machine position cube setup from scene with ${nodes.length} face nodes',
+      );
+    } catch (e) {
+      AppLogger.error('Failed to setup machine position cube from scene: $e');
+      _machinePositionCubeNode = null;
+    }
+  }
+
   /// Process line objects using LineMeshFactory for Three.js Line2/LineSegments2 rendering
   Future<int> _processLinesWithLineMeshFactory(
     List<SceneObject> lineObjects,
@@ -344,8 +455,13 @@ class FlutterSceneBatchRenderer implements Renderer {
     List<SceneObject> filledSquareObjects,
   ) async {
     try {
+      // Filter out machine position cube objects (they're handled separately)
+      final regularSquareObjects = filledSquareObjects
+          .where((obj) => !obj.id.startsWith('machine_position_cube_'))
+          .toList();
+
       AppLogger.info(
-        'Processing ${filledSquareObjects.length} filled squares with FilledSquareRenderer',
+        'Processing ${regularSquareObjects.length} filled squares with FilledSquareRenderer (${filledSquareObjects.length - regularSquareObjects.length} machine position cube objects excluded)',
       );
 
       // Get current viewport resolution for line edges
@@ -356,7 +472,7 @@ class FlutterSceneBatchRenderer implements Renderer {
       int totalTriangles = 0;
 
       // Process each filled square individually
-      for (final squareObject in filledSquareObjects) {
+      for (final squareObject in regularSquareObjects) {
         try {
           // Create filled square with both fill and edge meshes
           final squareResult = FilledSquareRenderer.createFromSceneObject(
@@ -385,7 +501,7 @@ class FlutterSceneBatchRenderer implements Renderer {
       }
 
       AppLogger.info(
-        'FilledSquareRenderer processing complete: ${filledSquareObjects.length} squares -> ~$totalTriangles triangles',
+        'FilledSquareRenderer processing complete: ${regularSquareObjects.length} squares -> ~$totalTriangles triangles',
       );
 
       return totalTriangles;
@@ -586,6 +702,7 @@ class FlutterSceneBatchRenderer implements Renderer {
   void dispose() {
     _rootNode.children.clear();
     _combinedMeshNode.mesh = null;
+    _machinePositionCubeNode = null; // Clear machine position cube reference
     // LineMeshFactory doesn't require disposal - it's a static factory
     _sceneData = null;
   }
