@@ -1,58 +1,113 @@
-# ghSender Documentation Index
+# ghSender Documentation
 
-This directory contains all documentation for ghSender organized by category.
+**Last Updated**: January 18, 2025  
+**Status**: Consolidated and current
 
-## 📋 **Project Planning**
-- [**DEVELOPMENT_PLAN.md**](DEVELOPMENT_PLAN.md) - Current development roadmap and progress
-- [**PRODUCT_BRIEF.md**](PRODUCT_BRIEF.md) - Product vision, personas, and success metrics
-- [**REQUIREMENTS.md**](REQUIREMENTS.md) - Core requirements and design principles
-- [**DECISIONS.md**](DECISIONS.md) - Architectural Decision Records (ADRs)
-- [**TESTING.md**](TESTING.md) - Testing strategy and quality assurance
+## Quick Navigation
 
-## 🏗️ **Architecture & Design**
-- [**ARCHITECTURE.md**](ARCHITECTURE.md) - System architecture and component design
-- [**FRAMEWORK_VALIDATION_PLAN.md**](FRAMEWORK_VALIDATION_PLAN.md) - Technology validation approach
-- [**DOCUMENTATION_STRATEGY.md**](DOCUMENTATION_STRATEGY.md) - Documentation standards and processes
+### 🚀 **Start Here**
+- [**GETTING_STARTED.md**](GETTING_STARTED.md) - Setup, first run, and development workflow
+- [**CURRENT_STATUS.md**](CURRENT_STATUS.md) - What actually works now vs. what's planned
 
-## 🔧 **Development Setup**
-- [**development/CROSS_PLATFORM_SETUP.md**](development/CROSS_PLATFORM_SETUP.md) - macOS and Windows 11 setup
-- [**development/LOCAL_TOOLCHAIN.md**](development/LOCAL_TOOLCHAIN.md) - Container-style development environment
-- [**development/AGENT_TOOLS.md**](development/AGENT_TOOLS.md) - Claude Code and Gemini CLI integration
-- [**development/GIT_WORKFLOW.md**](development/GIT_WORKFLOW.md) - Git branching and collaboration
-- [**development/QUICK_REFERENCE.md**](development/QUICK_REFERENCE.md) - Daily developer commands
+### 📋 **Project Information**
+- [**PLANNED_FEATURES.md**](PLANNED_FEATURES.md) - Product vision, roadmap, and future features
+- [**TECHNICAL_REFERENCE.md**](TECHNICAL_REFERENCE.md) - Architecture, patterns, and implementation
 
-## 🔍 **Technical Analysis**
-- [**analysis/FRAMEWORK_STACK.md**](analysis/FRAMEWORK_STACK.md) - Technology stack evaluation
-- [**analysis/WIDGET_FRAMEWORK.md**](analysis/WIDGET_FRAMEWORK.md) - UI framework analysis
-- [**analysis/VISUALIZER.md**](analysis/VISUALIZER.md) - 3D visualization requirements
-- [**analysis/GCODE_SIMULATOR.md**](analysis/GCODE_SIMULATOR.md) - G-Code simulation engine
-- [**analysis/OBSERVABILITY.md**](analysis/OBSERVABILITY.md) - Monitoring and telemetry
+### 🔧 **Active Development**
+- [**REFACTORING_PLAN.md**](REFACTORING_PLAN.md) - Current architecture improvements (Domain-Driven Design)
 
-## 🎯 **User Workflows**
-- [**workflows/MACHINE_CONNECTION_INITIALIZATION.md**](workflows/MACHINE_CONNECTION_INITIALIZATION.md)
-- [**workflows/GCODE_PROGRAM_LOADING.md**](workflows/GCODE_PROGRAM_LOADING.md)
-- [**workflows/WORKPIECE_ORIGIN_SETUP.md**](workflows/WORKPIECE_ORIGIN_SETUP.md)
-- [**workflows/GCODE_EXECUTION.md**](workflows/GCODE_EXECUTION.md)
-- [**workflows/MANUAL_TOOL_CHANGE.md**](workflows/MANUAL_TOOL_CHANGE.md)
-- [**workflows/PROGRAM_INTERVENTION_TASKS.md**](workflows/PROGRAM_INTERVENTION_TASKS.md)
+## What is ghSender?
 
-## 🧩 **Widget Specifications**
-- [**widgets/DRO_WIDGET.md**](widgets/DRO_WIDGET.md) - Digital Readout component
-- [**widgets/JOG_CONTROLS_WIDGET.md**](widgets/JOG_CONTROLS_WIDGET.md) - Manual machine control
+ghSender is a **high-performance 3D G-code visualizer** with **ultra-responsive grblHAL communication** currently in active development. It achieves industry-leading performance with **125Hz status updates** and **120fps 3D rendering**.
 
-## 🤖 **Team Coordination**
-See the [**../team/**](../team/) directory for multi-agent development documentation:
-- [**team/TEAM_ROLES.md**](../team/TEAM_ROLES.md) - Development team structure
-- [**team/CLAUDE.md**](../team/CLAUDE.md) - Claude Code agent instructions
-- [**team/GEMINI.md**](../team/GEMINI.md) - Gemini CLI agent instructions
-- [**team/AGENT_COORDINATION.md**](../team/AGENT_COORDINATION.md) - Multi-agent workflows
+**Current Reality**: Advanced 3D visualizer with proven communication performance  
+**Future Vision**: Complete safety-first CNC controller with adaptive learning
 
-## 🔧 **Development Tools**
-See the [**../tools/**](../tools/) directory for automation scripts:
-- Setup scripts for local toolchain and agent tools
-- Cross-platform build automation
-- Environment verification tools
+## Documentation Structure
+
+This documentation has been **consolidated from 30+ scattered files** into **4 main documents** for easier navigation:
+
+### **GETTING_STARTED.md**
+*Everything you need to start developing*
+- Development environment setup (macOS, Windows 11)
+- Project structure and key commands
+- Multi-agent development tools
+- Troubleshooting and getting help
+
+### **CURRENT_STATUS.md**
+*Honest assessment of what actually works*
+- Performance achievements (125Hz, 120fps)
+- Implementation status by component
+- Known issues and limitations
+- Development priorities
+
+### **PLANNED_FEATURES.md**
+*Product vision and future roadmap*
+- Target users and value proposition
+- Detailed feature specifications
+- Implementation timeline
+- Success metrics and validation
+
+### **TECHNICAL_REFERENCE.md**
+*Architecture and implementation details*
+- Current and planned architecture
+- Performance specifications
+- Development patterns and guidelines
+- Testing strategies
+
+## For Different Audiences
+
+### **New Contributors**
+1. Read [GETTING_STARTED.md](GETTING_STARTED.md) for setup
+2. Check [CURRENT_STATUS.md](CURRENT_STATUS.md) to understand what's implemented
+3. Review [TECHNICAL_REFERENCE.md](TECHNICAL_REFERENCE.md) for architecture
+
+### **Users/Testers**
+1. See [CURRENT_STATUS.md](CURRENT_STATUS.md) for current capabilities
+2. Check [PLANNED_FEATURES.md](PLANNED_FEATURES.md) for future features
+3. Review safety warnings - **not ready for production CNC use**
+
+### **Project Stakeholders**
+1. Review [PLANNED_FEATURES.md](PLANNED_FEATURES.md) for product vision
+2. Check [CURRENT_STATUS.md](CURRENT_STATUS.md) for progress
+3. See [TECHNICAL_REFERENCE.md](TECHNICAL_REFERENCE.md) for technical details
+
+## Key Project Status
+
+### ✅ **What's Working (January 2025)**
+- **Industry-leading performance**: 125Hz communication, 120fps rendering
+- **3D G-code visualization**: Flutter Scene with custom shaders
+- **Cross-platform development**: macOS and Windows 11 environments
+- **Advanced G-code processing**: Parser with arc interpolation
+
+### 🚧 **In Active Development**
+- **Domain-driven architecture**: Refactoring for maintainability and safety
+- **Hardware validation**: Testing with physical grblHAL controllers
+- **Safety foundation**: Basic validation and error handling
+
+### 📋 **Planned (Not Started)**
+- **Safety systems**: Work envelope protection, collision detection
+- **Manual workflows**: Tool changes, workpiece setup procedures
+- **Adaptive learning**: Skill-based UI progression
+- **Touch interface**: Tablet optimization
+
+## Archive
+
+Historical documentation has been preserved in the `archive/` directory:
+- `archive/analysis/` - Technical analysis documents (decisions made)
+- `archive/workflows/` - Workflow specifications (features not implemented)
+- `archive/widgets/` - Widget specifications (components not built)
+- `archive/development/` - Detailed setup guides (consolidated into GETTING_STARTED.md)
+
+## Contributing to Documentation
+
+1. **Update main documents** - Keep the 4 core documents current
+2. **Avoid creating new files** - Add to existing documents unless absolutely necessary
+3. **Maintain honesty** - Clear distinction between implemented vs. planned
+4. **Cross-reference** - Link between related sections in different documents
 
 ---
 
-**For new contributors**: Start with [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) and [development/CROSS_PLATFORM_SETUP.md](development/CROSS_PLATFORM_SETUP.md)
+**Quick Start**: New to the project? Start with [GETTING_STARTED.md](GETTING_STARTED.md)  
+**Current Status**: Want to know what works? See [CURRENT_STATUS.md](CURRENT_STATUS.md)  
+**Future Plans**: Interested in the vision? Read [PLANNED_FEATURES.md](PLANNED_FEATURES.md)

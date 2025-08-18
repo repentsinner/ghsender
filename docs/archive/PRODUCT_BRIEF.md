@@ -1,8 +1,12 @@
 # Product Brief: ghSender
 
-This document defines the product vision, target users, and success criteria for ghSender - a modern, safe CNC controller for grblHAL.
+**🚧 Development Status: Early Phase - Vision Document**
 
-**Project Heritage**: An homage to gSender, optimized specifically for grblHAL
+This document defines the **long-term product vision** for ghSender. Most features described here are **not yet implemented** and represent planned development goals.
+
+**Current Reality**: ghSender is currently a 3D G-code visualizer with basic WebSocket communication framework.
+
+**Project Heritage**: An homage to gSender, targeting grblHAL compatibility
 
 ## 1. The Problem
 
@@ -23,9 +27,13 @@ We are building this for two primary users:
 
 *   **Mark, the Experienced Maker:** Mark has been using CNCs for years. He is comfortable with G-Code and knows his machine well. He is frustrated by software that is buggy, slow, or unreliable. He values efficiency, keyboard shortcuts, advanced control, and, most importantly, software that he can trust to execute his jobs flawlessly without getting in his way. **He frequently runs complex multi-tool jobs and needs reliable state management during manual interventions.** While he's experienced with CNC operation, **he needs to learn how this software's workflows differ from his current tools.** He wants the option to experience the full safety workflows initially to understand the system's approach, but then quickly graduate to streamlined expert modes. **He appreciates systems that respect his existing knowledge while teaching him new paradigms efficiently.**
 
-## 3. Value Proposition
+## 3. Value Proposition (Vision)
 
-Our G-Code sender will be the **safest, most reliable, and most user-friendly** option for grblHAL users, designed to become the **#1 G-Code sender platform** that drives grblHAL hardware adoption. We provide a modern, tablet-first interface with low-latency controls and proactive error prevention, giving users the confidence to execute their projects successfully, regardless of their experience level. **Our adaptive learning system grows with users, providing detailed guidance for beginners that gradually evolves into efficient expert workflows as competency increases.**
+**🎯 Long-term Vision:** Our G-Code sender will be the **safest, most reliable, and most user-friendly** option for grblHAL users, designed to become the **#1 G-Code sender platform** that drives grblHAL hardware adoption.
+
+**📋 Planned Features:** Modern, tablet-first interface with low-latency controls and proactive error prevention, giving users confidence to execute projects successfully. An adaptive learning system that grows with users, providing detailed guidance for beginners that gradually evolves into efficient expert workflows.
+
+**⚠️ Current Status:** These features are **not yet implemented**. Current implementation is a 3D G-code visualizer with basic communication framework.
 
 **Platform Strategy:**
 - **Community-Driven Development:** Open architecture enables rapid feature development through community contributions
