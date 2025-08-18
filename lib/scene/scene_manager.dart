@@ -43,24 +43,23 @@ class SceneManager {
   /// This method provides high-performance position updates without rebuilding the scene
   void updateMachinePosition(MachineCoordinates? machineCoords) {
     if (machineCoords != null) {
-      _currentMachinePosition = vm.Vector3(
-        machineCoords.x, 
-        machineCoords.y, 
-        machineCoords.z,
-      );
+      // Reuse the existing Vector3 object to avoid memory allocation
+      if (_currentMachinePosition == null) {
+        _currentMachinePosition = vm.Vector3(
+          machineCoords.x,
+          machineCoords.y,
+          machineCoords.z,
+        );
+      } else {
+        _currentMachinePosition!.setValues(
+          machineCoords.x,
+          machineCoords.y,
+          machineCoords.z,
+        );
+      }
     } else {
       _currentMachinePosition = null;
     }
-    
-    // Update renderer directly with new position (no scene rebuild required)
-    _updateRendererMachinePosition();
-  }
-
-  /// Update renderer with machine position using transform-only method
-  void _updateRendererMachinePosition() {
-    // Note: This will be called from the visualizer to update all active renderers
-    // For now, we store the position and let the visualizer handle renderer updates
-    AppLogger.debug('Machine position updated to: $_currentMachinePosition');
   }
 
   /// Get current machine position for renderer updates

@@ -135,25 +135,8 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
     final machineControllerBloc = context.read<MachineControllerBloc>();
     _machineControllerSubscription = machineControllerBloc.stream.listen((state) {
       // Update scene manager with current machine position
+      // The renderer will pick this up on the next frame
       SceneManager.instance.updateMachinePosition(state.machinePosition);
-      
-      // Directly update renderer for high-performance position updates (125Hz)
-      if (_renderersInitialized && _flutterSceneRenderer is FlutterSceneBatchRenderer) {
-        final renderer = _flutterSceneRenderer as FlutterSceneBatchRenderer;
-        
-        // Convert machine coordinates to Vector3 for renderer
-        vm.Vector3? machinePos;
-        if (state.machinePosition != null) {
-          machinePos = vm.Vector3(
-            state.machinePosition!.x,
-            state.machinePosition!.y,
-            state.machinePosition!.z,
-          );
-        }
-        
-        // Update cube position without rebuilding scene
-        renderer.updateMachinePositionCube(machinePos);
-      }
     });
     AppLogger.info('Machine controller listener established for position updates');
   }

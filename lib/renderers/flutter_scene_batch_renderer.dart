@@ -200,6 +200,19 @@ class FlutterSceneBatchRenderer implements Renderer {
 
     if (!_sceneInitialized) return;
 
+    // High-performance machine position update from SceneManager
+    final machinePosition = SceneManager.instance.currentMachinePosition;
+    if (_machinePositionCubeNode != null) {
+      if (machinePosition != null) {
+        final transform = vm.Matrix4.identity();
+        transform.setTranslation(machinePosition);
+        _machinePositionCubeNode!.localTransform = transform;
+      } else {
+        // Hide the cube if position is null
+        _machinePositionCubeNode!.localTransform = vm.Matrix4.zero();
+      }
+    }
+
     // Clear the canvas with black background to match GPU renderer
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
@@ -296,36 +309,7 @@ class FlutterSceneBatchRenderer implements Renderer {
     _currentLineStyle = newStyle;
   }
 
-  /// Update machine position cube without rebuilding the entire scene
-  /// This provides high-performance position updates at machine polling rate (125Hz)
-  void updateMachinePositionCube(vm.Vector3? machinePosition) {
-    if (!_sceneInitialized) return;
-
-    if (machinePosition == null) {
-      // Hide the cube when position is unavailable
-      if (_machinePositionCubeNode != null) {
-        _machinePositionCubeNode!.localTransform =
-            vm.Matrix4.zero(); // Hide by zeroing transform
-      }
-      return;
-    }
-
-    // Machine position cube should already exist from scene setup
-    if (_machinePositionCubeNode == null) {
-      AppLogger.warning(
-        'Machine position cube node not found - was scene set up correctly?',
-      );
-      return;
-    }
-
-    if (_machinePositionCubeNode != null) {
-      // Update only the translation component of the transform matrix
-      // This is much faster than rebuilding the entire scene
-      final transform = vm.Matrix4.identity();
-      transform.setTranslation(machinePosition);
-      _machinePositionCubeNode!.localTransform = transform;
-    }
-  }
+  
 
   /// Process cube square objects into Flutter Scene nodes
   List<Node> _processCubeSquareObjects(List<SceneObject> cubeSquares) {
