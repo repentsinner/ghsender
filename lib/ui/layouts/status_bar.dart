@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../themes/vscode_theme.dart';
 import '../widgets/problem_item.dart';
+import '../utils/status_colors.dart';
 import '../../bloc/bloc_exports.dart';
 import '../../bloc/performance/performance_bloc.dart';
 import '../../bloc/performance/performance_state.dart';
@@ -202,18 +203,24 @@ class StatusBar extends StatelessWidget {
     }
 
     final status = machineState.status;
-    final (IconData icon, Color iconColor) = switch (status) {
-      MachineStatus.idle => (Icons.circle, Colors.green),
-      MachineStatus.running => (Icons.play_circle_filled, Colors.blue),
-      MachineStatus.paused => (Icons.pause_circle_filled, Colors.orange),
-      MachineStatus.alarm || MachineStatus.error => (Icons.error, Colors.red),
-      MachineStatus.homing => (Icons.home, Colors.yellow),
-      MachineStatus.jogging => (Icons.open_with, Colors.cyan),
-      MachineStatus.hold => (Icons.pause, Colors.orange),
-      MachineStatus.door => (Icons.door_front_door, Colors.purple),
-      MachineStatus.check => (Icons.check_circle, Colors.teal),
-      MachineStatus.sleep => (Icons.bedtime, Colors.grey),
-      _ => (Icons.help, Colors.grey),
+    
+    // Get the appropriate color provider based on detected plugins
+    final colorProvider = StatusColorProviders.getProviderForPlugins(machineState.plugins);
+    final statusColor = colorProvider.getColorForStatus(status);
+    
+    // Map status to appropriate icons
+    final IconData icon = switch (status) {
+      MachineStatus.idle => Icons.circle,
+      MachineStatus.running => Icons.play_circle_filled,
+      MachineStatus.paused => Icons.pause_circle_filled,
+      MachineStatus.alarm || MachineStatus.error => Icons.error,
+      MachineStatus.homing => Icons.home,
+      MachineStatus.jogging => Icons.open_with,
+      MachineStatus.hold => Icons.pause,
+      MachineStatus.door => Icons.door_front_door,
+      MachineStatus.check => Icons.check_circle,
+      MachineStatus.sleep => Icons.bedtime,
+      _ => Icons.help,
     };
 
     // Build status text with buffer info if available
@@ -231,7 +238,7 @@ class StatusBar extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: iconColor, size: 14),
+          Icon(icon, color: statusColor, size: 14),
           const SizedBox(width: 4),
           Text(
             statusText,

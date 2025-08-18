@@ -348,3 +348,4 @@ class MachineController extends Equatable {
     return MachineStatus.unknown;
   }
 }
+

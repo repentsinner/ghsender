@@ -20,6 +20,9 @@ class MachineControllerBloc
   // Stream subscription for real-time message processing
   StreamSubscription? _messageStreamSubscription;
 
+  // Throttling for jog command logging (to avoid spam during continuous jogging)
+  DateTime? _lastJogLogTime;
+
   MachineControllerBloc() : super(const MachineControllerState()) {
     AppLogger.machineInfo('Machine Controller BLoC initialized');
 
@@ -44,6 +47,7 @@ class MachineControllerBloc
     on<MachineControllerSetCommunicationBloc>(_onSetCommunicationBloc);
     on<MachineControllerConfigurationReceived>(_onConfigurationReceived);
     on<MachineControllerBufferStatusUpdated>(_onBufferStatusUpdated);
+    on<MachineControllerPluginsDetected>(_onPluginsDetected);
 
     // Jog control handlers
     on<MachineControllerJogRequested>(_onJogRequested);
@@ -514,37 +518,25 @@ class MachineControllerBloc
       return;
     }
 
-    AppLogger.machineInfo('=== CONFIGURING grblHAL STATUS REPORTING ===');
+    AppLogger.machineInfo('Configuring grblHAL for optimal reporting and starting status polling');
 
     // Send grblHAL configuration commands directly
-    AppLogger.machineInfo(
-      'MACHINE CONTROLLER: Sending 0x87 (enable extended status format)',
-    );
     _communicationBloc.add(CncCommunicationSendRawBytes([0x87]));
 
     // Configure status reporting mask ($10 setting)
     // Set $10=511 for comprehensive status reporting (all flags enabled)
-    AppLogger.machineInfo(
-      'MACHINE CONTROLLER: Setting \$10=511 (enable comprehensive status reporting)',
-    );
     _communicationBloc.add(CncCommunicationSendCommand('\$10=511'));
 
     // Query machine configuration to understand capabilities and settings
-    AppLogger.machineInfo(
-      'MACHINE CONTROLLER: Sending \$ (query configuration)',
-    );
     _communicationBloc.add(CncCommunicationSendCommand('\$'));
 
+    // Query build info and plugins to detect board capabilities
+    _communicationBloc.add(CncCommunicationSendCommand('\$I'));
+
     // Send initial status query to get immediate state
-    AppLogger.machineInfo(
-      'MACHINE CONTROLLER: Sending initial 0x80 (status query)',
-    );
     _communicationBloc.add(CncCommunicationSendRawBytes([0x80]));
 
     // Start continuous status polling using CommunicationBloc
-    AppLogger.machineInfo(
-      'MACHINE CONTROLLER: Starting status polling with 0x80 at 125Hz',
-    );
     _communicationBloc.add(
       CncCommunicationPollingControlRequested(
         enable: true,
@@ -559,9 +551,10 @@ class MachineControllerBloc
     MachineControllerConfigurationReceived event,
     Emitter<MachineControllerState> emit,
   ) {
-    AppLogger.machineInfo(
-      'Machine configuration received: ${event.configuration.settings.length} settings',
-    );
+    // Configuration received - only log if significant number of settings
+    if (event.configuration.settings.length > 20) {
+      AppLogger.machineInfo('Machine configuration loaded: ${event.configuration.settings.length} settings');
+    }
 
     emit(
       state.copyWith(
@@ -587,6 +580,32 @@ class MachineControllerBloc
         plannerBlocksAvailable: event.plannerBlocksAvailable,
         rxBytesAvailable: event.rxBytesAvailable,
         maxObservedBufferBlocks: maxBuffer,
+        lastUpdateTime: event.timestamp,
+      ),
+    );
+  }
+
+  /// Handle plugins detected from $I command
+  void _onPluginsDetected(
+    MachineControllerPluginsDetected event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    // Check for Sienci Indicator Lights plugin specifically
+    final hasSienciPlugin = event.plugins.any((plugin) => 
+        plugin.toLowerCase().contains('sienci') && 
+        plugin.toLowerCase().contains('indicator'));
+        
+    // Only log when we have a significant change or final plugin list
+    final previousPluginCount = state.plugins.length;
+    final hadSienciPlugin = state.hasSienciIndicatorPlugin;
+    
+    if (event.plugins.isNotEmpty && (hasSienciPlugin != hadSienciPlugin || event.plugins.length > previousPluginCount + 3)) {
+      AppLogger.machineInfo('Detected ${event.plugins.length} plugins${hasSienciPlugin ? ' (including Sienci LED support)' : ''}');
+    }
+    
+    emit(
+      state.copyWith(
+        plugins: event.plugins,
         lastUpdateTime: event.timestamp,
       ),
     );
@@ -670,7 +689,7 @@ class MachineControllerBloc
     final jogCommand =
         '\$J=G91 G21 ${event.axis}${event.distance} F${event.feedRate}';
 
-    AppLogger.machineInfo('Sending jog command: $jogCommand');
+    _logJogCommand('Jogging ${event.axis}${event.distance} at ${event.feedRate}mm/min');
     _communicationBloc.add(CncCommunicationSendCommand(jogCommand));
 
     // Update state to indicate jogging
@@ -690,7 +709,7 @@ class MachineControllerBloc
     }
 
     // Send jog cancel command (0x85 for grblHAL real-time command)
-    AppLogger.machineInfo('Sending jog cancel command');
+    _logJogCommand('Jog cancelled', forceLog: true);
     _communicationBloc.add(CncCommunicationSendRawBytes([0x85]));
 
     emit(state.copyWith(lastUpdateTime: DateTime.now()));
@@ -720,7 +739,8 @@ class MachineControllerBloc
     final distance = event.positive ? '1000' : '-1000'; // Large distance
     final jogCommand = '\$J=G91 G21 ${event.axis}$distance F${event.feedRate}';
 
-    AppLogger.machineInfo('Starting continuous jog: $jogCommand');
+    final direction = event.positive ? '+' : '-';
+    _logJogCommand('Continuous jog started: ${event.axis}$direction at ${event.feedRate}mm/min', forceLog: true);
     _communicationBloc.add(CncCommunicationSendCommand(jogCommand));
 
     emit(state.copyWith(lastUpdateTime: DateTime.now()));
@@ -772,7 +792,7 @@ class MachineControllerBloc
     
     final jogCommand = '\$J=G91 G21 ${axisParts.join(' ')} F${event.feedRate}';
     
-    AppLogger.machineInfo('Sending multi-axis jog command: $jogCommand');
+    _logJogCommand('Multi-axis jog: ${axisParts.join(' ')} at ${event.feedRate}mm/min');
     _communicationBloc.add(CncCommunicationSendCommand(jogCommand));
 
     // Update state to indicate jogging
@@ -805,7 +825,6 @@ class MachineControllerBloc
         ? message.substring(10)
         : message;
 
-    AppLogger.machineDebug('Processing configuration message: $cleanMessage');
 
     // Parse configuration line like: $0=10 (Step pulse time)
     _parseConfigurationLineForStream(cleanMessage, timestamp);
@@ -818,7 +837,6 @@ class MachineControllerBloc
         ? message.substring(10)
         : message;
 
-    AppLogger.machineDebug('Processing welcome message: $cleanMessage');
 
     // Check for grblHAL welcome patterns
     if (!state.grblHalDetected) {
@@ -832,7 +850,7 @@ class MachineControllerBloc
   /// Process acknowledgment message (for stream processing)
   void _processAcknowledgment(String message, DateTime timestamp) {
     // Handle "ok" responses - these confirm command completion
-    AppLogger.machineDebug('Command acknowledged');
+    // (no logging needed for normal acknowledgments)
   }
 
   /// Process error message (for stream processing)
@@ -846,6 +864,38 @@ class MachineControllerBloc
 
     // Add error to state
     add(MachineControllerErrorAdded(error: cleanMessage, timestamp: timestamp));
+  }
+
+  /// Process build info and plugin information from $I command (for stream processing)
+  void _processBuildInfoMessage(String message, DateTime timestamp) {
+    // Remove "Received: " prefix if present
+    final cleanMessage = message.startsWith('Received: ')
+        ? message.substring(10)
+        : message;
+
+    // Look for plugin information in format [PLUGIN:Name]
+    final pluginMatch = RegExp(r'\[PLUGIN:([^\]]+)\]').allMatches(cleanMessage);
+    if (pluginMatch.isNotEmpty) {
+      final newPlugins = pluginMatch.map((match) => match.group(1)!.trim()).toList();
+      
+      // Accumulate plugins instead of overwriting
+      final currentPlugins = List<String>.from(state.plugins);
+      for (final plugin in newPlugins) {
+        if (!currentPlugins.contains(plugin)) {
+          currentPlugins.add(plugin);
+        }
+      }
+      
+      // Update state with accumulated plugins
+      add(MachineControllerPluginsDetected(plugins: currentPlugins, timestamp: timestamp));
+    }
+    
+    // Also check for board information in format [BOARD:Name]
+    final boardMatch = RegExp(r'\[BOARD:([^\]]+)\]').firstMatch(cleanMessage);
+    if (boardMatch != null) {
+      final boardName = boardMatch.group(1)!.trim();
+      AppLogger.machineInfo('Detected board: $boardName');
+    }
   }
 
   /// Parse a single configuration line (for stream processing)
@@ -888,9 +938,6 @@ class MachineControllerBloc
       ),
     );
 
-    AppLogger.machineDebug(
-      'Configuration setting updated: \$$settingId=$value',
-    );
   }
 
   /// Check a single message for grblHAL patterns
@@ -1118,16 +1165,21 @@ class MachineControllerBloc
     return 'unknown';
   }
 
+  /// Log jog command with throttling to avoid spam during continuous jogging
+  void _logJogCommand(String message, {bool forceLog = false}) {
+    final now = DateTime.now();
+    
+    // Log immediately if forced, or if enough time has passed since last log
+    if (forceLog || 
+        _lastJogLogTime == null || 
+        now.difference(_lastJogLogTime!).inSeconds >= 3) {
+      AppLogger.machineInfo(message);
+      _lastJogLogTime = now;
+    }
+  }
+
   /// Check if machine is in a valid state for jogging
   bool _canJog() {
-    AppLogger.machineDebug('Checking jog eligibility:');
-    AppLogger.machineDebug('  hasController: ${state.hasController}');
-    AppLogger.machineDebug('  isOnline: ${state.isOnline}');
-    AppLogger.machineDebug(
-      '  status: ${state.status.displayName} (${state.status.name})',
-    );
-    AppLogger.machineDebug('  grblHalDetected: ${state.grblHalDetected}');
-
     if (!state.hasController || !state.isOnline) {
       AppLogger.machineWarning(
         'Cannot jog - controller not available or offline',
@@ -1186,7 +1238,8 @@ class MachineControllerBloc
         _processErrorMessage(cncMessage.content, cncMessage.timestamp);
         break;
       case CncMessageType.other:
-        // Handle other message types as needed
+        // Check if this is build info or plugin information from $I command
+        _processBuildInfoMessage(cncMessage.content, cncMessage.timestamp);
         break;
     }
   }

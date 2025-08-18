@@ -377,3 +377,17 @@ class MachineControllerBufferStatusUpdated extends MachineControllerEvent {
   @override
   List<Object?> get props => [plannerBlocksAvailable, rxBytesAvailable, timestamp];
 }
+
+/// Plugins detected from $I command response
+class MachineControllerPluginsDetected extends MachineControllerEvent {
+  final List<String> plugins;
+  final DateTime timestamp;
+  
+  const MachineControllerPluginsDetected({
+    required this.plugins,
+    required this.timestamp,
+  });
+  
+  @override
+  List<Object?> get props => [plugins, timestamp];
+}

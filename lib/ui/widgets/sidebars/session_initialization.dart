@@ -236,9 +236,11 @@ class _SessionInitializationSectionState
             const SizedBox(height: 8),
             Row(
               children: [
-                ElevatedButton(
-                  onPressed: () => setState(() => _selectedJogDistance = 0.0),
-                  child: Text('Free'),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () => setState(() => _selectedJogDistance = 0.0),
+                    child: Text('Free'),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 _buildJogDistanceButton(0.1),
@@ -246,7 +248,6 @@ class _SessionInitializationSectionState
                 _buildJogDistanceButton(1.0),
                 const SizedBox(width: 8),
                 _buildJogDistanceButton(10.0),
-                const SizedBox(width: 8),
               ],
             ),
 

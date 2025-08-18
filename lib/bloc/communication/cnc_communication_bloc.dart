@@ -385,14 +385,15 @@ class CncCommunicationBloc
     } else if (message.startsWith(r'$') && message.contains('=')) {
       return CncMessageType.configuration;
     } else if (message.toLowerCase().contains('grbl') ||
-        message.toLowerCase().contains('welcome') ||
-        message.contains('[') && message.contains(']')) {
+        message.toLowerCase().contains('welcome')) {
       return CncMessageType.welcome;
     } else if (message == 'ok') {
       return CncMessageType.acknowledgment;
     } else if (message.startsWith('error:')) {
       return CncMessageType.error;
     } else {
+      // Messages with [PLUGIN:...], [BOARD:...] etc. should be classified as 'other'
+      // for processing by _processBuildInfoMessage
       return CncMessageType.other;
     }
   }

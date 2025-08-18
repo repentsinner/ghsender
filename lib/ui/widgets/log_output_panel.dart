@@ -23,13 +23,6 @@ class _LogOutputPanelState extends State<LogOutputPanel> {
   final ScrollController _scrollController = ScrollController();
   final ValueNotifier<int> _logCountNotifier = ValueNotifier<int>(0);
 
-  // Static color map for log levels
-  static const Map<String, Color> _levelColors = {
-    'SEVERE': VSCodeTheme.error,
-    'WARNING': VSCodeTheme.warning,
-    'INFO': VSCodeTheme.info,
-    'FINE': VSCodeTheme.secondaryText,
-  };
 
 
   @override
@@ -80,48 +73,8 @@ class _LogOutputPanelState extends State<LogOutputPanel> {
   }
 
 
-  // Create prototype item for optimal ListView performance
-  Widget _buildPrototypeItem() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
-      child: Row(
-        children: [
-          // Time
-          Text(
-            '00:00:00.000 ',
-            style: VSCodeTheme.loglineTime.copyWith(fontSize: 11),
-          ),
-          // Logger name
-          Text(
-            'AppLogger ',
-            style: VSCodeTheme.loglineName.copyWith(fontSize: 11),
-          ),
-          // Level (colored)
-          Text(
-            'WARNING ',
-            style: VSCodeTheme.loglineLevel.copyWith(
-              fontSize: 11,
-              color: _levelColors['WARNING'],
-            ),
-          ),
-          // Message
-          Expanded(
-            child: Text(
-              'Sample log message for prototype sizing',
-              style: VSCodeTheme.loglineMessage.copyWith(fontSize: 11),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  // Helper method to get color for log level
-  Color _getLevelColor(String level) {
-    return _levelColors[level.toUpperCase()] ?? VSCodeTheme.primaryText;
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -138,52 +91,19 @@ class _LogOutputPanelState extends State<LogOutputPanel> {
                       style: VSCodeTheme.loglineMessage,
                     ),
                   )
-                : SelectionArea(
-                    child: ListView.builder(
-                      controller: _scrollController,
-                      itemCount: logCount,
-                      prototypeItem: _buildPrototypeItem(), // Optimal performance
-                      cacheExtent: 250, // Flutter default, proven optimal
-                      addAutomaticKeepAlives: false, // Performance optimization
-                      addRepaintBoundaries: true, // Optimal for visible items
-                      itemBuilder: (context, index) {
-                        final message = AppLogger.logHistory[index];
-                        
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
-                          child: Row(
-                            children: [
-                              // Time
-                              Text(
-                                '${message.formattedTime} ',
-                                style: VSCodeTheme.loglineTime.copyWith(fontSize: 11),
-                              ),
-                              // Logger name
-                              Text(
-                                '${message.name.padRight(8)} ',
-                                style: VSCodeTheme.loglineName.copyWith(fontSize: 11),
-                              ),
-                              // Level (colored)
-                              Text(
-                                '${message.level.padRight(7)} ',
-                                style: VSCodeTheme.loglineLevel.copyWith(
-                                  fontSize: 11,
-                                  color: _getLevelColor(message.level),
-                                ),
-                              ),
-                              // Message
-                              Expanded(
-                                child: Text(
-                                  message.message,
-                                  style: VSCodeTheme.loglineMessage.copyWith(fontSize: 11),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                : SingleChildScrollView(
+                    controller: _scrollController,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+                      child: SelectableText(
+                        AppLogger.logHistory.map((message) {
+                          return '${message.formattedTime} ${message.name.padRight(8)} ${message.level.padRight(7)} ${message.message}';
+                        }).join('\n'),
+                        style: VSCodeTheme.loglineMessage.copyWith(
+                          fontSize: 11,
+                          color: VSCodeTheme.primaryText,
+                        ),
+                      ),
                     ),
                   );
           },

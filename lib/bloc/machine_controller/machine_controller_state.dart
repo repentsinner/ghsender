@@ -35,6 +35,9 @@ class MachineControllerState extends Equatable {
   final int? rxBytesAvailable;
   final int? maxObservedBufferBlocks; // Set to first idle buffer value seen
   
+  // Plugin detection from $I command
+  final List<String> plugins;
+  
   const MachineControllerState({
     this.controller,
     this.isInitialized = false,
@@ -55,6 +58,7 @@ class MachineControllerState extends Equatable {
     this.plannerBlocksAvailable,
     this.rxBytesAvailable,
     this.maxObservedBufferBlocks,
+    this.plugins = const [],
   });
   
   /// Create a copy with updated fields
@@ -78,6 +82,7 @@ class MachineControllerState extends Equatable {
     int? plannerBlocksAvailable,
     int? rxBytesAvailable,
     int? maxObservedBufferBlocks,
+    List<String>? plugins,
     bool clearLastMessage = false,
     bool clearPerformanceData = false,
     bool clearJogTestStartTime = false,
@@ -105,6 +110,7 @@ class MachineControllerState extends Equatable {
       plannerBlocksAvailable: plannerBlocksAvailable ?? this.plannerBlocksAvailable,
       rxBytesAvailable: rxBytesAvailable ?? this.rxBytesAvailable,
       maxObservedBufferBlocks: maxObservedBufferBlocks ?? this.maxObservedBufferBlocks,
+      plugins: plugins ?? this.plugins,
     );
   }
   
@@ -156,6 +162,14 @@ class MachineControllerState extends Equatable {
   /// Controller hardware version
   String? get hardwareVersion => controller?.hardwareVersion;
   
+  /// Whether the Sienci Indicator Lights plugin is detected
+  bool get hasSienciIndicatorPlugin => plugins.any((plugin) => 
+      plugin.toLowerCase().contains('sienci') && 
+      plugin.toLowerCase().contains('indicator'));
+  
+  /// List of detected plugins
+  List<String> get detectedPlugins => List.unmodifiable(plugins);
+  
   /// Status summary for display
   String get statusSummary {
     if (!hasController) return 'No Controller';
@@ -191,6 +205,8 @@ class MachineControllerState extends Equatable {
       'grblHalDetected': grblHalDetected,
       'grblHalVersion': grblHalVersion,
       'grblHalDetectedAt': grblHalDetectedAt?.toIso8601String(),
+      'plugins': plugins,
+      'hasSienciIndicatorPlugin': hasSienciIndicatorPlugin,
       'workPosition': workPosition?.toString(),
       'machinePosition': machinePosition?.toString(),
       'spindleState': spindleState != null ? {
@@ -227,6 +243,7 @@ class MachineControllerState extends Equatable {
     plannerBlocksAvailable,
     rxBytesAvailable,
     maxObservedBufferBlocks,
+    plugins,
   ];
   
   @override
