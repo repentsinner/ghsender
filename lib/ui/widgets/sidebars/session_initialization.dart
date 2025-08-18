@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_joystick/flutter_joystick.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -28,6 +31,19 @@ class _SessionInitializationSectionState
   int _selectedJogFeedRate = 500; // Default jog feed rate
   final double _probeDistance = 10.0;
   final double _probeFeedRate = 100.0;
+  
+  // Joystick continuous jog state
+  bool _isJogging = false;
+  Timer? _jogUpdateTimer;
+  double _lastJogX = 0.0;
+  double _lastJogY = 0.0;
+  DateTime? _lastJogCommandTime;
+
+  @override
+  void dispose() {
+    _jogUpdateTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -220,15 +236,17 @@ class _SessionInitializationSectionState
             const SizedBox(height: 8),
             Row(
               children: [
+                ElevatedButton(
+                  onPressed: () => setState(() => _selectedJogDistance = 0.0),
+                  child: Text('Free'),
+                ),
+                const SizedBox(width: 8),
                 _buildJogDistanceButton(0.1),
                 const SizedBox(width: 8),
                 _buildJogDistanceButton(1.0),
                 const SizedBox(width: 8),
                 _buildJogDistanceButton(10.0),
                 const SizedBox(width: 8),
-                _buildJogDistanceButton(
-                  1.0,
-                ), // Custom distance input could go here
               ],
             ),
 
@@ -250,7 +268,7 @@ class _SessionInitializationSectionState
                 const SizedBox(width: 8),
                 _buildJogFeedRateButton(1000),
                 const SizedBox(width: 8),
-                _buildJogFeedRateButton(2000),
+                _buildJogFeedRateButton(4000),
               ],
             ),
 
@@ -264,62 +282,10 @@ class _SessionInitializationSectionState
               ),
             ),
             const SizedBox(height: 8),
-            Center(
-              child: Column(
-                children: [
-                  // Y+ button
-                  _buildJogButton(
-                    Icons.keyboard_arrow_up,
-                    'Y+',
-                    () => _jogAxis('Y', _selectedJogDistance),
-                    canJog,
-                  ),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // X- button
-                      _buildJogButton(
-                        Icons.keyboard_arrow_left,
-                        'X-',
-                        () => _jogAxis('X', -_selectedJogDistance),
-                        canJog,
-                      ),
-                      const SizedBox(width: 8),
-                      // XY label
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          border: Border.all(color: VSCodeTheme.border),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Center(
-                          child: Text(
-                            'XY',
-                            style: VSCodeTheme.smallText,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // X+ button
-                      _buildJogButton(
-                        Icons.keyboard_arrow_right,
-                        'X+',
-                        () => _jogAxis('X', _selectedJogDistance),
-                        canJog,
-                      ),
-                    ],
-                  ),
-                  // Y- button
-                  _buildJogButton(
-                    Icons.keyboard_arrow_down,
-                    'Y-',
-                    () => _jogAxis('Y', -_selectedJogDistance),
-                    canJog,
-                  ),
-                ],
-              ),
-            ),
+            // Show joystick for free mode, traditional buttons for fixed distances
+            _selectedJogDistance == 0.0
+                ? _buildJoystickControl(canJog)
+                : _buildTraditionalJogButtons(canJog),
 
             const SizedBox(height: 16),
 
@@ -434,10 +400,7 @@ class _SessionInitializationSectionState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Distance (mm)',
-                    style: VSCodeTheme.captionText,
-                  ),
+                  Text('Distance (mm)', style: VSCodeTheme.captionText),
                   const SizedBox(height: 4),
                   Text(
                     _probeDistance.toStringAsFixed(1),
@@ -451,10 +414,7 @@ class _SessionInitializationSectionState
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Feed Rate',
-                    style: VSCodeTheme.captionText,
-                  ),
+                  Text('Feed Rate', style: VSCodeTheme.captionText),
                   const SizedBox(height: 4),
                   Text(
                     _probeFeedRate.toStringAsFixed(0),
@@ -562,10 +522,91 @@ class _SessionInitializationSectionState
           side: BorderSide(color: VSCodeTheme.border),
           padding: const EdgeInsets.symmetric(vertical: 8),
         ),
-        child: Text(
-          feedRate.toString(),
-          style: VSCodeTheme.labelText,
+        child: Text(feedRate.toString(), style: VSCodeTheme.labelText),
+      ),
+    );
+  }
+
+  Widget _buildJoystickControl(bool canJog) {
+    return Center(
+      child: SizedBox(
+        width: 150,
+        height: 150,
+        child: Joystick(
+          mode: JoystickMode.all,
+          period: const Duration(milliseconds: 8), // ~120 FPS
+          listener: ((details) {
+            _handleJoystickInput(details, canJog);
+          }) as dynamic,
+          base: JoystickBase(
+            decoration: JoystickBaseDecoration(
+              color: VSCodeTheme.sideBarBackground,
+            ),
+            size: 150,
+          ),
+          stick: JoystickStick(
+            decoration: JoystickStickDecoration(
+              color: canJog ? VSCodeTheme.focus : VSCodeTheme.secondaryText.withValues(alpha: 0.5),
+            ),
+            size: 50,
+          ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildTraditionalJogButtons(bool canJog) {
+    return Center(
+      child: Column(
+        children: [
+          // Y+ button
+          _buildJogButton(
+            Icons.keyboard_arrow_up,
+            'Y+',
+            () => _jogAxis('Y', _selectedJogDistance),
+            canJog,
+          ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // X- button
+              _buildJogButton(
+                Icons.keyboard_arrow_left,
+                'X-',
+                () => _jogAxis('X', -_selectedJogDistance),
+                canJog,
+              ),
+              const SizedBox(width: 8),
+              // XY label
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  border: Border.all(color: VSCodeTheme.border),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Center(
+                  child: Text('XY', style: VSCodeTheme.smallText),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // X+ button
+              _buildJogButton(
+                Icons.keyboard_arrow_right,
+                'X+',
+                () => _jogAxis('X', _selectedJogDistance),
+                canJog,
+              ),
+            ],
+          ),
+          // Y- button
+          _buildJogButton(
+            Icons.keyboard_arrow_down,
+            'Y-',
+            () => _jogAxis('Y', -_selectedJogDistance),
+            canJog,
+          ),
+        ],
       ),
     );
   }
@@ -653,7 +694,9 @@ class _SessionInitializationSectionState
   }
 
   void _jogAxis(String axis, double distance) {
-    AppLogger.info('Jog request: $axis axis by ${distance}mm at ${_selectedJogFeedRate}mm/min');
+    AppLogger.info(
+      'Jog request: $axis axis by ${distance}mm at ${_selectedJogFeedRate}mm/min',
+    );
 
     // Send jog command through MachineControllerBloc
     context.read<MachineControllerBloc>().add(
@@ -662,6 +705,149 @@ class _SessionInitializationSectionState
         distance: distance,
         feedRate: _selectedJogFeedRate,
       ),
+    );
+  }
+
+  void _handleJoystickInput(dynamic details, bool canJog) {
+    // Only process joystick input if jogging is allowed and we're in free mode
+    if (!canJog || _selectedJogDistance != 0.0) {
+      _stopJogging();
+      return;
+    }
+
+    double x = details.x;
+    double y = details.y;
+    final now = DateTime.now();
+
+    // When joystick returns to center, stop
+    if (x == 0.0 && y == 0.0) {
+      if (_isJogging) {
+        _stopJogging();
+      }
+      return;
+    }
+
+    // Calculate magnitude for feed rate scaling
+    double magnitude = sqrt(x * x + y * y);
+    magnitude = magnitude.clamp(0.0, 1.0);
+
+    // Apply dead zone for noise filtering
+    if (magnitude < 0.05) {
+      if (_isJogging) {
+        _stopJogging();
+      }
+      return;
+    }
+
+    // Get current buffer status from machine controller
+    final machineState = context.read<MachineControllerBloc>().state;
+    final availableBlocks = machineState.plannerBlocksAvailable ?? 100; // Available blocks
+    final maxBufferBlocks = machineState.maxObservedBufferBlocks ?? 100; // Total buffer size
+    
+    // Calculate USED buffer blocks (this is what we should manage!)
+    final usedBufferBlocks = maxBufferBlocks - availableBlocks;
+
+    // Target feed rate scaled by magnitude
+    final scaledFeedRate = (magnitude * _selectedJogFeedRate).round();
+    
+    // Calculate distance for high-frequency responsive control
+    // Use shorter execution time for higher responsiveness (25ms vs gSender's 60ms)  
+    const targetExecutionTimeMs = 25.0;
+    final baseDistance = (scaledFeedRate / 60.0) * (targetExecutionTimeMs / 1000.0); // mm per command
+    
+    // Buffer-aware command rate limiting based on USED blocks
+    // Smooth interpolation between aggressive filling (120Hz) and buffer protection (30Hz)
+    const targetMinUsed = 1.0;     // Aggressive filling threshold
+    const targetMaxUsed = 8.0;     // Buffer protection threshold
+    
+    // Work with used blocks (clamped to reasonable range)
+    final managedUsedBlocks = usedBufferBlocks.clamp(0.0, 15.0);
+    
+    // Lerp between 8ms (120Hz) and 33ms (30Hz) based on buffer usage
+    const minIntervalMs = 8.0;   // 120Hz - aggressive filling
+    const maxIntervalMs = 33.0;  // 30Hz - buffer protection
+    
+    final bufferRatio = (managedUsedBlocks - targetMinUsed) / (targetMaxUsed - targetMinUsed);
+    final clampedRatio = bufferRatio.clamp(0.0, 1.0);
+    final targetIntervalMs = (minIntervalMs + (maxIntervalMs - minIntervalMs) * clampedRatio).round();
+    
+    // Check if enough time has passed since last command
+    final timeSinceLastCommand = _lastJogCommandTime != null 
+        ? now.difference(_lastJogCommandTime!).inMilliseconds 
+        : targetIntervalMs;
+    
+    // Check for direction changes that need immediate response
+    final directionChanged = _shouldSendJogUpdate(x, y, magnitude, now);
+    
+    // Don't send if not enough time passed and no direction change
+    if (timeSinceLastCommand < targetIntervalMs && !directionChanged) {
+      return; // Not ready to send yet
+    }
+    
+    // Send command - either timing allows or direction changed significantly
+    {
+      // Calculate move distances using gSender-inspired approach
+      final xDistance = x * baseDistance;
+      final yDistance = y * baseDistance;
+      
+      // Only send if move distance is meaningful (> 0.01mm)
+      if ((xDistance.abs() + yDistance.abs()) > 0.01) {
+        // Send multi-axis jog command
+        context.read<MachineControllerBloc>().add(
+          MachineControllerMultiAxisJogRequested(
+            xDistance: xDistance,
+            yDistance: yDistance,
+            feedRate: scaledFeedRate,
+          ),
+        );
+        
+        // Update state
+        _lastJogX = x;
+        _lastJogY = y;
+        _lastJogCommandTime = now;
+        _isJogging = true;
+      }
+    }
+  }
+
+  bool _shouldSendJogUpdate(double x, double y, double magnitude, DateTime now) {
+    // Always send if we're not currently jogging
+    if (!_isJogging) return true;
+    
+    // Check for significant direction change (> 30 degrees)
+    if (_lastJogX != 0.0 || _lastJogY != 0.0) {
+      final lastAngle = atan2(_lastJogY, _lastJogX);
+      final currentAngle = atan2(y, x);
+      final angleDiff = (currentAngle - lastAngle).abs();
+      final normalizedAngleDiff = angleDiff > pi ? (2 * pi - angleDiff) : angleDiff;
+      
+      if (normalizedAngleDiff > (pi / 6)) { // 30 degrees in radians
+        return true; // Significant direction change
+      }
+    }
+    
+    // Check for significant magnitude change
+    final lastMagnitude = sqrt(_lastJogX * _lastJogX + _lastJogY * _lastJogY);
+    if ((magnitude - lastMagnitude).abs() > 0.1) {
+      return true; // Significant speed change
+    }
+    
+    // Otherwise, rely on time-based updates
+    return false;
+  }
+
+  void _stopJogging() {
+    if (!_isJogging) return;
+    
+    _isJogging = false;
+    _lastJogX = 0.0;
+    _lastJogY = 0.0;
+    _lastJogCommandTime = null;
+    _jogUpdateTimer?.cancel();
+    
+    // Send jog stop command
+    context.read<MachineControllerBloc>().add(
+      const MachineControllerJogStopRequested(),
     );
   }
 

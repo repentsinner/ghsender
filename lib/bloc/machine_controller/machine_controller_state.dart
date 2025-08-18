@@ -30,6 +30,11 @@ class MachineControllerState extends Equatable {
   // Machine configuration from $ command responses
   final MachineConfiguration? configuration;
   
+  // Buffer status tracking for adaptive jog control
+  final int? plannerBlocksAvailable;
+  final int? rxBytesAvailable;
+  final int? maxObservedBufferBlocks; // Set to first idle buffer value seen
+  
   const MachineControllerState({
     this.controller,
     this.isInitialized = false,
@@ -47,6 +52,9 @@ class MachineControllerState extends Equatable {
     this.grblHalVersion,
     this.grblHalDetectedAt,
     this.configuration,
+    this.plannerBlocksAvailable,
+    this.rxBytesAvailable,
+    this.maxObservedBufferBlocks,
   });
   
   /// Create a copy with updated fields
@@ -67,6 +75,9 @@ class MachineControllerState extends Equatable {
     String? grblHalVersion,
     DateTime? grblHalDetectedAt,
     MachineConfiguration? configuration,
+    int? plannerBlocksAvailable,
+    int? rxBytesAvailable,
+    int? maxObservedBufferBlocks,
     bool clearLastMessage = false,
     bool clearPerformanceData = false,
     bool clearJogTestStartTime = false,
@@ -91,6 +102,9 @@ class MachineControllerState extends Equatable {
       grblHalVersion: clearGrblHalVersion ? null : grblHalVersion ?? this.grblHalVersion,
       grblHalDetectedAt: clearGrblHalDetectedAt ? null : grblHalDetectedAt ?? this.grblHalDetectedAt,
       configuration: clearConfiguration ? null : configuration ?? this.configuration,
+      plannerBlocksAvailable: plannerBlocksAvailable ?? this.plannerBlocksAvailable,
+      rxBytesAvailable: rxBytesAvailable ?? this.rxBytesAvailable,
+      maxObservedBufferBlocks: maxObservedBufferBlocks ?? this.maxObservedBufferBlocks,
     );
   }
   
@@ -210,6 +224,9 @@ class MachineControllerState extends Equatable {
     grblHalVersion,
     grblHalDetectedAt,
     configuration,
+    plannerBlocksAvailable,
+    rxBytesAvailable,
+    maxObservedBufferBlocks,
   ];
   
   @override

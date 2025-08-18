@@ -128,9 +128,6 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
     CncCommunicationStateAnalyzed event,
     Emitter<ProblemsState> emit,
   ) {
-    AppLogger.debug(
-      'Analyzing CNC Communication state: ${event.state.runtimeType}',
-    );
 
     // Clear existing CNC-related problems first
     final nonCncProblems = state.problems
@@ -291,7 +288,6 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
     MachineControllerStateAnalyzed event,
     Emitter<ProblemsState> emit,
   ) {
-    AppLogger.debug('Analyzing Machine Controller state');
 
     // Clear existing machine state problems
     final nonMachineProblems = state.problems

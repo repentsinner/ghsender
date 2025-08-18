@@ -43,12 +43,14 @@ class MachineControllerBloc
     on<MachineControllerGrblHalDetected>(_onGrblHalDetected);
     on<MachineControllerSetCommunicationBloc>(_onSetCommunicationBloc);
     on<MachineControllerConfigurationReceived>(_onConfigurationReceived);
+    on<MachineControllerBufferStatusUpdated>(_onBufferStatusUpdated);
 
     // Jog control handlers
     on<MachineControllerJogRequested>(_onJogRequested);
     on<MachineControllerJogStopRequested>(_onJogStopRequested);
     on<MachineControllerContinuousJogStarted>(_onContinuousJogStarted);
     on<MachineControllerContinuousJogStopped>(_onContinuousJogStopped);
+    on<MachineControllerMultiAxisJogRequested>(_onMultiAxisJogRequested);
 
     // Initialize in the next tick
     Future.delayed(Duration.zero, () {
@@ -72,9 +74,6 @@ class MachineControllerBloc
     MachineControllerCommunicationReceived event,
     Emitter<MachineControllerState> emit,
   ) {
-    AppLogger.machineDebug(
-      'Received communication state: ${event.communicationState.runtimeType}',
-    );
 
     final now = DateTime.now();
 
@@ -194,9 +193,6 @@ class MachineControllerBloc
         ),
       );
 
-      AppLogger.machineDebug(
-        'Machine status updated: ${event.status.displayName}',
-      );
     }
   }
 
@@ -219,7 +215,6 @@ class MachineControllerBloc
         ),
       );
 
-      AppLogger.machineDebug('Machine coordinates updated');
     }
   }
 
@@ -241,9 +236,6 @@ class MachineControllerBloc
         ),
       );
 
-      AppLogger.machineDebug(
-        'Machine spindle updated: ${event.spindleState.speed} RPM',
-      );
     }
   }
 
@@ -265,9 +257,6 @@ class MachineControllerBloc
         ),
       );
 
-      AppLogger.machineDebug(
-        'Machine feed updated: ${event.feedState.rate} ${event.feedState.units}',
-      );
     }
   }
 
@@ -582,6 +571,27 @@ class MachineControllerBloc
     );
   }
 
+  /// Handle buffer status update
+  void _onBufferStatusUpdated(
+    MachineControllerBufferStatusUpdated event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    // Capture max buffer size from first idle state seen
+    int? maxBuffer = state.maxObservedBufferBlocks;
+    if (maxBuffer == null && state.status == MachineStatus.idle) {
+      maxBuffer = event.plannerBlocksAvailable;
+    }
+    
+    emit(
+      state.copyWith(
+        plannerBlocksAvailable: event.plannerBlocksAvailable,
+        rxBytesAvailable: event.rxBytesAvailable,
+        maxObservedBufferBlocks: maxBuffer,
+        lastUpdateTime: event.timestamp,
+      ),
+    );
+  }
+
   /// Start grblHAL detection timeout
   void _startGrblHalDetectionTimeout() {
     _cancelGrblHalDetectionTimeout();
@@ -725,6 +735,50 @@ class MachineControllerBloc
     _onJogStopRequested(const MachineControllerJogStopRequested(), emit);
   }
 
+  /// Handle multi-axis jog request for smooth diagonal movement
+  void _onMultiAxisJogRequested(
+    MachineControllerMultiAxisJogRequested event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    if (!_canJog()) {
+      AppLogger.machineWarning(
+        'Cannot multi-axis jog - machine not in valid state: ${state.status.displayName}',
+      );
+      return;
+    }
+
+    if (_communicationBloc == null) {
+      AppLogger.machineError('Cannot multi-axis jog - no communication bloc reference');
+      return;
+    }
+
+    // Build GRBL multi-axis jog command
+    // Format: $J=G91 G21 X[xDist] Y[yDist] F[feedRate]
+    List<String> axisParts = [];
+    
+    if (event.xDistance != 0.0) {
+      axisParts.add('X${event.xDistance}');
+    }
+    
+    if (event.yDistance != 0.0) {
+      axisParts.add('Y${event.yDistance}');
+    }
+    
+    // Only send command if at least one axis has movement
+    if (axisParts.isEmpty) {
+      AppLogger.machineWarning('Multi-axis jog requested with no axis movement');
+      return;
+    }
+    
+    final jogCommand = '\$J=G91 G21 ${axisParts.join(' ')} F${event.feedRate}';
+    
+    AppLogger.machineInfo('Sending multi-axis jog command: $jogCommand');
+    _communicationBloc.add(CncCommunicationSendCommand(jogCommand));
+
+    // Update state to indicate jogging
+    emit(state.copyWith(lastUpdateTime: DateTime.now()));
+  }
+
   /// Process individual status message (for stream processing)
   void _processStatusMessage(String message, DateTime timestamp) {
     // Remove "Received: " prefix if present
@@ -732,7 +786,6 @@ class MachineControllerBloc
         ? message.substring(10)
         : message;
 
-    AppLogger.machineDebug('Processing status message: $cleanMessage');
 
     // Parse status message like: <Idle|MPos:0.000,0.000,0.000|...>
     final statusMatch = RegExp(r'<([^|]+)').firstMatch(cleanMessage);
@@ -936,6 +989,8 @@ class MachineControllerBloc
     MachineCoordinates? workPos;
     double? feedRate;
     double? spindleSpeed;
+    int? plannerBlocks;
+    int? rxBytes;
 
     // Parse machine position
     final mPosMatch = RegExp(
@@ -970,6 +1025,15 @@ class MachineControllerBloc
     if (fsMatch != null) {
       feedRate = double.tryParse(fsMatch.group(1)!);
       spindleSpeed = double.tryParse(fsMatch.group(2)!);
+    }
+
+    // Parse buffer status
+    final bfMatch = RegExp(
+      r'Bf:([0-9]+),([0-9]+)',
+    ).firstMatch(statusMessage);
+    if (bfMatch != null) {
+      plannerBlocks = int.tryParse(bfMatch.group(1)!);
+      rxBytes = int.tryParse(bfMatch.group(2)!);
     }
 
     // Emit status update events instead of direct state changes
@@ -1012,12 +1076,16 @@ class MachineControllerBloc
       );
     }
 
-    AppLogger.machineDebug('Status updated: ${status.displayName}');
-    if (machinePos != null) {
-      AppLogger.machineDebug(
-        'Machine position: (${machinePos.x}, ${machinePos.y}, ${machinePos.z}) mm',
+    if (plannerBlocks != null && rxBytes != null) {
+      add(
+        MachineControllerBufferStatusUpdated(
+          plannerBlocksAvailable: plannerBlocks,
+          rxBytesAvailable: rxBytes,
+          timestamp: timestamp,
+        ),
       );
     }
+
   }
 
   /// Check if message contains grblHAL patterns
@@ -1099,9 +1167,6 @@ class MachineControllerBloc
     }
 
     final cncMessage = message;
-    AppLogger.machineInfo(
-      'STREAM: Processing ${cncMessage.type.name} message: "${cncMessage.content}"',
-    );
 
     // Route message by type for efficient processing
     switch (cncMessage.type) {

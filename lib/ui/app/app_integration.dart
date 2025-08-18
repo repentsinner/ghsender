@@ -74,6 +74,10 @@ class _AppIntegrationLayerState extends State<AppIntegrationLayer> {
         
         // CNC Communication state monitoring
         BlocListener<CncCommunicationBloc, CncCommunicationState>(
+          listenWhen: (previous, current) {
+            // Only listen on actual connection state changes, not performance updates
+            return previous.runtimeType != current.runtimeType;
+          },
           listener: (context, commState) {
             // Reduced logging - only log important state changes
             

@@ -356,8 +356,6 @@ class CncCommunicationBloc
       final cleanedMessage = line.trim();
       if (cleanedMessage.isEmpty) continue; // Skip empty lines
 
-      // Debug logging for all messages during connection handshake
-      AppLogger.commDebug('Received: $cleanedMessage');
 
       // Determine message type for efficient processing
       final messageType = _determineMessageType(cleanedMessage);
@@ -411,7 +409,7 @@ class CncCommunicationBloc
       _webSocketChannel!.sink.add(commandWithNewline);
 
       // Minimal command logging
-      if (command != '?' && command != r'$') {
+      if (command != '?' && command != r'$' && !command.startsWith(r'$J=')) {
         AppLogger.commDebug('Sent: "$command"');
       }
     } catch (e, stackTrace) {
@@ -447,11 +445,6 @@ class CncCommunicationBloc
 
       // Minimal raw bytes logging
       if (bytes.isNotEmpty && bytes[0] != 0x84) {
-        // Don't log safety door commands
-        final bytesHex = bytes
-            .map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}')
-            .join(' ');
-        AppLogger.commDebug('Sent raw: $bytesHex');
       }
     } catch (e, stackTrace) {
       final bytesHex = bytes

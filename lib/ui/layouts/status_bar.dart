@@ -216,6 +216,15 @@ class StatusBar extends StatelessWidget {
       _ => (Icons.help, Colors.grey),
     };
 
+    // Build status text with buffer info if available
+    String statusText = status.displayName;
+    if (machineState.plannerBlocksAvailable != null && machineState.maxObservedBufferBlocks != null) {
+      final usedBlocks = machineState.maxObservedBufferBlocks! - machineState.plannerBlocksAvailable!;
+      statusText += ' ($usedBlocks/${machineState.maxObservedBufferBlocks} blocks)';
+    } else if (machineState.plannerBlocksAvailable != null) {
+      statusText += ' (${machineState.plannerBlocksAvailable} avail)';
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       height: VSCodeTheme.statusBarHeight,
@@ -225,7 +234,7 @@ class StatusBar extends StatelessWidget {
           Icon(icon, color: iconColor, size: 14),
           const SizedBox(width: 4),
           Text(
-            status.displayName,
+            statusText,
             style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 11),
           ),
         ],

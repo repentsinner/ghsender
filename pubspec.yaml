@@ -66,6 +66,8 @@ dependencies:
   path_provider: ^2.1.4
   # URL launcher for opening external links
   url_launcher: ^6.3.2
+  # Flutter joystick widget for continuous jogging
+  flutter_joystick: ^0.2.2
 
 dev_dependencies:
   flutter_test:

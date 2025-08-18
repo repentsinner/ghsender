@@ -316,6 +316,22 @@ class MachineControllerContinuousJogStopped extends MachineControllerEvent {
   const MachineControllerContinuousJogStopped();
 }
 
+/// Multi-axis jog request for smooth diagonal movement
+class MachineControllerMultiAxisJogRequested extends MachineControllerEvent {
+  final double xDistance; // X axis distance in mm (can be 0)
+  final double yDistance; // Y axis distance in mm (can be 0)
+  final int feedRate; // Feed rate for the combined movement in mm/min
+  
+  const MachineControllerMultiAxisJogRequested({
+    required this.xDistance,
+    required this.yDistance,
+    required this.feedRate,
+  });
+  
+  @override
+  List<Object?> get props => [xDistance, yDistance, feedRate];
+}
+
 /// Machine configuration received and parsed from $ command response
 class MachineControllerConfigurationReceived extends MachineControllerEvent {
   final MachineConfiguration configuration;
@@ -344,4 +360,20 @@ class MachineControllerMessageReceived extends MachineControllerEvent {
   
   @override
   List<Object?> get props => [message, timestamp, messageType];
+}
+
+/// Buffer status updated from status report
+class MachineControllerBufferStatusUpdated extends MachineControllerEvent {
+  final int plannerBlocksAvailable;
+  final int rxBytesAvailable;
+  final DateTime timestamp;
+  
+  const MachineControllerBufferStatusUpdated({
+    required this.plannerBlocksAvailable,
+    required this.rxBytesAvailable,
+    required this.timestamp,
+  });
+  
+  @override
+  List<Object?> get props => [plannerBlocksAvailable, rxBytesAvailable, timestamp];
 }
