@@ -6,6 +6,7 @@ import 'package:vector_math/vector_math.dart' as vm;
 import 'dart:async';
 
 import '../../utils/logger.dart';
+import '../../utils/coordinate_converter.dart';
 import '../../renderers/flutter_scene_batch_renderer.dart';
 import '../../scene/scene_manager.dart';
 import '../../renderers/renderer_interface.dart';
@@ -88,8 +89,8 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
       // Initialize CameraDirector with scene data
       final renderer = _flutterSceneRenderer as FlutterSceneBatchRenderer;
       final cncTarget = renderer.getOrbitTarget();
-      // Transform from CNC coordinates to display coordinates (Y-negation for Impeller)
-      final displayTarget = vm.Vector3(cncTarget.x, -cncTarget.y, cncTarget.z);
+      // Transform from CNC coordinates to display coordinates
+      final displayTarget = CoordinateConverter.cncCameraTargetToDisplay(cncTarget);
       _cameraDirector.initializeFromSceneData(displayTarget);
     }
     AppLogger.info('FlutterScene renderer initialized: $flutterSceneSuccess');
@@ -159,8 +160,36 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
         }
       }
       SceneManager.instance.updateWorkEnvelope(workEnvelope);
+      
+      // Update camera target based on work envelope and machine position
+      _updateCameraTarget(workEnvelope, state.machinePosition);
     });
     AppLogger.info('Machine controller listener established for position updates');
+  }
+
+  /// Update camera target based on work envelope and machine position
+  void _updateCameraTarget(WorkEnvelope? workEnvelope, MachineCoordinates? machinePosition) {
+    // Convert machine coordinates to Vector3 if available
+    vm.Vector3? machinePositionVector;
+    if (machinePosition != null) {
+      machinePositionVector = vm.Vector3(
+        machinePosition.x,
+        machinePosition.y,
+        machinePosition.z,
+      );
+    }
+    
+    // Get work envelope centroid if available
+    vm.Vector3? workEnvelopeCentroid;
+    if (workEnvelope != null) {
+      workEnvelopeCentroid = workEnvelope.center;
+    }
+    
+    // Update camera director with the new target
+    _cameraDirector.updateDynamicTarget(
+      workEnvelopeCentroid: workEnvelopeCentroid,
+      machinePosition: machinePositionVector,
+    );
   }
 
   /// Schedule a retry for work envelope creation
@@ -206,8 +235,8 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
       // Update camera if needed
       final renderer = _flutterSceneRenderer as FlutterSceneBatchRenderer;
       final cncTarget = renderer.getOrbitTarget();
-      // Transform from CNC coordinates to display coordinates (Y-negation for Impeller)
-      final displayTarget = vm.Vector3(cncTarget.x, -cncTarget.y, cncTarget.z);
+      // Transform from CNC coordinates to display coordinates
+      final displayTarget = CoordinateConverter.cncCameraTargetToDisplay(cncTarget);
       _cameraDirector.initializeFromSceneData(displayTarget);
 
       AppLogger.info('Renderer updated with new scene data');

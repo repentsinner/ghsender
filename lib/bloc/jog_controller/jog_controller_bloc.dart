@@ -259,7 +259,8 @@ class JogControllerBloc extends Bloc<JogControllerEvent, JogControllerState> {
     Emitter<JogControllerState> emit,
   ) {
     final xDistance = processed.x * processed.baseDistance;
-    final yDistance = processed.y * processed.baseDistance;
+    // Invert Y-axis to convert from UI convention (Y+ = down) to CNC convention (Y+ = away from operator)
+    final yDistance = -processed.y * processed.baseDistance;
 
     if (BufferManager.isMeaningfulMove(xDistance, yDistance)) {
       _machineControllerBloc.add(

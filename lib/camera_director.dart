@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:vector_math/vector_math.dart' as vm;
 import 'utils/logger.dart';
+import 'utils/coordinate_converter.dart';
 
 /// CameraDirector manages smooth transitions between manual and automatic camera control
 /// Provides cinematic camera animation with seamless handoff to/from user input
@@ -65,6 +66,48 @@ class CameraDirector {
   void initializeFromSceneData(vm.Vector3 cameraTarget) {
     _orbitTarget = cameraTarget;
     AppLogger.info('CameraDirector: Orbit target set to $_orbitTarget');
+  }
+
+  /// Update camera target dynamically based on work envelope and machine position
+  /// When both are available, sets the target to the midpoint between them
+  /// 
+  /// Note: This method accepts CNC coordinates and automatically converts them to
+  /// display coordinates for the camera system.
+  void updateDynamicTarget({
+    vm.Vector3? workEnvelopeCentroid,
+    vm.Vector3? machinePosition,
+  }) {
+    vm.Vector3? newCncTarget;
+    
+    if (workEnvelopeCentroid != null && machinePosition != null) {
+      // Calculate midpoint between work envelope centroid and machine position (in CNC space)
+      newCncTarget = (workEnvelopeCentroid + machinePosition) * 0.5;
+      AppLogger.info(
+        'CameraDirector: Target set to midpoint of work envelope centroid $workEnvelopeCentroid and machine position $machinePosition = $newCncTarget (CNC space)',
+      );
+    } else if (workEnvelopeCentroid != null) {
+      // Only work envelope available - use its centroid
+      newCncTarget = workEnvelopeCentroid;
+      AppLogger.info(
+        'CameraDirector: Target set to work envelope centroid $newCncTarget (CNC space)',
+      );
+    } else if (machinePosition != null) {
+      // Only machine position available - use it as target
+      newCncTarget = machinePosition;
+      AppLogger.info(
+        'CameraDirector: Target set to machine position $newCncTarget (CNC space)',
+      );
+    }
+    // If neither available, keep current target unchanged
+    
+    if (newCncTarget != null) {
+      // Convert CNC coordinates to display coordinates for camera system
+      final displayTarget = CoordinateConverter.cncCameraTargetToDisplay(newCncTarget);
+      _orbitTarget = displayTarget;
+      AppLogger.info(
+        'CameraDirector: Converted target to display coordinates: $displayTarget',
+      );
+    }
   }
 
   /// Start automatic camera animation

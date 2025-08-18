@@ -4,6 +4,7 @@ import 'package:flutter_scene/scene.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:google_fonts/google_fonts.dart';
 import '../scene/scene_manager.dart';
+import '../utils/coordinate_converter.dart';
 import 'renderer_interface.dart';
 import 'line_mesh_factory.dart';
 import 'line_style.dart';
@@ -39,15 +40,15 @@ class FlutterSceneBatchRenderer implements Renderer {
   // Dedicated node for machine position debug cube (updated via transform only)
   Node? _machinePositionCubeNode;
 
-  // Coordinate system transformation matrix
+  // Coordinate system transformation matrix from centralized converter
   // Converts right-handed CNC coordinates to left-handed Metal/Impeller coordinates
   // Negates Y-axis to ensure proper display of CNC coordinate conventions
   //  (X=right, Y=away from operator, Z=up).
   // Note that Impeller creates a left-handed system regardless of whatever the
   // underlying GPU API (Vulkan, OpenGL ES) uses.
   // https://github.com/flutter/engine/blob/main/impeller/docs/coordinate_system.md
-  static final vm.Matrix4 _cncToImpellerCoordinateTransform =
-      vm.Matrix4.diagonal3(vm.Vector3(1, -1, 1));
+  static vm.Matrix4 get _cncToImpellerCoordinateTransform =>
+      CoordinateConverter.cncToDisplayMatrix;
 
   // Dynamic line style settings
   LineStyle _currentLineStyle = LineStyles.technical;
@@ -213,14 +214,23 @@ class FlutterSceneBatchRenderer implements Renderer {
 
     // High-performance machine position update from SceneManager
     final machinePosition = SceneManager.instance.currentMachinePosition;
-    if (_machinePositionCubeNode != null) {
-      if (machinePosition != null) {
+    if (machinePosition != null) {
+      // Add cube to scene if not present and position is available
+      if (_machinePositionCubeNode == null) {
+        _setupMachinePositionCubeFromPosition();
+      }
+      
+      // Update cube position via transform
+      if (_machinePositionCubeNode != null) {
         final transform = vm.Matrix4.identity();
         transform.setTranslation(machinePosition);
         _machinePositionCubeNode!.localTransform = transform;
-      } else {
-        // Hide the cube if position is null
-        _machinePositionCubeNode!.localTransform = vm.Matrix4.zero();
+      }
+    } else {
+      // Remove cube from scene if position is null
+      if (_machinePositionCubeNode != null) {
+        _rootNode.children.remove(_machinePositionCubeNode!);
+        _machinePositionCubeNode = null;
       }
     }
 
@@ -451,6 +461,39 @@ class FlutterSceneBatchRenderer implements Renderer {
       'Created machine position cube visualization with ${nodes.length} face nodes',
     );
     return nodes;
+  }
+
+  /// Set up machine position cube from current position (called dynamically from render loop)
+  void _setupMachinePositionCubeFromPosition() {
+    try {
+      // Create a default machine position indicator
+      final indicator = SceneObject(
+        type: SceneObjectType.machinePosition,
+        position: vm.Vector3.zero(),
+        color: Colors.red,
+        id: 'machine_position_indicator',
+      );
+
+      // Create a parent node for the cube visualization
+      _machinePositionCubeNode = Node();
+      _machinePositionCubeNode!.name = 'machine_position_indicator';
+
+      // Create cube visualization for the machine position
+      final cubeNodes = _createMachinePositionCubeVisualization(indicator);
+      for (final node in cubeNodes) {
+        _machinePositionCubeNode!.add(node);
+      }
+
+      // Add to root node
+      _rootNode.add(_machinePositionCubeNode!);
+
+      AppLogger.info(
+        'Machine position cube created dynamically with ${cubeNodes.length} face nodes',
+      );
+    } catch (e) {
+      AppLogger.error('Failed to setup machine position cube dynamically: $e');
+      _machinePositionCubeNode = null;
+    }
   }
 
   /// Set up machine position indicators for efficient transform updates
