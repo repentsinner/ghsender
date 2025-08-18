@@ -1,20 +1,20 @@
 /*
- * FilledSquareFactory for convenient creation of filled squares
+ * FilledRectangleFactory for convenient creation of filled rectangles
  * 
  * Provides easy-to-use methods for creating common CNC visualization elements
  * like work area boundaries, safety zones, and coordinate indicators
  */
 
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'scene_manager.dart';
 
-class FilledSquareFactory {
-  /// Create a filled square in the XY plane
-  static SceneObject createXYFilledSquare({
+class FilledRectangleFactory {
+  /// Create a filled rectangle in the XY plane
+  static SceneObject createXYFilledRectangle({
     required vm.Vector3 center,
-    required double size,
+    required double width,
+    required double height,
     required Color fillColor,
     Color? edgeColor,
     double edgeWidth = 1.0,
@@ -23,12 +23,13 @@ class FilledSquareFactory {
     String? id,
   }) {
     return SceneObject(
-      type: SceneObjectType.filledSquare,
+      type: SceneObjectType.filledRectangle,
       color: fillColor, // Base color for compatibility
-      id: id ?? 'filled_square_xy_${DateTime.now().millisecondsSinceEpoch}',
+      id: id ?? 'filled_rectangle_xy_${DateTime.now().millisecondsSinceEpoch}',
       center: center,
-      size: size,
-      plane: SquarePlane.xy,
+      width: width,
+      height: height,
+      plane: RectanglePlane.xy,
       rotation: rotation,
       fillColor: fillColor,
       edgeColor:
@@ -44,10 +45,11 @@ class FilledSquareFactory {
     );
   }
 
-  /// Create a filled square in the XZ plane
-  static SceneObject createXZFilledSquare({
+  /// Create a filled rectangle in the XZ plane
+  static SceneObject createXZFilledRectangle({
     required vm.Vector3 center,
-    required double size,
+    required double width,
+    required double height,
     required Color fillColor,
     Color? edgeColor,
     double edgeWidth = 1.0,
@@ -56,12 +58,13 @@ class FilledSquareFactory {
     String? id,
   }) {
     return SceneObject(
-      type: SceneObjectType.filledSquare,
+      type: SceneObjectType.filledRectangle,
       color: fillColor, // Base color for compatibility
-      id: id ?? 'filled_square_xz_${DateTime.now().millisecondsSinceEpoch}',
+      id: id ?? 'filled_rectangle_xz_${DateTime.now().millisecondsSinceEpoch}',
       center: center,
-      size: size,
-      plane: SquarePlane.xz,
+      width: width,
+      height: height,
+      plane: RectanglePlane.xz,
       rotation: rotation,
       fillColor: fillColor,
       edgeColor:
@@ -77,10 +80,11 @@ class FilledSquareFactory {
     );
   }
 
-  /// Create a filled square in the YZ plane
-  static SceneObject createYZFilledSquare({
+  /// Create a filled rectangle in the YZ plane
+  static SceneObject createYZFilledRectangle({
     required vm.Vector3 center,
-    required double size,
+    required double width,
+    required double height,
     required Color fillColor,
     Color? edgeColor,
     double edgeWidth = 1.0,
@@ -89,12 +93,13 @@ class FilledSquareFactory {
     String? id,
   }) {
     return SceneObject(
-      type: SceneObjectType.filledSquare,
+      type: SceneObjectType.filledRectangle,
       color: fillColor, // Base color for compatibility
-      id: id ?? 'filled_square_yz_${DateTime.now().millisecondsSinceEpoch}',
+      id: id ?? 'filled_rectangle_yz_${DateTime.now().millisecondsSinceEpoch}',
       center: center,
-      size: size,
-      plane: SquarePlane.yz,
+      width: width,
+      height: height,
+      plane: RectanglePlane.yz,
       rotation: rotation,
       fillColor: fillColor,
       edgeColor:
@@ -122,15 +127,15 @@ class FilledSquareFactory {
     String? id,
   }) {
     final actualCenter = center ?? vm.Vector3(width / 2, height / 2, 0);
-    final size = math.max(width, height); // Use larger dimension for square
 
     return SceneObject(
-      type: SceneObjectType.filledSquare,
+      type: SceneObjectType.filledRectangle,
       color: fillColor, // Base color for compatibility
       id: id ?? 'work_area_boundary',
       center: actualCenter,
-      size: size,
-      plane: SquarePlane.xy,
+      width: width,
+      height: height,
+      plane: RectanglePlane.xy,
       fillColor: Color.fromARGB(
         (opacity * 255).round(),
         (fillColor.r * 255).round(),
@@ -146,17 +151,19 @@ class FilledSquareFactory {
   /// Create a safety zone marker (semi-transparent red)
   static SceneObject createSafetyZone({
     required vm.Vector3 center,
-    required double size,
-    SquarePlane plane = SquarePlane.xy,
+    required double width,
+    required double height,
+    RectanglePlane plane = RectanglePlane.xy,
     double rotation = 0.0,
     String? id,
   }) {
     return SceneObject(
-      type: SceneObjectType.filledSquare,
+      type: SceneObjectType.filledRectangle,
       color: Colors.red, // Base color for compatibility
       id: id ?? 'safety_zone_${center.hashCode}',
       center: center,
-      size: size,
+      width: width,
+      height: height,
       plane: plane,
       rotation: rotation,
       fillColor: Color.fromARGB(
@@ -174,17 +181,19 @@ class FilledSquareFactory {
   /// Create a coordinate system indicator
   static SceneObject createCoordinateIndicator({
     required vm.Vector3 origin,
-    double size = 5.0,
-    SquarePlane plane = SquarePlane.xy,
+    double width = 5.0,
+    double height = 5.0,
+    RectanglePlane plane = RectanglePlane.xy,
     Color color = Colors.green,
     String? id,
   }) {
     return SceneObject(
-      type: SceneObjectType.filledSquare,
+      type: SceneObjectType.filledRectangle,
       color: color, // Base color for compatibility
       id: id ?? 'coordinate_indicator_${origin.hashCode}',
       center: origin,
-      size: size,
+      width: width,
+      height: height,
       plane: plane,
       fillColor: Color.fromARGB(
         127,
@@ -201,17 +210,19 @@ class FilledSquareFactory {
   /// Create a tool path boundary indicator
   static SceneObject createToolPathBoundary({
     required vm.Vector3 center,
-    required double size,
-    SquarePlane plane = SquarePlane.xy,
+    required double width,
+    required double height,
+    RectanglePlane plane = RectanglePlane.xy,
     Color color = Colors.yellow,
     String? id,
   }) {
     return SceneObject(
-      type: SceneObjectType.filledSquare,
+      type: SceneObjectType.filledRectangle,
       color: color, // Base color for compatibility
       id: id ?? 'toolpath_boundary_${center.hashCode}',
       center: center,
-      size: size,
+      width: width,
+      height: height,
       plane: plane,
       fillColor: Color.fromARGB(
         25,
@@ -225,32 +236,34 @@ class FilledSquareFactory {
     );
   }
 
-  /// Create multiple squares for a grid pattern
+  /// Create multiple rectangles for a grid pattern
   static List<SceneObject> createGrid({
     required vm.Vector3 origin,
     required int countX,
     required int countY,
     required double spacing,
-    required double squareSize,
-    SquarePlane plane = SquarePlane.xy,
+    required double rectangleWidth,
+    required double rectangleHeight,
+    RectanglePlane plane = RectanglePlane.xy,
     Color fillColor = Colors.grey,
     Color? edgeColor,
     double opacity = 0.3,
     double edgeWidth = 0.5,
   }) {
-    final squares = <SceneObject>[];
+    final rectangles = <SceneObject>[];
 
     for (int x = 0; x < countX; x++) {
       for (int y = 0; y < countY; y++) {
         final center = _calculateGridPosition(origin, x, y, spacing, plane);
 
-        squares.add(
+        rectangles.add(
           SceneObject(
-            type: SceneObjectType.filledSquare,
+            type: SceneObjectType.filledRectangle,
             color: fillColor, // Base color for compatibility
-            id: 'grid_square_${x}_$y',
+            id: 'grid_rectangle_${x}_$y',
             center: center,
-            size: squareSize,
+            width: rectangleWidth,
+            height: rectangleHeight,
             plane: plane,
             fillColor: Color.fromARGB(
               (opacity * 255).round(),
@@ -266,7 +279,7 @@ class FilledSquareFactory {
       }
     }
 
-    return squares;
+    return rectangles;
   }
 
   /// Calculate grid position based on plane
@@ -275,17 +288,17 @@ class FilledSquareFactory {
     int x,
     int y,
     double spacing,
-    SquarePlane plane,
+    RectanglePlane plane,
   ) {
     final offsetX = x * spacing;
     final offsetY = y * spacing;
 
     switch (plane) {
-      case SquarePlane.xy:
+      case RectanglePlane.xy:
         return origin + vm.Vector3(offsetX, offsetY, 0);
-      case SquarePlane.xz:
+      case RectanglePlane.xz:
         return origin + vm.Vector3(offsetX, 0, offsetY);
-      case SquarePlane.yz:
+      case RectanglePlane.yz:
         return origin + vm.Vector3(0, offsetX, offsetY);
     }
   }

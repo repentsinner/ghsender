@@ -80,8 +80,7 @@ class _LogOutputPanelState extends State<LogOutputPanel> {
   Widget build(BuildContext context) {
     return SizedBox(
       height: widget.height,
-      child: Expanded(
-        child: ValueListenableBuilder<int>(
+      child: ValueListenableBuilder<int>(
           valueListenable: _logCountNotifier,
           builder: (context, logCount, child) {
             return logCount == 0
@@ -108,7 +107,6 @@ class _LogOutputPanelState extends State<LogOutputPanel> {
                   );
           },
         ),
-      ),
     );
   }
 }

@@ -1,4 +1,6 @@
 import 'package:equatable/equatable.dart';
+import 'package:vector_math/vector_math.dart' as vm;
+import 'machine_configuration.dart';
 
 /// Machine controller status enumeration
 enum MachineStatus {
@@ -246,6 +248,80 @@ class ActiveCodes extends Equatable {
       lastUpdated: lastUpdated ?? this.lastUpdated,
     );
   }
+}
+
+/// Work envelope representing machine soft limits and travel boundaries
+class WorkEnvelope extends Equatable {
+  final vm.Vector3 minBounds;
+  final vm.Vector3 maxBounds;
+  final String units;
+  final DateTime lastUpdated;
+
+  const WorkEnvelope({
+    required this.minBounds,
+    required this.maxBounds,
+    this.units = 'mm',
+    required this.lastUpdated,
+  });
+
+  @override
+  List<Object?> get props => [minBounds, maxBounds, units, lastUpdated];
+
+  /// Calculate work envelope from grblHAL machine configuration
+  /// Based on grblHAL's limits_set_work_envelope() logic
+  static WorkEnvelope? fromConfiguration(MachineConfiguration config) {
+    // Require all three axis travel limits to be available
+    final xTravel = config.xMaxTravel;
+    final yTravel = config.yMaxTravel;
+    final zTravel = config.zMaxTravel;
+    
+    if (xTravel == null || yTravel == null || zTravel == null) {
+      return null;
+    }
+
+    // grblHAL stores max_travel as negative values internally
+    // The actual travel distance is the absolute value
+    final xMax = xTravel.abs();
+    final yMax = yTravel.abs();
+    final zMax = zTravel.abs();
+
+    // For grblHAL with default settings (force_set_origin typically true):
+    // - Home position becomes origin (0,0,0)
+    // - Work envelope extends in negative direction from home
+    // This follows the standard CNC convention where home is at max positive position
+    final minBounds = vm.Vector3(-xMax, -yMax, -zMax);
+    final maxBounds = vm.Vector3(0.0, 0.0, 0.0);
+
+    return WorkEnvelope(
+      minBounds: minBounds,
+      maxBounds: maxBounds,
+      units: config.reportInches == true ? 'inch' : 'mm',
+      lastUpdated: config.lastUpdated,
+    );
+  }
+
+  /// Get work envelope dimensions
+  vm.Vector3 get dimensions => maxBounds - minBounds;
+
+  /// Get work envelope center point
+  vm.Vector3 get center => (minBounds + maxBounds) * 0.5;
+
+  WorkEnvelope copyWith({
+    vm.Vector3? minBounds,
+    vm.Vector3? maxBounds,
+    String? units,
+    DateTime? lastUpdated,
+  }) {
+    return WorkEnvelope(
+      minBounds: minBounds ?? this.minBounds,
+      maxBounds: maxBounds ?? this.maxBounds,
+      units: units ?? this.units,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+    );
+  }
+
+  @override
+  String toString() => 'WorkEnvelope($minBounds to $maxBounds $units)';
 }
 
 /// Machine controller information and state

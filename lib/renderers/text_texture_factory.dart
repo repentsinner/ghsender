@@ -45,8 +45,6 @@ class TextTextureFactory {
       final textureWidth = scaledWidth + scaledPaddingH;
       final textureHeight = scaledHeight + scaledPaddingV;
       
-      AppLogger.info('Creating high-DPI text texture: "${text.substring(0, text.length.clamp(0, 20))}${text.length > 20 ? "..." : ""}" (${textureWidth}x$textureHeight at ${renderScale}x scale)');
-      
       // Create image recorder for rendering
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
@@ -82,8 +80,6 @@ class TextTextureFactory {
         textureHeight,
       );
       texture.overwrite(byteData);
-      
-      AppLogger.info('Text texture created successfully: ${textureWidth}x$textureHeight pixels');
       
       return TextTextureResult(
         texture: texture,

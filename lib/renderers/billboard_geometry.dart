@@ -64,8 +64,6 @@ class BillboardGeometry extends UnskinnedGeometry {
 
       // Create buffers using the same pattern as FilledSquareGeometry
       _createBuffers(vertices, indices);
-
-      AppLogger.info('BillboardGeometry created: ${width}x$height units, ${vertices.length ~/ 12} vertices, ${indices.length ~/ 3} triangles');
       
     } catch (e) {
       AppLogger.error('Failed to generate billboard geometry: $e');
@@ -84,26 +82,22 @@ class BillboardGeometry extends UnskinnedGeometry {
       indices.map((i) => i.clamp(0, 65535)).toList(),
     );
 
-    // Create GPU buffer
     final deviceBuffer = gpu.gpuContext.createDeviceBuffer(
       gpu.StorageMode.hostVisible,
       vertexData.lengthInBytes + indexData.lengthInBytes,
     );
 
-    // Upload vertex data
     deviceBuffer.overwrite(
       ByteData.sublistView(vertexData),
       destinationOffsetInBytes: 0,
     );
 
-    // Upload index data
     final indexOffset = vertexData.lengthInBytes;
     deviceBuffer.overwrite(
       ByteData.sublistView(indexData),
       destinationOffsetInBytes: indexOffset,
     );
 
-    // Set geometry buffers
     setVertices(
       gpu.BufferView(
         deviceBuffer,

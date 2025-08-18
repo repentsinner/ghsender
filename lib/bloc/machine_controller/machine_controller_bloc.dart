@@ -19,6 +19,9 @@ class MachineControllerBloc
 
   // Stream subscription for real-time message processing
   StreamSubscription? _messageStreamSubscription;
+  
+  // Debug: Track configuration messages received
+  int _configMessagesReceived = 0;
 
   // Throttling for jog command logging (to avoid spam during continuous jogging)
   DateTime? _lastJogLogTime;
@@ -155,6 +158,7 @@ class MachineControllerBloc
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
         isOnline: false,
+        machinePosition: null, // Clear machine position on disconnect
         lastCommunication: timestamp,
       );
 
@@ -165,7 +169,7 @@ class MachineControllerBloc
         ),
       );
 
-      AppLogger.machineInfo('Machine controller disconnected');
+      AppLogger.machineInfo('Machine controller disconnected - machine position cleared');
     }
   }
 
@@ -424,15 +428,20 @@ class MachineControllerBloc
         lastCommunication: event.timestamp,
       );
 
+      // Clear machine position when going offline
+      final controllerWithClearedPosition = event.isOnline 
+          ? updatedController 
+          : updatedController.copyWith(machinePosition: null);
+
       emit(
         state.copyWith(
-          controller: updatedController,
+          controller: controllerWithClearedPosition,
           lastUpdateTime: event.timestamp,
         ),
       );
 
       AppLogger.machineInfo(
-        'Machine connection changed: ${event.isOnline ? 'online' : 'offline'}',
+        'Machine connection changed: ${event.isOnline ? 'online' : 'offline'}${event.isOnline ? '' : ' - machine position cleared'}',
       );
 
       // Stop polling when machine goes offline
@@ -489,6 +498,7 @@ class MachineControllerBloc
     MachineControllerGrblHalDetected event,
     Emitter<MachineControllerState> emit,
   ) {
+    AppLogger.machineInfo('🚨 DEBUG: _onGrblHalDetected handler called!');
     AppLogger.machineInfo(
       'grblHAL controller detected: ${event.firmwareVersion}',
     );
@@ -521,29 +531,59 @@ class MachineControllerBloc
     AppLogger.machineInfo('Configuring grblHAL for optimal reporting and starting status polling');
 
     // Send grblHAL configuration commands directly
+    AppLogger.machineInfo('Sending grblHAL initialization sequence...');
+    AppLogger.machineInfo('1. Requesting complete real-time report (0x87)');
     _communicationBloc.add(CncCommunicationSendRawBytes([0x87]));
 
     // Configure status reporting mask ($10 setting)
     // Set $10=511 for comprehensive status reporting (all flags enabled)
+    AppLogger.machineInfo('2. Setting comprehensive status reporting (\$10=511)');
     _communicationBloc.add(CncCommunicationSendCommand('\$10=511'));
 
     // Query machine configuration to understand capabilities and settings
-    _communicationBloc.add(CncCommunicationSendCommand('\$'));
+    AppLogger.machineInfo('3. Requesting ALL machine settings (\$\$) - including travel limits \$130/\$131/\$132');
+    AppLogger.machineInfo('DEBUG: About to send bulk config command...');
+    _configMessagesReceived = 0; // Reset counter
+    
+    // DEBUG: Verify communication bloc state before sending
+    final commState = _communicationBloc.state;
+    final isConnected = _communicationBloc.isConnected;
+    AppLogger.machineInfo('DEBUG: CommunicationBloc state: ${commState.runtimeType}, connected: $isConnected');
+    
+    _communicationBloc.add(CncCommunicationSendCommand('\$\$'));
+    AppLogger.machineInfo('DEBUG: Bulk config command (\$\$) sent to communication bloc - expecting fragmented response');
+    
+    // Set a timer to check if we received config messages
+    Timer(const Duration(seconds: 3), () {
+      AppLogger.machineInfo('DEBUG: Bulk config timeout check - received $_configMessagesReceived config messages');
+      if (_configMessagesReceived == 0) {
+        AppLogger.machineError('🚨 BULK CONFIG QUERY FAILED: No configuration messages received within 3 seconds!');
+        AppLogger.machineError('The \$\$ command was not sent, not received, or grblHAL did not respond properly');
+      }
+    });
 
     // Query build info and plugins to detect board capabilities
+    AppLogger.machineInfo('4. Requesting build info and plugins (\$I)');
     _communicationBloc.add(CncCommunicationSendCommand('\$I'));
 
     // Send initial status query to get immediate state
+    AppLogger.machineInfo('5. Requesting initial status (0x80)');
     _communicationBloc.add(CncCommunicationSendRawBytes([0x80]));
 
     // Start continuous status polling using CommunicationBloc
+    AppLogger.machineInfo('6. Starting continuous status polling');
     _communicationBloc.add(
       CncCommunicationPollingControlRequested(
         enable: true,
         rawCommand: [0x80], // grblHAL preferred status request
       ),
     );
+
+    // Schedule backup queries for critical travel limit settings after a delay
+    // This ensures we get these settings even if the bulk $ query fails or is incomplete  
+    // NOTE: No backup individual queries - bulk query needs to be fixed
   }
+
 
 
   /// Handle machine configuration received from $ command parsing
@@ -551,14 +591,33 @@ class MachineControllerBloc
     MachineControllerConfigurationReceived event,
     Emitter<MachineControllerState> emit,
   ) {
-    // Configuration received - only log if significant number of settings
-    if (event.configuration.settings.length > 20) {
+    // Configuration received - only log when complete
+    if (event.configuration.settings.length > 50) {
       AppLogger.machineInfo('Machine configuration loaded: ${event.configuration.settings.length} settings');
+    }
+
+    // Merge incoming configuration with existing configuration
+    final currentConfig = state.configuration;
+    final MachineConfiguration mergedConfig;
+    
+    if (currentConfig == null) {
+      mergedConfig = event.configuration;
+    } else {
+      final mergedSettings = Map<int, ConfigurationSetting>.from(currentConfig.settings);
+      
+      mergedSettings.addAll(event.configuration.settings);
+      
+      mergedConfig = MachineConfiguration(
+        settings: mergedSettings,
+        lastUpdated: event.timestamp,
+        isComplete: mergedSettings.isNotEmpty,
+        firmwareVersion: event.configuration.firmwareVersion ?? currentConfig.firmwareVersion,
+      );
     }
 
     emit(
       state.copyWith(
-        configuration: event.configuration,
+        configuration: mergedConfig,
         lastUpdateTime: event.timestamp,
       ),
     );
@@ -820,11 +879,15 @@ class MachineControllerBloc
 
   /// Process individual configuration message (for stream processing)
   void _processConfigurationMessage(String message, DateTime timestamp) {
+    _configMessagesReceived++;
+    // Configuration messages processed silently to avoid log spam
+    
     // Remove "Received: " prefix if present
     final cleanMessage = message.startsWith('Received: ')
         ? message.substring(10)
         : message;
 
+    // Message cleaning logged silently to avoid spam
 
     // Parse configuration line like: $0=10 (Step pulse time)
     _parseConfigurationLineForStream(cleanMessage, timestamp);
@@ -900,16 +963,31 @@ class MachineControllerBloc
 
   /// Parse a single configuration line (for stream processing)
   void _parseConfigurationLineForStream(String line, DateTime timestamp) {
+    // Debug: Log the raw line being parsed
+    // Config line parsing logged silently to avoid spam
+    
     final match = RegExp(
       r'^\$(\d+)=([^(]+)(?:\((.+)\))?',
     ).firstMatch(line.trim());
-    if (match == null) return;
+    
+    if (match == null) {
+      AppLogger.machineDebug('No regex match for line: "$line"');
+      return;
+    }
 
     final settingId = int.tryParse(match.group(1)!);
     final value = match.group(2)!.trim();
     final description = match.group(3)?.trim();
 
-    if (settingId == null) return;
+    if (settingId == null) {
+      AppLogger.machineDebug('Failed to parse setting ID from: "${match.group(1)}"');
+      return;
+    }
+
+    // Parsing details logged silently to avoid spam
+
+    // Log travel limit settings specifically for work envelope debugging
+    // All configuration settings processed silently to avoid log spam
 
     // Update configuration incrementally
     final currentConfig = state.configuration;
@@ -929,6 +1007,18 @@ class MachineControllerBloc
       firmwareVersion: currentConfig?.firmwareVersion,
       lastUpdated: timestamp,
     );
+
+    // Check work envelope status when we have all travel limits  
+    if (settingId == 130 || settingId == 131 || settingId == 132) {
+      final xTravel = newConfig.xMaxTravel;
+      final yTravel = newConfig.yMaxTravel;
+      final zTravel = newConfig.zMaxTravel;
+      
+      // Only log when we have all three limits
+      if (xTravel != null && yTravel != null && zTravel != null) {
+        AppLogger.machineInfo('Work envelope ready: X=$xTravel, Y=$yTravel, Z=$zTravel');
+      }
+    }
 
     // Emit configuration received event
     add(
@@ -1241,6 +1331,16 @@ class MachineControllerBloc
         // Check if this is build info or plugin information from $I command
         _processBuildInfoMessage(cncMessage.content, cncMessage.timestamp);
         break;
+    }
+
+    // FALLBACK: Force-parse any message that looks like a travel limit setting, 
+    // regardless of classification (in case message type detection is wrong)
+    if ((cncMessage.content.contains('130') || 
+         cncMessage.content.contains('131') || 
+         cncMessage.content.contains('132')) &&
+        cncMessage.content.startsWith(r'$') && 
+        cncMessage.content.contains('=')) {
+      _parseConfigurationLineForStream(cncMessage.content, cncMessage.timestamp);
     }
   }
 

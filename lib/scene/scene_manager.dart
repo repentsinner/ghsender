@@ -31,6 +31,9 @@ class SceneManager {
   // Current machine position for debug cube
   vm.Vector3? _currentMachinePosition;
 
+  // Current work envelope for machine boundaries
+  WorkEnvelope? _currentWorkEnvelope;
+
   // Stream controller for scene updates
   final StreamController<SceneData?> _sceneUpdateController =
       StreamController<SceneData?>.broadcast();
@@ -64,6 +67,31 @@ class SceneManager {
 
   /// Get current machine position for renderer updates
   vm.Vector3? get currentMachinePosition => _currentMachinePosition;
+
+  /// Update the work envelope from machine configuration changes
+  /// This method provides reactive updates when machine settings change
+  void updateWorkEnvelope(WorkEnvelope? workEnvelope) {
+    if (_currentWorkEnvelope != workEnvelope) {
+      _currentWorkEnvelope = workEnvelope;
+      AppLogger.info(
+        workEnvelope != null
+            ? 'Work envelope updated: $workEnvelope'
+            : 'Work envelope cleared',
+      );
+      
+      // Rebuild scene when work envelope changes (geometry rebuild needed)
+      if (_initialized) {
+        if (GCodeProcessor.instance.hasValidFile) {
+          _buildSceneFromProcessor();
+        } else {
+          _initializeEmptyScene();
+        }
+      }
+    }
+  }
+
+  /// Get current work envelope for renderer access
+  WorkEnvelope? get currentWorkEnvelope => _currentWorkEnvelope;
 
   /// Initialize the scene manager (sets up processor listening)
   Future<void> initialize() async {
@@ -129,8 +157,8 @@ class SceneManager {
       // Add example filled squares for testing
       final toolpathVisualization = _createToolpathVisualization(gcodePath);
 
-      // Add example cube for demonstration
-      final cubeSquares = _createExampleCube();
+      // Add work envelope if machine configuration is available
+      final workEnvelopeSquares = _createWorkEnvelopeIfAvailable();
 
       // Add machine position indicator (will be positioned via renderer transform updates)
       final machinePositionIndicator = _createMachinePositionIndicator();
@@ -139,7 +167,7 @@ class SceneManager {
         ...gcodeObjects,
         ...worldAxes,
         ...toolpathVisualization,
-        ...cubeSquares,
+        ...workEnvelopeSquares,
         machinePositionIndicator,
       ];
 
@@ -207,14 +235,14 @@ class SceneManager {
       ),
     );
 
-    // Add example cube for demonstration
-    final cubeSquares = _createExampleCube();
+    // Add work envelope if machine configuration is available
+    final workEnvelopeSquares = _createWorkEnvelopeIfAvailable();
 
     // Add machine position indicator (will be positioned via renderer transform updates)
     final machinePositionIndicator = _createMachinePositionIndicator();
 
     _sceneData = SceneData(
-      objects: [...worldAxes, ...cubeSquares, machinePositionIndicator],
+      objects: [...worldAxes, ...workEnvelopeSquares, machinePositionIndicator],
       camera: cameraConfig,
       lighting: lightConfig,
     );
@@ -281,112 +309,128 @@ class SceneManager {
     );
   }
 
-  /// Create a 30x30x30 cube from origin to (-30, -30, -30) using filled squares
-  /// Demonstrates how to use FilledSquareRenderer to create 3D geometry
-  List<SceneObject> _createExampleCube() {
-    final cubeSquares = <SceneObject>[];
-    const double cubeSize = 30.0;
-    const double halfSize = cubeSize / 2.0;
+  /// Create work envelope visualization if machine configuration is available
+  /// Returns empty list if no work envelope is configured
+  List<SceneObject> _createWorkEnvelopeIfAvailable() {
+    if (_currentWorkEnvelope == null) {
+      return []; // No work envelope to render
+    }
+    return _createWorkEnvelopeCube(_currentWorkEnvelope!);
+  }
 
-    // Cube center is at (-15, -15, -15) since it extends from 0 to -30 in each axis
-    final cubeCenter = vm.Vector3(-halfSize, -halfSize, -halfSize);
+  /// Create work envelope cube visualization from actual machine configuration
+  /// Uses real machine travel limits to create accurate boundary representation
+  List<SceneObject> _createWorkEnvelopeCube(WorkEnvelope workEnvelope) {
+    final cubeSquares = <SceneObject>[];
+    
+    // Use actual work envelope dimensions from machine configuration
+    final minBounds = workEnvelope.minBounds;
+    final maxBounds = workEnvelope.maxBounds;
+    final center = workEnvelope.center;
+    final dimensions = workEnvelope.dimensions;
 
     // Semi-transparent cube with distinct themed colors for each face pair
     const double opacity = VisualizerTheme.cubeOpacity;
     const double edgeWidth = VisualizerTheme.cubeEdgeWidth;
 
-    // XY plane faces (top and bottom)
+    // XY plane faces (top and bottom) - use actual dimensions for rectangles
     cubeSquares.addAll([
-      // Top face (Z = 0)
+      // Top face (Z = maxBounds.z)
       SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(cubeCenter.x, cubeCenter.y, 0.0),
-        size: cubeSize,
-        plane: SquarePlane.xy,
+        type: SceneObjectType.filledRectangle,
+        center: vm.Vector3(center.x, center.y, maxBounds.z),
+        width: dimensions.x.abs(),
+        height: dimensions.y.abs(),
+        plane: RectanglePlane.xy,
         fillColor: VisualizerTheme.cubeXYFaceColor,
         edgeColor: VisualizerTheme.cubeXYFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
         color: VisualizerTheme.cubeXYFaceColor,
-        id: 'cube_face_top_xy',
+        id: 'work_envelope_face_top_xy',
       ),
-      // Bottom face (Z = -30)
+      // Bottom face (Z = minBounds.z)
       SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(cubeCenter.x, cubeCenter.y, -cubeSize),
-        size: cubeSize,
-        plane: SquarePlane.xy,
+        type: SceneObjectType.filledRectangle,
+        center: vm.Vector3(center.x, center.y, minBounds.z),
+        width: dimensions.x.abs(),
+        height: dimensions.y.abs(),
+        plane: RectanglePlane.xy,
         fillColor: VisualizerTheme.cubeXYFaceColor.withValues(alpha: 0.5),
         edgeColor: VisualizerTheme.cubeXYFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
         color: VisualizerTheme.cubeXYFaceColor,
-        id: 'cube_face_bottom_xy',
+        id: 'work_envelope_face_bottom_xy',
       ),
     ]);
 
-    // XZ plane faces (front and back)
+    // XZ plane faces (front and back) - use actual dimensions for rectangles
     cubeSquares.addAll([
-      // Front face (Y = 0)
+      // Front face (Y = maxBounds.y)
       SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(cubeCenter.x, 0.0, cubeCenter.z),
-        size: cubeSize,
-        plane: SquarePlane.xz,
+        type: SceneObjectType.filledRectangle,
+        center: vm.Vector3(center.x, maxBounds.y, center.z),
+        width: dimensions.x.abs(),
+        height: dimensions.z.abs(),
+        plane: RectanglePlane.xz,
         fillColor: VisualizerTheme.cubeXZFaceColor,
         edgeColor: VisualizerTheme.cubeXZFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
         color: VisualizerTheme.cubeXZFaceColor,
-        id: 'cube_face_front_xz',
+        id: 'work_envelope_face_front_xz',
       ),
-      // Back face (Y = -30)
+      // Back face (Y = minBounds.y)
       SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(cubeCenter.x, -cubeSize, cubeCenter.z),
-        size: cubeSize,
-        plane: SquarePlane.xz,
+        type: SceneObjectType.filledRectangle,
+        center: vm.Vector3(center.x, minBounds.y, center.z),
+        width: dimensions.x.abs(),
+        height: dimensions.z.abs(),
+        plane: RectanglePlane.xz,
         fillColor: VisualizerTheme.cubeXZFaceColor.withValues(alpha: 0.5),
         edgeColor: VisualizerTheme.cubeXZFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
         color: VisualizerTheme.cubeXZFaceColor,
-        id: 'cube_face_back_xz',
+        id: 'work_envelope_face_back_xz',
       ),
     ]);
 
-    // YZ plane faces (left and right)
+    // YZ plane faces (left and right) - use actual dimensions for rectangles
     cubeSquares.addAll([
-      // Right face (X = 0)
+      // Right face (X = maxBounds.x)
       SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(0.0, cubeCenter.y, cubeCenter.z),
-        size: cubeSize,
-        plane: SquarePlane.yz,
+        type: SceneObjectType.filledRectangle,
+        center: vm.Vector3(maxBounds.x, center.y, center.z),
+        width: dimensions.y.abs(),
+        height: dimensions.z.abs(),
+        plane: RectanglePlane.yz,
         fillColor: VisualizerTheme.cubeYZFaceColor,
         edgeColor: VisualizerTheme.cubeYZFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
         color: VisualizerTheme.cubeYZFaceColor,
-        id: 'cube_face_right_yz',
+        id: 'work_envelope_face_right_yz',
       ),
-      // Left face (X = -30)
+      // Left face (X = minBounds.x)
       SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(-cubeSize, cubeCenter.y, cubeCenter.z),
-        size: cubeSize,
-        plane: SquarePlane.yz,
+        type: SceneObjectType.filledRectangle,
+        center: vm.Vector3(minBounds.x, center.y, center.z),
+        width: dimensions.y.abs(),
+        height: dimensions.z.abs(),
+        plane: RectanglePlane.yz,
         fillColor: VisualizerTheme.cubeYZFaceColor.withValues(alpha: 0.5),
         edgeColor: VisualizerTheme.cubeYZFaceColor.withValues(alpha: 0.8),
         opacity: opacity,
         edgeWidth: edgeWidth,
         color: VisualizerTheme.cubeYZFaceColor,
-        id: 'cube_face_left_yz',
+        id: 'work_envelope_face_left_yz',
       ),
     ]);
 
     AppLogger.info(
-      'Created cube with 6 faces: ${cubeSquares.length} filled squares from origin to (-30, -30, -30)',
+      'Created work envelope with ${cubeSquares.length} faces: $minBounds to $maxBounds ${workEnvelope.units}',
     );
     return cubeSquares;
   }
@@ -571,10 +615,11 @@ class SceneObject {
   final vm.Vector3? endPoint; // End point for line segments
   final double? thickness; // Line thickness for rendering
 
-  // Filled square properties (for SceneObjectType.filledSquare)
-  final vm.Vector3? center; // Square center point
-  final double? size; // Square side length
-  final SquarePlane? plane; // Which plane (XY, XZ, YZ)
+  // Filled rectangle properties (for SceneObjectType.filledRectangle)
+  final vm.Vector3? center; // Rectangle center point
+  final double? width; // Rectangle width
+  final double? height; // Rectangle height
+  final RectanglePlane? plane; // Which plane (XY, XZ, YZ)
   final double? rotation; // Rotation around plane normal (radians)
   final Color? fillColor; // Interior fill color
   final Color? edgeColor; // Edge outline color
@@ -606,7 +651,8 @@ class SceneObject {
     this.endPoint,
     this.thickness,
     this.center,
-    this.size,
+    this.width,
+    this.height,
     this.plane,
     this.rotation,
     this.fillColor,
@@ -629,15 +675,15 @@ class SceneObject {
 enum SceneObjectType {
   line, // For G-code path segments and coordinate axes
   cube, // For 3D cube objects
-  filledSquare, // For filled squares with outlined edges
+  filledRectangle, // For filled rectangles with outlined edges
   textBillboard, // For 3D-positioned, screen-aligned text
   machinePosition, // For current machine position indicator
 }
 
-enum SquarePlane {
-  xy, // Square in XY plane (normal = Z axis)
-  xz, // Square in XZ plane (normal = Y axis)
-  yz, // Square in YZ plane (normal = X axis)
+enum RectanglePlane {
+  xy, // Rectangle in XY plane (normal = Z axis)
+  xz, // Rectangle in XZ plane (normal = Y axis)
+  yz, // Rectangle in YZ plane (normal = X axis)
 }
 
 /// Camera configuration for the scene

@@ -1,8 +1,8 @@
 /*
- * FilledSquareRenderer implementation for Flutter Scene
+ * FilledRectangleRenderer implementation for Flutter Scene
  * 
  * Hybrid renderer that combines filled geometry with line edges
- * Creates both fill mesh and edge lines for complete square rendering
+ * Creates both fill mesh and edge lines for complete rectangle rendering
  */
 
 import 'dart:math' as math;
@@ -10,18 +10,18 @@ import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:flutter_scene/scene.dart';
 import '../scene/scene_manager.dart';
-import 'filled_square_geometry.dart';
-import 'filled_square_material.dart';
+import 'filled_rectangle_geometry.dart';
+import 'filled_rectangle_material.dart';
 import 'line_mesh_factory.dart';
 import '../utils/logger.dart';
 
-/// Result of filled square creation with both fill and edge meshes
-class FilledSquareResult {
+/// Result of filled rectangle creation with both fill and edge meshes
+class FilledRectangleResult {
   final Mesh fillMesh;
   final Mesh edgeMesh;
   final String id;
 
-  const FilledSquareResult({
+  const FilledRectangleResult({
     required this.fillMesh,
     required this.edgeMesh,
     required this.id,
@@ -36,12 +36,13 @@ class FilledSquareResult {
   }
 }
 
-class FilledSquareRenderer {
-  /// Create both fill and edge meshes for a filled square
-  static FilledSquareResult createFilledSquare({
+class FilledRectangleRenderer {
+  /// Create both fill and edge meshes for a filled rectangle
+  static FilledRectangleResult createFilledRectangle({
     required vm.Vector3 center,
-    required double size,
-    required SquarePlane plane,
+    required double width,
+    required double height,
+    required RectanglePlane plane,
     double rotation = 0.0,
     required Color fillColor,
     required Color edgeColor,
@@ -51,22 +52,19 @@ class FilledSquareRenderer {
     String? id,
   }) {
     try {
-      final squareId =
-          id ?? 'filled_square_${DateTime.now().millisecondsSinceEpoch}';
-
-      AppLogger.info(
-        'Creating filled square: id=$squareId, center=$center, size=$size, plane=$plane',
-      );
+      final rectangleId =
+          id ?? 'filled_rectangle_${DateTime.now().millisecondsSinceEpoch}';
 
       // Create filled interior mesh
-      final fillGeometry = FilledSquareGeometry(
+      final fillGeometry = FilledRectangleGeometry(
         center: center,
-        size: size,
+        width: width,
+        height: height,
         plane: plane,
         rotation: rotation,
       );
 
-      final fillMaterial = FilledSquareMaterial(
+      final fillMaterial = FilledRectangleMaterial(
         fillColor: fillColor,
         opacity: opacity,
       );
@@ -76,7 +74,7 @@ class FilledSquareRenderer {
       );
 
       // Create edge outline using existing line renderer
-      final corners = _calculateSquareCorners(center, size, plane, rotation);
+      final corners = _calculateRectangleCorners(center, width, height, plane, rotation);
       final edgeLines = LineMeshFactory.createPolyline(
         [
           ...corners,
@@ -88,34 +86,34 @@ class FilledSquareRenderer {
         resolution: resolution,
       );
 
-      AppLogger.info('Filled square created successfully: $squareId');
-
-      return FilledSquareResult(
+      return FilledRectangleResult(
         fillMesh: fillMesh,
         edgeMesh: edgeLines,
-        id: squareId,
+        id: rectangleId,
       );
     } catch (e) {
-      AppLogger.error('Failed to create filled square: $e');
+      AppLogger.error('Failed to create filled rectangle: $e');
       rethrow;
     }
   }
 
-  /// Calculate square corner points (shared with geometry)
-  static List<vm.Vector3> _calculateSquareCorners(
+  /// Calculate rectangle corner points
+  static List<vm.Vector3> _calculateRectangleCorners(
     vm.Vector3 center,
-    double size,
-    SquarePlane plane,
+    double width,
+    double height,
+    RectanglePlane plane,
     double rotation,
   ) {
-    final halfSize = size * 0.5;
+    final halfWidth = width * 0.5;
+    final halfHeight = height * 0.5;
 
     // Base corner offsets in 2D (before rotation)
     final baseOffsets = [
-      vm.Vector2(-halfSize, -halfSize), // Bottom-left
-      vm.Vector2(halfSize, -halfSize), // Bottom-right
-      vm.Vector2(halfSize, halfSize), // Top-right
-      vm.Vector2(-halfSize, halfSize), // Top-left
+      vm.Vector2(-halfWidth, -halfHeight), // Bottom-left
+      vm.Vector2(halfWidth, -halfHeight), // Bottom-right
+      vm.Vector2(halfWidth, halfHeight), // Top-right
+      vm.Vector2(-halfWidth, halfHeight), // Top-left
     ];
 
     // Apply rotation if specified
@@ -134,36 +132,37 @@ class FilledSquareRenderer {
     // Convert to 3D points based on plane
     return rotatedOffsets.map((offset) {
       switch (plane) {
-        case SquarePlane.xy:
+        case RectanglePlane.xy:
           return center + vm.Vector3(offset.x, offset.y, 0.0);
-        case SquarePlane.xz:
+        case RectanglePlane.xz:
           return center + vm.Vector3(offset.x, 0.0, offset.y);
-        case SquarePlane.yz:
+        case RectanglePlane.yz:
           return center + vm.Vector3(0.0, offset.x, offset.y);
       }
     }).toList();
   }
 
-  /// Create a filled square from a SceneObject
-  static FilledSquareResult createFromSceneObject(
-    SceneObject square, {
+  /// Create a filled rectangle from a SceneObject
+  static FilledRectangleResult createFromSceneObject(
+    SceneObject rectangle, {
     vm.Vector2? resolution,
   }) {
-    if (square.type != SceneObjectType.filledSquare) {
-      throw ArgumentError('SceneObject must be of type filledSquare');
+    if (rectangle.type != SceneObjectType.filledRectangle) {
+      throw ArgumentError('SceneObject must be of type filledRectangle');
     }
 
-    return createFilledSquare(
-      center: square.center!,
-      size: square.size!,
-      plane: square.plane!,
-      rotation: square.rotation ?? 0.0,
-      fillColor: square.fillColor ?? square.color,
-      edgeColor: square.edgeColor ?? square.color,
-      edgeWidth: square.edgeWidth ?? 1.0,
-      opacity: square.opacity ?? 1.0,
+    return createFilledRectangle(
+      center: rectangle.center!,
+      width: rectangle.width!,
+      height: rectangle.height!,
+      plane: rectangle.plane!,
+      rotation: rectangle.rotation ?? 0.0,
+      fillColor: rectangle.fillColor ?? rectangle.color,
+      edgeColor: rectangle.edgeColor ?? rectangle.color,
+      edgeWidth: rectangle.edgeWidth ?? 1.0,
+      opacity: rectangle.opacity ?? 1.0,
       resolution: resolution,
-      id: square.id,
+      id: rectangle.id,
     );
   }
 }

@@ -30,6 +30,10 @@ class CncCommunicationBloc
   // Simple command tracking for basic functionality
   int _commandIdCounter = 0;
 
+  // Message reassembly buffer for fragmented WebSocket responses
+  String _messageBuffer = '';
+  bool _expectingMultilineResponse = false;
+
   // Status polling state
   Timer? _statusPollingTimer;
   // 125Hz polling rate (8ms interval) is well within grblHAL and WebSocket
@@ -84,7 +88,6 @@ class CncCommunicationBloc
     emit(const CncCommunicationConnecting());
 
     try {
-      // Parse and log the URI for debugging
       final uri = Uri.parse(event.url);
       AppLogger.commInfo(
         'Parsed URI: $uri (host: ${uri.host}, port: ${uri.port}, scheme: ${uri.scheme})',
@@ -102,7 +105,6 @@ class CncCommunicationBloc
         'WebSocket connection initiated, waiting for handshake completion...',
       );
 
-      // Emit connecting state initially
       emit(const CncCommunicationConnecting());
 
       // Test connection with a single status request after WebSocket is established
@@ -113,7 +115,6 @@ class CncCommunicationBloc
       // Set up WebSocket stream listener for message processing
       _webSocketSubscription = _webSocketChannel!.stream.listen(
         (data) {
-          // Process incoming message (no debug logging to avoid 60Hz spam)
           _onMessage(data.toString(), DateTime.now());
         },
         onError: (error) {
@@ -233,16 +234,18 @@ class CncCommunicationBloc
     CncCommunicationSendCommand event,
     Emitter<CncCommunicationState> emit,
   ) {
+    AppLogger.commDebug('_onSendCommand called with: "${event.command}"');
+    
     if (!_isConnected || _webSocketChannel == null) {
-      AppLogger.commWarning('Cannot send command - not connected');
+      AppLogger.commWarning('Cannot send command - not connected (isConnected: $_isConnected, channel: ${_webSocketChannel != null})');
       return;
     }
 
     final commandId = ++_commandIdCounter;
+    AppLogger.commDebug('Calling _sendCommand with: "${event.command}", id: $commandId');
 
     _sendCommand(event.command, commandId);
 
-    // Emit sent command to message stream
     _messageStreamController?.add(
       CncMessage(
         content: 'Sent: ${event.command}',
@@ -268,7 +271,6 @@ class CncCommunicationBloc
 
     _sendRawBytes(event.bytes);
 
-    // Emit sent raw bytes to message stream
     _messageStreamController?.add(
       CncMessage(
         content: 'Sent raw: $bytesHex',
@@ -343,19 +345,50 @@ class CncCommunicationBloc
 
   // Removed pointless _onMessageReceived - using streams instead
 
-  /// Process incoming message from WebSocket
+  /// Process incoming message from WebSocket with reassembly support
   void _onMessage(String rawMessage, DateTime timestamp) {
     if (rawMessage.isEmpty) return;
 
+
+    // If we're not expecting a multiline response, process immediately
+    // This handles individual setting queries like $130, $131, etc.
+    if (!_expectingMultilineResponse) {
+      _processCompleteMessage(rawMessage, timestamp);
+      return;
+    }
+
+    // Handle message reassembly for fragmented bulk responses ($ command)
+    _messageBuffer += rawMessage;
+    
+    // Check if this completes a multi-line response (ends with "ok\r\n" or "ok\n")
+    final isComplete = _messageBuffer.contains(RegExp(r'ok\s*\r?\n?\s*$'));
+    
+    if (!isComplete) {
+      // Still expecting more fragments, don't process yet
+      return;
+    }
+    
+    // Process the complete reassembled bulk response
+    final messageToProcess = _messageBuffer;
+    _messageBuffer = '';
+    _expectingMultilineResponse = false;
+    
+    AppLogger.commInfo('🔍 PROCESSING COMPLETE REASSEMBLED BULK MESSAGE: "${messageToProcess.substring(0, 100)}${messageToProcess.length > 100 ? '...' : ''}"');
+
+    // Process complete message - interpret newlines correctly for framing
+    _processCompleteMessage(messageToProcess, timestamp);
+  }
+  
+  /// Process a complete reassembled message
+  void _processCompleteMessage(String completeMessage, DateTime timestamp) {
     // Split on newlines to handle multi-line responses from grblHAL
-    // (e.g., configuration dumps from $ command)
-    final lines = rawMessage.split('\n');
+    // grblHAL WebSocket wraps the underlying newline-based serial protocol
+    final lines = completeMessage.split(RegExp(r'\r?\n'));
 
     for (final line in lines) {
-      // Strip legacy serial/telnet newlines - WebSocket framing handles message boundaries
+      // Trim whitespace but preserve the logical message content
       final cleanedMessage = line.trim();
       if (cleanedMessage.isEmpty) continue; // Skip empty lines
-
 
       // Determine message type for efficient processing
       final messageType = _determineMessageType(cleanedMessage);
@@ -365,7 +398,6 @@ class CncCommunicationBloc
         _trackStatusMessage(timestamp);
       }
 
-      // Emit each logical message as a separate CncMessage
       _messageStreamController?.add(
         CncMessage(
           content: cleanedMessage,
@@ -406,14 +438,27 @@ class CncCommunicationBloc
     }
 
     try {
+      // Set expectation flag for multi-line responses before sending
+      if (command == r'$$') {
+        _expectingMultilineResponse = true;
+        _messageBuffer = ''; // Clear any existing buffer
+        AppLogger.commInfo('🔍 SENT BULK CONFIG QUERY: "$command" - expecting fragmented multi-line response');
+      }
+      
       final commandWithNewline = '$command\r\n';
       _webSocketChannel!.sink.add(commandWithNewline);
 
-      // Minimal command logging
-      if (command != '?' && command != r'$' && !command.startsWith(r'$J=')) {
+      // Minimal command logging for non-bulk queries
+      if (command != r'$$' && command != '?' && !command.startsWith(r'$J=')) {
         AppLogger.commDebug('Sent: "$command"');
       }
     } catch (e, stackTrace) {
+      // Reset expectation on send failure
+      if (command == r'$$') {
+        _expectingMultilineResponse = false;
+        _messageBuffer = '';
+      }
+      
       AppLogger.commError(
         'Error sending WebSocket command "$command"',
         e,
@@ -622,6 +667,10 @@ class CncCommunicationBloc
 
     // Reset command counter
     _commandIdCounter = 0;
+    
+    // Reset message reassembly state
+    _messageBuffer = '';
+    _expectingMultilineResponse = false;
     
     // Reset status tracking
     _statusMessageTimestamps.clear();

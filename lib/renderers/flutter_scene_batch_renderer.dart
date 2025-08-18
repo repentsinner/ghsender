@@ -7,7 +7,7 @@ import '../scene/scene_manager.dart';
 import 'renderer_interface.dart';
 import 'line_mesh_factory.dart';
 import 'line_style.dart';
-import 'filled_square_renderer.dart';
+import 'filled_rectangle_renderer.dart';
 import 'billboard_text_renderer.dart';
 
 /// Custom UnlitMaterial that supports transparency
@@ -108,9 +108,9 @@ class FlutterSceneBatchRenderer implements Renderer {
         .where((obj) => obj.type == SceneObjectType.line)
         .toList();
 
-    // Process filled squares
-    final filledSquareObjects = sceneData.objects
-        .where((obj) => obj.type == SceneObjectType.filledSquare)
+    // Process filled rectangles
+    final filledRectangleObjects = sceneData.objects
+        .where((obj) => obj.type == SceneObjectType.filledRectangle)
         .toList();
 
     // Process text billboards
@@ -128,9 +128,9 @@ class FlutterSceneBatchRenderer implements Renderer {
       actualLineTriangles = await _processLinesWithLineMeshFactory(lineObjects);
     }
 
-    int actualSquareTriangles = 0;
-    if (filledSquareObjects.isNotEmpty) {
-      actualSquareTriangles = await _processFilledSquares(filledSquareObjects);
+    int actualRectangleTriangles = 0;
+    if (filledRectangleObjects.isNotEmpty) {
+      actualRectangleTriangles = await _processFilledRectangles(filledRectangleObjects);
     }
 
     // Process machine position indicators separately for efficient updates
@@ -143,12 +143,12 @@ class FlutterSceneBatchRenderer implements Renderer {
 
     // Performance metrics calculation using ACTUAL measured values
     _actualPolygons =
-        actualLineTriangles + actualSquareTriangles + actualTextTriangles;
+        actualLineTriangles + actualRectangleTriangles + actualTextTriangles;
 
-    // Draw calls: lines + filled squares (each square creates 2 draw calls: fill + edges) + text billboards + machine position (6 faces * 2 draw calls each)
+    // Draw calls: lines + filled rectangles (each rectangle creates 2 draw calls: fill + edges) + text billboards + machine position (6 faces * 2 draw calls each)
     _actualDrawCalls =
         (lineObjects.isNotEmpty ? 1 : 0) +
-        (filledSquareObjects.length * 2) +
+        (filledRectangleObjects.length * 2) +
         textBillboardObjects.length +
         (machinePositionObjects.isNotEmpty
             ? 12
@@ -163,7 +163,7 @@ class FlutterSceneBatchRenderer implements Renderer {
     );
     AppLogger.info('Lines: ${lineObjects.length} (line tessellated)');
     AppLogger.info(
-      'Filled squares: ${filledSquareObjects.length} (hybrid fill + edge rendering)',
+      'Filled rectangles: ${filledRectangleObjects.length} (hybrid fill + edge rendering)',
     );
     AppLogger.info(
       'Text billboards: ${textBillboardObjects.length} (texture-based)',
@@ -344,14 +344,15 @@ class FlutterSceneBatchRenderer implements Renderer {
     const xzFaceColor = Color(0xFF2196F3); // Blue for XZ faces
     const yzFaceColor = Color(0xFFF44336); // Red for YZ faces
 
-    // Create cube faces as filled squares
-    final cubeSquares = <SceneObject>[
+    // Create cube faces as filled rectangles (squares with equal width/height)
+    final cubeRectangles = <SceneObject>[
       // XY plane faces (top and bottom)
       SceneObject(
-        type: SceneObjectType.filledSquare,
+        type: SceneObjectType.filledRectangle,
         center: vm.Vector3(0, 0, halfSize), // Top face
-        size: cubeSize,
-        plane: SquarePlane.xy,
+        width: cubeSize,
+        height: cubeSize,
+        plane: RectanglePlane.xy,
         fillColor: xyFaceColor,
         edgeColor: xyFaceColor.withValues(alpha: 1.0),
         opacity: opacity,
@@ -360,10 +361,11 @@ class FlutterSceneBatchRenderer implements Renderer {
         id: '${indicator.id}_face_top_xy',
       ),
       SceneObject(
-        type: SceneObjectType.filledSquare,
+        type: SceneObjectType.filledRectangle,
         center: vm.Vector3(0, 0, -halfSize), // Bottom face
-        size: cubeSize,
-        plane: SquarePlane.xy,
+        width: cubeSize,
+        height: cubeSize,
+        plane: RectanglePlane.xy,
         fillColor: xyFaceColor.withValues(alpha: 0.6),
         edgeColor: xyFaceColor.withValues(alpha: 1.0),
         opacity: opacity,
@@ -374,10 +376,11 @@ class FlutterSceneBatchRenderer implements Renderer {
 
       // XZ plane faces (front and back)
       SceneObject(
-        type: SceneObjectType.filledSquare,
+        type: SceneObjectType.filledRectangle,
         center: vm.Vector3(0, halfSize, 0), // Front face
-        size: cubeSize,
-        plane: SquarePlane.xz,
+        width: cubeSize,
+        height: cubeSize,
+        plane: RectanglePlane.xz,
         fillColor: xzFaceColor,
         edgeColor: xzFaceColor.withValues(alpha: 1.0),
         opacity: opacity,
@@ -386,10 +389,11 @@ class FlutterSceneBatchRenderer implements Renderer {
         id: '${indicator.id}_face_front_xz',
       ),
       SceneObject(
-        type: SceneObjectType.filledSquare,
+        type: SceneObjectType.filledRectangle,
         center: vm.Vector3(0, -halfSize, 0), // Back face
-        size: cubeSize,
-        plane: SquarePlane.xz,
+        width: cubeSize,
+        height: cubeSize,
+        plane: RectanglePlane.xz,
         fillColor: xzFaceColor.withValues(alpha: 0.6),
         edgeColor: xzFaceColor.withValues(alpha: 1.0),
         opacity: opacity,
@@ -400,10 +404,11 @@ class FlutterSceneBatchRenderer implements Renderer {
 
       // YZ plane faces (left and right)
       SceneObject(
-        type: SceneObjectType.filledSquare,
+        type: SceneObjectType.filledRectangle,
         center: vm.Vector3(halfSize, 0, 0), // Right face
-        size: cubeSize,
-        plane: SquarePlane.yz,
+        width: cubeSize,
+        height: cubeSize,
+        plane: RectanglePlane.yz,
         fillColor: yzFaceColor,
         edgeColor: yzFaceColor.withValues(alpha: 1.0),
         opacity: opacity,
@@ -412,10 +417,11 @@ class FlutterSceneBatchRenderer implements Renderer {
         id: '${indicator.id}_face_right_yz',
       ),
       SceneObject(
-        type: SceneObjectType.filledSquare,
+        type: SceneObjectType.filledRectangle,
         center: vm.Vector3(-halfSize, 0, 0), // Left face
-        size: cubeSize,
-        plane: SquarePlane.yz,
+        width: cubeSize,
+        height: cubeSize,
+        plane: RectanglePlane.yz,
         fillColor: yzFaceColor.withValues(alpha: 0.6),
         edgeColor: yzFaceColor.withValues(alpha: 1.0),
         opacity: opacity,
@@ -425,18 +431,18 @@ class FlutterSceneBatchRenderer implements Renderer {
       ),
     ];
 
-    // Process each filled square into render nodes
-    for (final squareObject in cubeSquares) {
+    // Process each filled rectangle into render nodes
+    for (final rectangleObject in cubeRectangles) {
       try {
-        final squareResult = FilledSquareRenderer.createFromSceneObject(
-          squareObject,
+        final rectangleResult = FilledRectangleRenderer.createFromSceneObject(
+          rectangleObject,
           resolution: currentResolution,
         );
-        final squareNodes = squareResult.toNodes();
-        nodes.addAll(squareNodes);
+        final rectangleNodes = rectangleResult.toNodes();
+        nodes.addAll(rectangleNodes);
       } catch (e) {
         AppLogger.error(
-          'Failed to process machine position cube face ${squareObject.id}: $e',
+          'Failed to process machine position cube face ${rectangleObject.id}: $e',
         );
       }
     }
@@ -537,18 +543,18 @@ class FlutterSceneBatchRenderer implements Renderer {
     }
   }
 
-  /// Process filled square objects using FilledSquareRenderer
-  Future<int> _processFilledSquares(
-    List<SceneObject> filledSquareObjects,
+  /// Process filled rectangle objects using FilledRectangleRenderer
+  Future<int> _processFilledRectangles(
+    List<SceneObject> filledRectangleObjects,
   ) async {
     try {
       // Filter out machine position cube objects (they're handled separately)
-      final regularSquareObjects = filledSquareObjects
+      final regularRectangleObjects = filledRectangleObjects
           .where((obj) => !obj.id.startsWith('machine_position_cube_'))
           .toList();
 
       AppLogger.info(
-        'Processing ${regularSquareObjects.length} filled squares with FilledSquareRenderer (${filledSquareObjects.length - regularSquareObjects.length} machine position cube objects excluded)',
+        'Processing ${regularRectangleObjects.length} filled rectangles with FilledRectangleRenderer (${filledRectangleObjects.length - regularRectangleObjects.length} machine position cube objects excluded)',
       );
 
       // Get current viewport resolution for line edges
@@ -558,17 +564,17 @@ class FlutterSceneBatchRenderer implements Renderer {
 
       int totalTriangles = 0;
 
-      // Process each filled square individually
-      for (final squareObject in regularSquareObjects) {
+      // Process each filled rectangle individually
+      for (final rectangleObject in regularRectangleObjects) {
         try {
-          // Create filled square with both fill and edge meshes
-          final squareResult = FilledSquareRenderer.createFromSceneObject(
-            squareObject,
+          // Create filled rectangle with both fill and edge meshes
+          final rectangleResult = FilledRectangleRenderer.createFromSceneObject(
+            rectangleObject,
             resolution: currentResolution,
           );
 
           // Add both fill and edge nodes to the scene
-          final nodes = squareResult.toNodes();
+          final nodes = rectangleResult.toNodes();
           for (final node in nodes) {
             _rootNode.add(node);
           }
@@ -578,23 +584,23 @@ class FlutterSceneBatchRenderer implements Renderer {
           totalTriangles += 2 + 8; // Approximation
 
           AppLogger.info(
-            'Filled square processed: ${squareResult.id} (fill + edges)',
+            'Filled rectangle processed: ${rectangleResult.id} (fill + edges)',
           );
         } catch (e) {
           AppLogger.error(
-            'Failed to process filled square ${squareObject.id}: $e',
+            'Failed to process filled rectangle ${rectangleObject.id}: $e',
           );
         }
       }
 
       AppLogger.info(
-        'FilledSquareRenderer processing complete: ${regularSquareObjects.length} squares -> ~$totalTriangles triangles',
+        'FilledRectangleRenderer processing complete: ${regularRectangleObjects.length} rectangles -> ~$totalTriangles triangles',
       );
 
       return totalTriangles;
     } catch (e) {
       AppLogger.error(
-        'FilledSquareRenderer processing failed - filled squares will not be rendered: $e',
+        'FilledRectangleRenderer processing failed - filled rectangles will not be rendered: $e',
       );
       return 0;
     }
@@ -645,20 +651,12 @@ class FlutterSceneBatchRenderer implements Renderer {
 
           // Each billboard uses 2 triangles (quad)
           totalTriangles += 2;
-
-          AppLogger.info(
-            'Text billboard processed: "${billboardObject.text}" at ${billboardObject.center}',
-          );
         } catch (e) {
           AppLogger.error(
             'Failed to process text billboard ${billboardObject.id}: $e',
           );
         }
       }
-
-      AppLogger.info(
-        'BillboardTextRenderer processing complete: ${textBillboardObjects.length} billboards -> $totalTriangles triangles',
-      );
 
       return totalTriangles;
     } catch (e) {

@@ -1,7 +1,7 @@
 /*
- * FilledSquareGeometry implementation for Flutter Scene
+ * FilledRectangleGeometry implementation for Flutter Scene
  * 
- * Creates plane-aligned filled squares using standard UnskinnedGeometry
+ * Creates plane-aligned filled rectangles using standard UnskinnedGeometry
  * Generates 2 triangles (6 vertices) for efficient solid fill rendering
  */
 
@@ -13,27 +13,29 @@ import 'package:flutter_scene/scene.dart';
 import '../scene/scene_manager.dart';
 import '../utils/logger.dart';
 
-class FilledSquareGeometry extends UnskinnedGeometry {
+class FilledRectangleGeometry extends UnskinnedGeometry {
   final vm.Vector3 center;
-  final double size;
-  final SquarePlane plane;
+  final double width;
+  final double height;
+  final RectanglePlane plane;
   final double rotation;
 
-  FilledSquareGeometry({
+  FilledRectangleGeometry({
     required this.center,
-    required this.size,
+    required this.width,
+    required this.height,
     required this.plane,
     this.rotation = 0.0,
   }) {
-    _generateSquareGeometry();
+    _generateRectangleGeometry();
   }
 
-  void _generateSquareGeometry() {
+  void _generateRectangleGeometry() {
     try {
       // Calculate the 4 corner points
-      final corners = _calculateSquareCorners();
+      final corners = _calculateRectangleCorners();
 
-      // Create vertices for 2 triangles forming the square
+      // Create vertices for 2 triangles forming the rectangle
       // Triangle 1: corners[0], corners[1], corners[2]
       // Triangle 2: corners[0], corners[2], corners[3]
       final vertices = <double>[];
@@ -65,25 +67,22 @@ class FilledSquareGeometry extends UnskinnedGeometry {
 
       // Create GPU buffers and set geometry data
       _createBuffers(vertices, indices);
-
-      AppLogger.info(
-        'FilledSquareGeometry created: ${vertices.length ~/ 12} vertices, ${indices.length ~/ 3} triangles',
-      );
     } catch (e) {
-      AppLogger.error('Failed to create FilledSquareGeometry: $e');
+      AppLogger.error('Failed to create FilledRectangleGeometry: $e');
       rethrow;
     }
   }
 
-  List<vm.Vector3> _calculateSquareCorners() {
-    final halfSize = size * 0.5;
+  List<vm.Vector3> _calculateRectangleCorners() {
+    final halfWidth = width * 0.5;
+    final halfHeight = height * 0.5;
 
     // Base corner offsets in 2D (before rotation)
     final baseOffsets = [
-      vm.Vector2(-halfSize, -halfSize), // Bottom-left
-      vm.Vector2(halfSize, -halfSize), // Bottom-right
-      vm.Vector2(halfSize, halfSize), // Top-right
-      vm.Vector2(-halfSize, halfSize), // Top-left
+      vm.Vector2(-halfWidth, -halfHeight), // Bottom-left
+      vm.Vector2(halfWidth, -halfHeight), // Bottom-right
+      vm.Vector2(halfWidth, halfHeight), // Top-right
+      vm.Vector2(-halfWidth, halfHeight), // Top-left
     ];
 
     // Apply rotation if specified
@@ -102,11 +101,11 @@ class FilledSquareGeometry extends UnskinnedGeometry {
     // Convert to 3D points based on plane
     return rotatedOffsets.map((offset) {
       switch (plane) {
-        case SquarePlane.xy:
+        case RectanglePlane.xy:
           return center + vm.Vector3(offset.x, offset.y, 0.0);
-        case SquarePlane.xz:
+        case RectanglePlane.xz:
           return center + vm.Vector3(offset.x, 0.0, offset.y);
-        case SquarePlane.yz:
+        case RectanglePlane.yz:
           return center + vm.Vector3(0.0, offset.x, offset.y);
       }
     }).toList();
@@ -114,17 +113,17 @@ class FilledSquareGeometry extends UnskinnedGeometry {
 
   vm.Vector3 _getPlaneNormal() {
     switch (plane) {
-      case SquarePlane.xy:
+      case RectanglePlane.xy:
         return vm.Vector3(0, 0, 1); // Z-up
-      case SquarePlane.xz:
+      case RectanglePlane.xz:
         return vm.Vector3(0, 1, 0); // Y-up
-      case SquarePlane.yz:
+      case RectanglePlane.yz:
         return vm.Vector3(1, 0, 0); // X-up
     }
   }
 
   vm.Vector2 _getUVCoordinate(int cornerIndex) {
-    // Standard UV mapping for square
+    // Standard UV mapping for rectangle
     switch (cornerIndex) {
       case 0:
         return vm.Vector2(0, 0); // Bottom-left

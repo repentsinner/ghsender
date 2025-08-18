@@ -58,8 +58,6 @@ class BillboardTextRenderer {
       // Mark as billboard for detection during rendering
       node.name = 'billboard_${id ?? 'text'}'; // Use name to identify billboards
       
-      AppLogger.info('Created text billboard: "$text" at $position (${billboardWidth.toStringAsFixed(1)}x${billboardHeight.toStringAsFixed(1)} world units)');
-      
       return node;
       
     } catch (e) {

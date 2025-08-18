@@ -147,8 +147,8 @@ wsl --install  # Restart after installation
 ### ✅ **Phase 0: Technology Validation** - Complete (with caveats)
 - ✅ **Development Environment** - macOS and Windows 11 toolchain setup
 - ✅ **Flutter Scene Rendering** - 3D visualization framework operational
-- ⚠️ **Communication Performance** - WebSocket working, but latency 200-230ms (target: <50ms)
-- ⚠️ **UI Performance** - Rendering functional, but UI jank detected during high-frequency updates
+- ⚠️ **Communication Performance** - WebSocket working, but latency 200-230ms (target: <50ms). Resolved during Phase 1.
+- ⚠️ **UI Performance** - Rendering functional, but UI jank detected during high-frequency updates. Resolved during Phase 1.
 - ✅ **Multi-Agent Development** - Claude Code and Gemini CLI integration
 
 ### 🚧 **Phase 1: Core Implementation** - In Progress (20% complete)

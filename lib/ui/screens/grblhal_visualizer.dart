@@ -18,6 +18,7 @@ import '../../bloc/graphics/graphics_event.dart';
 import '../layouts/vscode_layout.dart';
 import '../../bloc/machine_controller/machine_controller_bloc.dart';
 import '../../bloc/machine_controller/machine_controller_state.dart';
+import '../../models/machine_controller.dart';
 
 enum RendererType { flutterSceneLines }
 
@@ -47,6 +48,9 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
   
   // Machine controller subscription for position updates
   StreamSubscription<MachineControllerState>? _machineControllerSubscription;
+  
+  // Work envelope retry timer
+  Timer? _workEnvelopeRetryTimer;
 
   // Current active renderer
   final RendererType _currentRenderer = RendererType.flutterSceneLines;
@@ -137,8 +141,50 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
       // Update scene manager with current machine position
       // The renderer will pick this up on the next frame
       SceneManager.instance.updateMachinePosition(state.machinePosition);
+      
+      // Update work envelope when machine configuration is available
+      // Only render work envelope when we have real machine data
+      WorkEnvelope? workEnvelope;
+      if (state.isOnline && 
+          state.grblHalDetected && 
+          state.configuration != null) {
+        
+        workEnvelope = WorkEnvelope.fromConfiguration(state.configuration!);
+        
+        if (workEnvelope == null) {
+          // Schedule a retry in case settings arrive later (only if no retry is already scheduled)
+          if (_workEnvelopeRetryTimer == null || !_workEnvelopeRetryTimer!.isActive) {
+            _scheduleWorkEnvelopeRetry();
+          }
+        }
+      }
+      SceneManager.instance.updateWorkEnvelope(workEnvelope);
     });
     AppLogger.info('Machine controller listener established for position updates');
+  }
+
+  /// Schedule a retry for work envelope creation
+  void _scheduleWorkEnvelopeRetry() {
+    // Cancel any existing retry timer
+    _workEnvelopeRetryTimer?.cancel();
+    
+    _workEnvelopeRetryTimer = Timer(const Duration(seconds: 3), () {
+      // Get current machine controller state
+      final machineBloc = context.read<MachineControllerBloc>();
+      final currentState = machineBloc.state;
+      
+      // Check if we now have the required settings
+      if (currentState.isOnline && 
+          currentState.grblHalDetected && 
+          currentState.configuration != null) {
+        
+        final workEnvelope = WorkEnvelope.fromConfiguration(currentState.configuration!);
+        if (workEnvelope != null) {
+          SceneManager.instance.updateWorkEnvelope(workEnvelope);
+        }
+        // Don't log anything - if it still fails, the original warning is sufficient
+      }
+    });
   }
 
   /// Handle scene updates from SceneManager
@@ -178,6 +224,7 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
     _ticker?.dispose();
     _sceneUpdateSubscription?.cancel();
     _machineControllerSubscription?.cancel();
+    _workEnvelopeRetryTimer?.cancel();
     if (_renderersInitialized) {
       _flutterSceneRenderer.dispose();
     }
