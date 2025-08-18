@@ -747,13 +747,16 @@ class _SessionInitializationSectionState
     // Calculate USED buffer blocks (this is what we should manage!)
     final usedBufferBlocks = maxBufferBlocks - availableBlocks;
 
-    // Target feed rate scaled by magnitude
-    final scaledFeedRate = (magnitude * _selectedJogFeedRate).round();
-    
-    // Calculate distance for high-frequency responsive control
+    // Calculate distance for fixed execution time approach
     // Use shorter execution time for higher responsiveness (25ms vs gSender's 60ms)  
     const targetExecutionTimeMs = 25.0;
-    final baseDistance = (scaledFeedRate / 60.0) * (targetExecutionTimeMs / 1000.0); // mm per command
+    
+    // Calculate the base distance per unit vector component for target execution time
+    // This approach ensures proper vector direction while maintaining execution timing
+    final baseDistance = (_selectedJogFeedRate / 60.0) * (targetExecutionTimeMs / 1000.0); // mm per command at full speed
+    
+    // The feed rate is scaled by magnitude to maintain consistent execution time
+    final scaledFeedRate = (magnitude * _selectedJogFeedRate).round();
     
     // Buffer-aware command rate limiting based on USED blocks
     // Smooth interpolation between aggressive filling (120Hz) and buffer protection (30Hz)
@@ -786,7 +789,8 @@ class _SessionInitializationSectionState
     
     // Send command - either timing allows or direction changed significantly
     {
-      // Calculate move distances using gSender-inspired approach
+      // Calculate move distances that maintain vector direction
+      // Scale base distance by joystick components to preserve direction
       final xDistance = x * baseDistance;
       final yDistance = y * baseDistance;
       
