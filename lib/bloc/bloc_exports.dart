@@ -26,3 +26,8 @@ export 'problems/problems_state.dart';
 export 'machine_controller/machine_controller_bloc.dart';
 export 'machine_controller/machine_controller_event.dart';
 export 'machine_controller/machine_controller_state.dart';
+
+// Jog Controller BLoC
+export 'jog_controller/jog_controller_bloc.dart';
+export 'jog_controller/jog_controller_event.dart';
+export 'jog_controller/jog_controller_state.dart';

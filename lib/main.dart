@@ -54,6 +54,12 @@ class _MyAppState extends State<MyApp> {
         ),
         BlocProvider(create: (context) => ProblemsBloc()),
         BlocProvider(create: (context) => MachineControllerBloc()),
+        BlocProvider(
+          create: (context) => JogControllerBloc(
+            machineControllerBloc: context.read<MachineControllerBloc>(),
+            communicationBloc: context.read<CncCommunicationBloc>(),
+          )..add(const JogControllerInitialized()),
+        ),
       ],
       child: MaterialApp(
         title: 'ghsender',
