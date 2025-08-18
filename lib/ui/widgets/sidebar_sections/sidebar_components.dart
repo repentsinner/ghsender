@@ -14,14 +14,15 @@ class SidebarComponents {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: GoogleFonts.inconsolata(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: VSCodeTheme.primaryText,
+            Expanded(
+              child: Text(
+                title,
+                style: GoogleFonts.inconsolata(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: VSCodeTheme.primaryText,
+                ),
               ),
             ),
             const SizedBox(width: 8),

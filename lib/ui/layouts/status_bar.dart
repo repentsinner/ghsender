@@ -88,23 +88,61 @@ class StatusBar extends StatelessWidget {
 
           const Spacer(),
 
-          // FPS display
+          // FPS and Status Rate display with performance color coding
           BlocBuilder<PerformanceBloc, PerformanceState>(
-            builder: (context, state) {
-              final fps = state is PerformanceLoaded ? state.fps : 0.0;
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.speed, color: Colors.white70, size: 12),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${fps.toStringAsFixed(1)} FPS',
-                    style: GoogleFonts.inconsolata(
-                      color: Colors.white,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
+            builder: (context, performanceState) {
+              return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
+                builder: (context, commState) {
+                  final fps = performanceState is PerformanceLoaded ? performanceState.fps : 0.0;
+                  
+                  // Get performance data only from state to ensure real-time updates
+                  // Only CncCommunicationConnectedWithPerformance state contains performance data
+                  final performanceData = commState is CncCommunicationConnectedWithPerformance 
+                      ? commState.performanceData 
+                      : null;
+                  
+                  final statusRate = performanceData?.statusMessagesPerSecond.toDouble();
+                  final isConnected = commState is CncCommunicationConnected || 
+                                    commState is CncCommunicationConnectedWithPerformance ||
+                                    commState is CncCommunicationWithData;
+                  
+                  // Calculate performance percentages
+                  // Expected: 60 FPS, 125 Hz status rate
+                  final fpsPercentage = fps / 60.0;
+                  
+                  // Determine performance color - only factor in status rate if connected and available
+                  final Color iconColor;
+                  if (isConnected && statusRate != null) {
+                    final statusRatePercentage = statusRate / 125.0;
+                    iconColor = _getPerformanceColor(fpsPercentage, statusRatePercentage);
+                  } else {
+                    // Only use FPS for color coding when not connected
+                    iconColor = _getPerformanceColorFpsOnly(fpsPercentage);
+                  }
+                  
+                  // Build display text - include status rate only when connected and available
+                  final String displayText;
+                  if (isConnected && statusRate != null) {
+                    displayText = '${fps.toStringAsFixed(1)} FPS / ${statusRate.toStringAsFixed(1)} Hz';
+                  } else {
+                    displayText = '${fps.toStringAsFixed(1)} FPS';
+                  }
+                  
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.speed, color: iconColor, size: 12),
+                      const SizedBox(width: 4),
+                      Text(
+                        displayText,
+                        style: GoogleFonts.inconsolata(
+                          color: Colors.white,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  );
+                },
               );
             },
           ),
@@ -267,5 +305,35 @@ class StatusBar extends StatelessWidget {
       color: Colors.white24,
       margin: const EdgeInsets.symmetric(horizontal: 4),
     );
+  }
+
+  /// Determine performance color based on FPS and status rate percentages
+  /// Green (success): Both metrics >= 95% of expected values
+  /// Orange (warning): Both metrics >= 90% of expected values  
+  /// Red (error): Either metric < 90% of expected values
+  Color _getPerformanceColor(double fpsPercentage, double statusRatePercentage) {
+    final minPercentage = [fpsPercentage, statusRatePercentage].reduce((a, b) => a < b ? a : b);
+    
+    if (minPercentage >= 0.95) {
+      return VSCodeTheme.success;      // Green: Both >= 95%
+    } else if (minPercentage >= 0.90) {
+      return VSCodeTheme.warning;      // Orange: Both >= 90%
+    } else {
+      return VSCodeTheme.error;        // Red: Either < 90%
+    }
+  }
+
+  /// Determine performance color based only on FPS percentage (when not connected)
+  /// Green (success): FPS >= 95% of expected value (60 FPS)
+  /// Orange (warning): FPS >= 90% of expected value  
+  /// Red (error): FPS < 90% of expected value
+  Color _getPerformanceColorFpsOnly(double fpsPercentage) {
+    if (fpsPercentage >= 0.95) {
+      return VSCodeTheme.success;      // Green: >= 95%
+    } else if (fpsPercentage >= 0.90) {
+      return VSCodeTheme.warning;      // Orange: >= 90%
+    } else {
+      return VSCodeTheme.error;        // Red: < 90%
+    }
   }
 }

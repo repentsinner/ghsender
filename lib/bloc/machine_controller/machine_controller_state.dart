@@ -25,7 +25,6 @@ class MachineControllerState extends Equatable {
   // grblHAL detection and configuration state
   final bool grblHalDetected;
   final String? grblHalVersion;
-  final bool autoReportingConfigured;
   final DateTime? grblHalDetectedAt;
   
   // Machine configuration from $ command responses
@@ -46,7 +45,6 @@ class MachineControllerState extends Equatable {
     this.stateTransitions = const [],
     this.grblHalDetected = false,
     this.grblHalVersion,
-    this.autoReportingConfigured = false,
     this.grblHalDetectedAt,
     this.configuration,
   });
@@ -67,7 +65,6 @@ class MachineControllerState extends Equatable {
     List<String>? stateTransitions,
     bool? grblHalDetected,
     String? grblHalVersion,
-    bool? autoReportingConfigured,
     DateTime? grblHalDetectedAt,
     MachineConfiguration? configuration,
     bool clearLastMessage = false,
@@ -92,7 +89,6 @@ class MachineControllerState extends Equatable {
       stateTransitions: stateTransitions ?? this.stateTransitions,
       grblHalDetected: grblHalDetected ?? this.grblHalDetected,
       grblHalVersion: clearGrblHalVersion ? null : grblHalVersion ?? this.grblHalVersion,
-      autoReportingConfigured: autoReportingConfigured ?? this.autoReportingConfigured,
       grblHalDetectedAt: clearGrblHalDetectedAt ? null : grblHalDetectedAt ?? this.grblHalDetectedAt,
       configuration: clearConfiguration ? null : configuration ?? this.configuration,
     );
@@ -180,7 +176,6 @@ class MachineControllerState extends Equatable {
       'firmwareVersion': firmwareVersion,
       'grblHalDetected': grblHalDetected,
       'grblHalVersion': grblHalVersion,
-      'autoReportingConfigured': autoReportingConfigured,
       'grblHalDetectedAt': grblHalDetectedAt?.toIso8601String(),
       'workPosition': workPosition?.toString(),
       'machinePosition': machinePosition?.toString(),
@@ -213,7 +208,6 @@ class MachineControllerState extends Equatable {
     stateTransitions,
     grblHalDetected,
     grblHalVersion,
-    autoReportingConfigured,
     grblHalDetectedAt,
     configuration,
   ];

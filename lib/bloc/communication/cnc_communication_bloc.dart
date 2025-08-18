@@ -18,7 +18,7 @@ class CncCommunicationBloc
   // WebSocket communication
   WebSocketChannel? _webSocketChannel;
   StreamSubscription? _webSocketSubscription;
-  
+
   // Message stream for real-time communication
   StreamController<CncMessage>? _messageStreamController;
 
@@ -30,9 +30,24 @@ class CncCommunicationBloc
   // Simple command tracking for basic functionality
   int _commandIdCounter = 0;
 
+  // Status polling state
+  Timer? _statusPollingTimer;
+  // 125Hz polling rate (8ms interval) is well within grblHAL and WebSocket
+  // capability, and should be within most sender host capabilities
+  final int _pollingIntervalMs = 8;
+  List<int> _pollingCommand = [0x80]; // grblHAL preferred status request
+  
+  // Status rate tracking
+  final List<DateTime> _statusMessageTimestamps = [];
+  int _totalStatusMessages = 0;
+  DateTime? _statusTrackingStartTime;
+  PerformanceData? _currentPerformanceData;
+
   CncCommunicationBloc() : super(const CncCommunicationInitial()) {
-    AppLogger.commInfo('CNC Communication BLoC initialized (lightweight version)');
-    
+    AppLogger.commInfo(
+      'CNC Communication BLoC initialized (lightweight version)',
+    );
+
     // Initialize message stream for real-time communication
     _messageStreamController = StreamController<CncMessage>.broadcast();
 
@@ -42,12 +57,14 @@ class CncCommunicationBloc
     on<CncCommunicationSendRawBytes>(_onSendRawBytes);
     on<CncCommunicationStatusChanged>(_onStatusChanged);
     on<CncCommunicationSetControllerAddress>(_onSetControllerAddress);
+    on<CncCommunicationPollingControlRequested>(_onPollingControlRequested);
+    on<CncCommunicationPerformanceDataUpdated>(_onPerformanceDataUpdated);
   }
 
   /// Stream of messages received from CNC controller
   /// Use this for real-time message processing instead of events
-  Stream<CncMessage> get messageStream => _messageStreamController?.stream ?? const Stream.empty();
-
+  Stream<CncMessage> get messageStream =>
+      _messageStreamController?.stream ?? const Stream.empty();
 
   /// Handle connection request
   Future<void> _onConnectRequested(
@@ -55,13 +72,15 @@ class CncCommunicationBloc
     Emitter<CncCommunicationState> emit,
   ) async {
     AppLogger.commInfo('WebSocket connection requested to ${event.url}');
-    
+
     // Ensure clean state before attempting connection
     if (_webSocketChannel != null || _isConnected) {
-      AppLogger.commWarning('Previous connection detected, performing cleanup before reconnect');
+      AppLogger.commWarning(
+        'Previous connection detected, performing cleanup before reconnect',
+      );
       _cleanup();
     }
-    
+
     emit(const CncCommunicationConnecting());
 
     try {
@@ -131,7 +150,7 @@ class CncCommunicationBloc
 
       // WebSocket connection established successfully
       _isConnected = true;
-      
+
       AppLogger.commInfo('WebSocket connection established successfully');
       emit(
         CncCommunicationConnected(
@@ -165,18 +184,18 @@ class CncCommunicationBloc
       // Force close WebSocket connection with proper cleanup
       if (_webSocketChannel != null) {
         AppLogger.commDebug('Closing WebSocket connection');
-        
+
         // Cancel subscription first to prevent stream events during close
         _webSocketSubscription?.cancel();
         _webSocketSubscription = null;
-        
+
         // Close the WebSocket with normal closure status code
         try {
           await _webSocketChannel!.sink.close(status.normalClosure);
         } catch (e) {
           AppLogger.commWarning('WebSocket close failed, forcing cleanup: $e');
         }
-        
+
         _webSocketChannel = null;
         AppLogger.commDebug('WebSocket connection closed and nullified');
       }
@@ -194,10 +213,10 @@ class CncCommunicationBloc
       );
     } catch (error, stackTrace) {
       AppLogger.commError('Error during disconnection', error, stackTrace);
-      
+
       // Even if disconnection fails, force cleanup to allow reconnection
       _cleanup();
-      
+
       emit(
         CncCommunicationError(
           errorMessage: 'Disconnection error: ${error.toString()}',
@@ -220,18 +239,20 @@ class CncCommunicationBloc
     }
 
     final commandId = ++_commandIdCounter;
-    
+
     _sendCommand(event.command, commandId);
-    
+
     // Emit sent command to message stream
-    _messageStreamController?.add(CncMessage(
-      content: 'Sent: ${event.command}',
-      timestamp: DateTime.now(),
-      type: CncMessageType.other,
-    ));
+    _messageStreamController?.add(
+      CncMessage(
+        content: 'Sent: ${event.command}',
+        timestamp: DateTime.now(),
+        type: CncMessageType.other,
+      ),
+    );
   }
 
-  /// Handle raw bytes sending (for real-time commands like grblHAL auto-reporting)
+  /// Handle raw bytes sending (for real-time commands like status polling)
   void _onSendRawBytes(
     CncCommunicationSendRawBytes event,
     Emitter<CncCommunicationState> emit,
@@ -241,18 +262,21 @@ class CncCommunicationBloc
       return;
     }
 
-    final bytesHex = event.bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ');
-    
-    _sendRawBytes(event.bytes);
-    
-    // Emit sent raw bytes to message stream
-    _messageStreamController?.add(CncMessage(
-      content: 'Sent raw: $bytesHex',
-      timestamp: DateTime.now(),
-      type: CncMessageType.other,
-    ));
-  }
+    final bytesHex = event.bytes
+        .map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}')
+        .join(' ');
 
+    _sendRawBytes(event.bytes);
+
+    // Emit sent raw bytes to message stream
+    _messageStreamController?.add(
+      CncMessage(
+        content: 'Sent raw: $bytesHex',
+        timestamp: DateTime.now(),
+        type: CncMessageType.other,
+      ),
+    );
+  }
 
   /// Handle external status changes
   Future<void> _onStatusChanged(
@@ -302,48 +326,78 @@ class CncCommunicationBloc
     AppLogger.info('Controller address configured successfully');
   }
 
+  /// Handle polling control requests
+  void _onPollingControlRequested(
+    CncCommunicationPollingControlRequested event,
+    Emitter<CncCommunicationState> emit,
+  ) {
+    if (event.enable) {
+      _startPolling(
+        rawCommand: event.rawCommand,
+        stringCommand: event.stringCommand,
+      );
+    } else {
+      _stopPolling();
+    }
+  }
+
   // Removed pointless _onMessageReceived - using streams instead
 
   /// Process incoming message from WebSocket
-  void _onMessage(String message, DateTime timestamp) {
-    if (message.isEmpty) return;
+  void _onMessage(String rawMessage, DateTime timestamp) {
+    if (rawMessage.isEmpty) return;
 
-    // Debug logging for all messages during connection handshake
-    AppLogger.commDebug('Received: $message');
-    
-    // Determine message type for efficient processing
-    final messageType = _determineMessageType(message);
-    
-    // Emit to message stream for real-time processing
-    _messageStreamController?.add(CncMessage(
-      content: message,
-      timestamp: timestamp,
-      type: messageType,
-    ));
+    // Split on newlines to handle multi-line responses from grblHAL
+    // (e.g., configuration dumps from $ command)
+    final lines = rawMessage.split('\n');
+
+    for (final line in lines) {
+      // Strip legacy serial/telnet newlines - WebSocket framing handles message boundaries
+      final cleanedMessage = line.trim();
+      if (cleanedMessage.isEmpty) continue; // Skip empty lines
+
+      // Debug logging for all messages during connection handshake
+      AppLogger.commDebug('Received: $cleanedMessage');
+
+      // Determine message type for efficient processing
+      final messageType = _determineMessageType(cleanedMessage);
+      
+      // Track status messages for rate analysis
+      if (messageType == CncMessageType.status) {
+        _trackStatusMessage(timestamp);
+      }
+
+      // Emit each logical message as a separate CncMessage
+      _messageStreamController?.add(
+        CncMessage(
+          content: cleanedMessage,
+          timestamp: timestamp,
+          type: messageType,
+        ),
+      );
+    }
   }
 
   /// Determine the type of message for efficient processing
   CncMessageType _determineMessageType(String message) {
-    final trimmed = message.trim();
-    
-    if (trimmed.startsWith('<') && trimmed.endsWith('>')) {
+    // Message is already cleaned in _onMessage, no need to trim again
+
+    if (message.startsWith('<') && message.endsWith('>')) {
       return CncMessageType.status;
-    } else if (trimmed.startsWith(r'$') && trimmed.contains('=')) {
+    } else if (message.startsWith(r'$') && message.contains('=')) {
       return CncMessageType.configuration;
-    } else if (trimmed.toLowerCase().contains('grbl') || 
-               trimmed.toLowerCase().contains('welcome') ||
-               trimmed.contains('[') && trimmed.contains(']')) {
+    } else if (message.toLowerCase().contains('grbl') ||
+        message.toLowerCase().contains('welcome') ||
+        message.contains('[') && message.contains(']')) {
       return CncMessageType.welcome;
-    } else if (trimmed == 'ok') {
+    } else if (message == 'ok') {
       return CncMessageType.acknowledgment;
-    } else if (trimmed.startsWith('error:')) {
+    } else if (message.startsWith('error:')) {
       return CncMessageType.error;
     } else {
       return CncMessageType.other;
     }
   }
-
-
 
   /// Send command to WebSocket
   void _sendCommand(String command, int commandId) {
@@ -378,10 +432,12 @@ class CncCommunicationBloc
     }
   }
 
-  /// Send raw bytes to WebSocket (for real-time commands like grblHAL auto-reporting)
+  /// Send raw bytes to WebSocket (for real-time commands like status polling)
   void _sendRawBytes(List<int> bytes) {
     if (_webSocketChannel == null) {
-      AppLogger.commWarning('Cannot send raw bytes to WebSocket - not connected');
+      AppLogger.commWarning(
+        'Cannot send raw bytes to WebSocket - not connected',
+      );
       return;
     }
 
@@ -390,12 +446,17 @@ class CncCommunicationBloc
       _webSocketChannel!.sink.add(bytes);
 
       // Minimal raw bytes logging
-      if (bytes.isNotEmpty && bytes[0] != 0x84) { // Don't log auto-reporting setup
-        final bytesHex = bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ');
+      if (bytes.isNotEmpty && bytes[0] != 0x84) {
+        // Don't log safety door commands
+        final bytesHex = bytes
+            .map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}')
+            .join(' ');
         AppLogger.commDebug('Sent raw: $bytesHex');
       }
     } catch (e, stackTrace) {
-      final bytesHex = bytes.map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}').join(' ');
+      final bytesHex = bytes
+          .map((b) => '0x${b.toRadixString(16).padLeft(2, '0')}')
+          .join(' ');
       AppLogger.commError(
         'Error sending WebSocket raw bytes [$bytesHex]',
         e,
@@ -413,25 +474,167 @@ class CncCommunicationBloc
     }
   }
 
+  /// Start status polling
+  void _startPolling({List<int>? rawCommand, String? stringCommand}) {
+    // Stop any existing polling
+    _stopPolling();
 
+    // Update polling configuration
+    if (rawCommand != null) {
+      _pollingCommand = rawCommand;
+    } else if (stringCommand != null) {
+      // Convert string command to bytes (will be sent as string)
+      _pollingCommand = [];
+    } else {
+      // Use default 0x80 status request
+      _pollingCommand = [0x80];
+    }
 
+    AppLogger.commInfo(
+      'Starting status polling: ${_pollingIntervalMs}ms interval, command: ${rawCommand != null ? rawCommand.map((b) => '0x${b.toRadixString(16)}').join(' ') : stringCommand ?? '0x80'}',
+    );
+
+    // Start periodic timer
+    _statusPollingTimer = Timer.periodic(
+      Duration(milliseconds: _pollingIntervalMs),
+      (_) => _sendPollingCommand(stringCommand),
+    );
+  }
+
+  /// Stop status polling
+  void _stopPolling() {
+    if (_statusPollingTimer != null) {
+      AppLogger.commInfo('Stopping status polling');
+      _statusPollingTimer?.cancel();
+      _statusPollingTimer = null;
+    }
+  }
+
+  /// Send polling command
+  void _sendPollingCommand(String? stringCommand) {
+    if (!_isConnected || _webSocketChannel == null) {
+      return;
+    }
+
+    if (stringCommand != null) {
+      // Send string command
+      _sendCommand(stringCommand, 0);
+    } else {
+      // Send raw bytes command
+      _sendRawBytes(_pollingCommand);
+    }
+  }
+
+  /// Track received status message for rate analysis
+  void _trackStatusMessage(DateTime timestamp) {
+    _totalStatusMessages++;
+    
+    // Initialize tracking on first status message
+    _statusTrackingStartTime ??= timestamp;
+    
+    // Add timestamp to recent list
+    _statusMessageTimestamps.add(timestamp);
+    
+    // Keep only last 2 seconds of timestamps for rate calculation
+    final cutoffTime = timestamp.subtract(const Duration(seconds: 2));
+    _statusMessageTimestamps.removeWhere((t) => t.isBefore(cutoffTime));
+    
+    // Update performance data every 10 messages (avoid constant recalculation)
+    if (_totalStatusMessages % 10 == 0) {
+      _updatePerformanceData(timestamp);
+      // Trigger a state update to refresh UI
+      add(CncCommunicationPerformanceDataUpdated(timestamp));
+    }
+  }
+  
+  /// Calculate expected status messages based on polling rate and duration
+  int _calculateExpectedMessages(DateTime currentTime) {
+    if (_statusTrackingStartTime == null) return 0;
+    
+    final duration = currentTime.difference(_statusTrackingStartTime!);
+    final expectedRate = 1000 / _pollingIntervalMs; // Messages per second
+    return (duration.inMilliseconds * expectedRate / 1000).round();
+  }
+  
+  /// Update performance data with current status rate metrics
+  void _updatePerformanceData(DateTime currentTime) {
+    if (_statusMessageTimestamps.isEmpty) return;
+    
+    // Calculate status messages per second (based on last 2 seconds)
+    final recentMessages = _statusMessageTimestamps.length;
+    final timeSpan = _statusMessageTimestamps.isNotEmpty
+        ? currentTime.difference(_statusMessageTimestamps.first).inMilliseconds / 1000.0
+        : 1.0;
+    final statusRate = recentMessages / timeSpan;
+    
+    // Calculate expected messages and drop rate
+    final expectedMessages = _calculateExpectedMessages(currentTime);
+    final dropRate = expectedMessages > 0 
+        ? ((expectedMessages - _totalStatusMessages) / expectedMessages * 100.0).clamp(0.0, 100.0)
+        : 0.0;
+    
+    _currentPerformanceData = PerformanceData(
+      messagesPerSecond: statusRate.round(),
+      averageLatencyMs: 0.0, // Not tracking latency in this implementation
+      maxLatencyMs: 0.0,
+      totalMessages: _totalStatusMessages,
+      droppedMessages: (expectedMessages - _totalStatusMessages).clamp(0, expectedMessages),
+      recentLatencies: const [],
+      statusMessagesPerSecond: statusRate,
+      totalStatusMessages: _totalStatusMessages,
+      expectedStatusMessages: expectedMessages,
+      statusMessageDropRate: dropRate,
+      recentStatusTimestamps: List.from(_statusMessageTimestamps),
+    );
+    
+  }
+  
+  /// Get current performance data
+  PerformanceData? get performanceData => _currentPerformanceData;
+
+  /// Handle performance data update events
+  void _onPerformanceDataUpdated(
+    CncCommunicationPerformanceDataUpdated event,
+    Emitter<CncCommunicationState> emit,
+  ) {
+    // Emit updated state to trigger UI rebuild
+    if (_isConnected && state is CncCommunicationConnected) {
+      final currentState = state as CncCommunicationConnected;
+      emit(CncCommunicationConnectedWithPerformance(
+        url: currentState.url,
+        statusMessage: currentState.statusMessage,
+        deviceInfo: currentState.deviceInfo,
+        connectedAt: currentState.connectedAt,
+        performanceData: _currentPerformanceData,
+      ));
+    }
+  }
 
   /// Clean up timers and subscriptions
   void _cleanup() {
     AppLogger.commDebug('Starting cleanup of communication resources');
-    
+
+    // Stop polling
+    _stopPolling();
+
     // Cancel and clear all timers and subscriptions
     _webSocketSubscription?.cancel();
     _webSocketSubscription = null;
-    
+
     // Reset connection state variables
     _isConnected = false;
     _currentUrl = '';
     _connectedAt = null;
-    
+
     // Reset command counter
     _commandIdCounter = 0;
     
+    // Reset status tracking
+    _statusMessageTimestamps.clear();
+    _totalStatusMessages = 0;
+    _statusTrackingStartTime = null;
+    _currentPerformanceData = null;
+
     AppLogger.commDebug('Cleanup completed - all state reset for reconnection');
   }
 
@@ -458,7 +661,6 @@ class CncCommunicationBloc
     };
   }
 
-
   @override
   void onTransition(
     Transition<CncCommunicationEvent, CncCommunicationState> transition,
@@ -480,12 +682,14 @@ class CncCommunicationBloc
 
   @override
   Future<void> close() {
-    AppLogger.commDebug('CncCommunicationBloc closing, performing final cleanup');
-    
+    AppLogger.commDebug(
+      'CncCommunicationBloc closing, performing final cleanup',
+    );
+
     // Close message stream
     _messageStreamController?.close();
     _messageStreamController = null;
-    
+
     // Force close WebSocket if still connected
     if (_webSocketChannel != null) {
       try {
@@ -495,10 +699,10 @@ class CncCommunicationBloc
       }
       _webSocketChannel = null;
     }
-    
+
     // Perform comprehensive cleanup
     _cleanup();
-    
+
     AppLogger.commDebug('CncCommunicationBloc cleanup completed');
     return super.close();
   }

@@ -4,6 +4,8 @@ import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
 import '../../../bloc/machine_controller/machine_controller_bloc.dart';
 import '../../../bloc/machine_controller/machine_controller_state.dart';
+import '../../../bloc/communication/cnc_communication_bloc.dart';
+import '../../../bloc/communication/cnc_communication_state.dart';
 import '../../../models/machine_controller.dart';
 
 /// Debug section in the sidebar - system information and debugging tools
@@ -20,37 +22,42 @@ class DebugSection extends StatelessWidget {
           // System Information Section
           SidebarComponents.buildSectionWithInfo(
             title: 'System Information',
-            infoTooltip: 'Platform and runtime environment details for debugging',
+            infoTooltip:
+                'Platform and runtime environment details for debugging',
             child: Column(
               children: [
                 SidebarComponents.buildInfoCard(
                   title: 'Platform',
-                  content: 'macOS (Darwin)\nFlutter 3.33.0-1.0.pre-1145\nDart 3.10.0',
+                  content:
+                      'macOS (Darwin)\nFlutter 3.33.0-1.0.pre-1145\nDart 3.10.0',
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 SidebarComponents.buildInfoCard(
                   title: 'Graphics Backend',
-                  content: 'Flutter Impeller (Metal)\nNative GPU acceleration\nHardware shader compilation',
+                  content:
+                      'Flutter Impeller (Metal)\nNative GPU acceleration\nHardware shader compilation',
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 SidebarComponents.buildInfoCard(
                   title: 'Renderer Details',
-                  content: 'FlutterScene Batch Renderer\nCustom line geometry shaders\nThree.js Line2/LineSegments2 style',
+                  content:
+                      'FlutterScene Batch Renderer\nCustom line geometry shaders\nThree.js Line2/LineSegments2 style',
                 ),
               ],
             ),
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Debug Tools Section
           SidebarComponents.buildSectionWithInfo(
             title: 'Debug Tools',
-            infoTooltip: 'Development and debugging utilities for troubleshooting',
+            infoTooltip:
+                'Development and debugging utilities for troubleshooting',
             child: Column(
               children: [
                 _buildActionCard(
@@ -62,9 +69,9 @@ class DebugSection extends StatelessWidget {
                     _showFeatureNotImplemented(context);
                   },
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 _buildActionCard(
                   icon: Icons.bug_report,
                   title: 'Export Debug Info',
@@ -74,9 +81,9 @@ class DebugSection extends StatelessWidget {
                     _showFeatureNotImplemented(context);
                   },
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 _buildActionCard(
                   icon: Icons.memory,
                   title: 'Memory Usage',
@@ -89,13 +96,14 @@ class DebugSection extends StatelessWidget {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Application State Section
           SidebarComponents.buildSectionWithInfo(
             title: 'Application State',
-            infoTooltip: 'Current status of core application components and systems',
+            infoTooltip:
+                'Current status of core application components and systems',
             child: Column(
               children: [
                 _buildStatusItem(
@@ -104,27 +112,27 @@ class DebugSection extends StatelessWidget {
                   status: 'Initialized',
                   color: VSCodeTheme.success,
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 _buildStatusItem(
                   icon: Icons.check_circle,
                   label: 'Camera Director',
                   status: 'Active',
                   color: VSCodeTheme.success,
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 _buildStatusItem(
                   icon: Icons.check_circle,
                   label: 'Renderer',
                   status: 'Ready',
                   color: VSCodeTheme.success,
                 ),
-                
+
                 const SizedBox(height: 8),
-                
+
                 _buildStatusItem(
                   icon: Icons.check_circle,
                   label: 'Shader Pipeline',
@@ -134,32 +142,188 @@ class DebugSection extends StatelessWidget {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 24),
-          
+
           // Machine Input States Section
           SidebarComponents.buildSectionWithInfo(
             title: 'Machine Input States',
             infoTooltip: 'Real-time machine input status and polarity settings',
             child: _buildMachineInputStates(context),
           ),
-          
+
           const SizedBox(height: 24),
-          
+
+          // Communication Performance Section
+          SidebarComponents.buildSectionWithInfo(
+            title: 'Communication Performance',
+            infoTooltip:
+                'Real-time communication metrics and status message rate analysis',
+            child: _buildCommunicationPerformance(context),
+          ),
+
+          const SizedBox(height: 24),
+
           // Log Levels Section
           SidebarComponents.buildSectionWithInfo(
             title: 'Log Configuration',
-            infoTooltip: 'Application logging settings and output configuration',
+            infoTooltip:
+                'Application logging settings and output configuration',
             child: SidebarComponents.buildInfoCard(
               title: 'Current Log Level',
-              content: 'INFO level logging\nReal-time application events\nPerformance monitoring active',
+              content:
+                  'INFO level logging\nReal-time application events\nPerformance monitoring active',
             ),
           ),
         ],
       ),
     );
   }
-  
+
+  Widget _buildCommunicationPerformance(BuildContext context) {
+    return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
+      builder: (context, commState) {
+        final commBloc = BlocProvider.of<CncCommunicationBloc>(context);
+
+        // Get performance data from state if available, otherwise from bloc directly
+        final performanceData =
+            commState is CncCommunicationConnectedWithPerformance
+            ? commState.performanceData
+            : commBloc.performanceData;
+
+        if (!commBloc.isConnected) {
+          return SidebarComponents.buildInfoCard(
+            title: 'Communication Offline',
+            content: 'Connect to machine to view communication metrics',
+          );
+        }
+
+        return Column(
+          children: [
+            // Connection Status
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: VSCodeTheme.editorBackground,
+                borderRadius: VSCodeTheme.containerRadius,
+                border: Border.all(color: VSCodeTheme.border, width: 1),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.wifi, size: 16, color: VSCodeTheme.accent),
+                      const SizedBox(width: 8),
+                      Text('Connection Status', style: VSCodeTheme.labelText),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildInputStateRow(
+                    'Connection',
+                    commBloc.statusMessage,
+                    '🔗',
+                  ),
+                  const SizedBox(height: 4),
+                  _buildInputStateRow(
+                    'WebSocket State',
+                    commBloc.isConnected ? 'Connected' : 'Disconnected',
+                    commBloc.isConnected ? '✅' : '❌',
+                  ),
+                ],
+              ),
+            ),
+
+            if (performanceData != null) ...[
+              const SizedBox(height: 12),
+
+              // Status Rate Metrics
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: VSCodeTheme.editorBackground,
+                  borderRadius: VSCodeTheme.containerRadius,
+                  border: Border.all(color: VSCodeTheme.border, width: 1),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.speed, size: 16, color: VSCodeTheme.accent),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Polled Status Messages',
+                          style: VSCodeTheme.labelText,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildInputStateRow(
+                      'Expected Rate',
+                      '125.0 Hz (8ms polling)',
+                      '🎯',
+                    ),
+                    const SizedBox(height: 4),
+                    _buildInputStateRow(
+                      'Actual Rate',
+                      '${performanceData.statusMessagesPerSecond.toStringAsFixed(1)} Hz',
+                      performanceData.statusRateStatus.contains('✅')
+                          ? '✅'
+                          : '⚠️',
+                    ),
+                    const SizedBox(height: 4),
+                    _buildInputStateRow(
+                      'Drop Rate',
+                      '${performanceData.statusMessageDropRate.toStringAsFixed(1)}%',
+                      performanceData.statusMessageDropRate < 5.0 ? '✅' : '❌',
+                    ),
+                    const SizedBox(height: 4),
+                    _buildInputStateRow(
+                      'Total Messages',
+                      '${performanceData.totalStatusMessages}',
+                      '📊',
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: performanceData.meetsStatusRateRequirement
+                            ? VSCodeTheme.success.withValues(alpha: 0.1)
+                            : VSCodeTheme.error.withValues(alpha: 0.1),
+                        borderRadius: VSCodeTheme.containerRadius,
+                        border: Border.all(
+                          color: performanceData.meetsStatusRateRequirement
+                              ? VSCodeTheme.success
+                              : VSCodeTheme.error,
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            performanceData.meetsStatusRateRequirement
+                                ? '✅ Status Rate: PASS'
+                                : '❌ Status Rate: FAIL',
+                            style: VSCodeTheme.bodyText.copyWith(
+                              color: performanceData.meetsStatusRateRequirement
+                                  ? VSCodeTheme.success
+                                  : VSCodeTheme.error,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildMachineInputStates(BuildContext context) {
     return BlocBuilder<MachineControllerBloc, MachineControllerState>(
       builder: (context, machineState) {
@@ -191,23 +355,28 @@ class DebugSection extends StatelessWidget {
                         size: 16,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        'Current Status',
-                        style: VSCodeTheme.labelText,
-                      ),
+                      Text('Current Status', style: VSCodeTheme.labelText),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  _buildInputStateRow('Machine Status', machineState.status.displayName, machineState.status.icon),
+                  _buildInputStateRow(
+                    'Machine Status',
+                    machineState.status.displayName,
+                    machineState.status.icon,
+                  ),
                   const SizedBox(height: 4),
                   if (machineState.workPosition != null)
-                    _buildInputStateRow('Work Position', '${machineState.workPosition!.x.toStringAsFixed(2)}, ${machineState.workPosition!.y.toStringAsFixed(2)}, ${machineState.workPosition!.z.toStringAsFixed(2)}', '📍'),
+                    _buildInputStateRow(
+                      'Work Position',
+                      '${machineState.workPosition!.x.toStringAsFixed(2)}, ${machineState.workPosition!.y.toStringAsFixed(2)}, ${machineState.workPosition!.z.toStringAsFixed(2)}',
+                      '📍',
+                    ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // Input states from machine status
             Container(
               padding: const EdgeInsets.all(12),
@@ -221,16 +390,9 @@ class DebugSection extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Icon(
-                        Icons.input,
-                        color: VSCodeTheme.warning,
-                        size: 16,
-                      ),
+                      Icon(Icons.input, color: VSCodeTheme.warning, size: 16),
                       const SizedBox(width: 8),
-                      Text(
-                        'Input States',
-                        style: VSCodeTheme.labelText,
-                      ),
+                      Text('Input States', style: VSCodeTheme.labelText),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -238,9 +400,9 @@ class DebugSection extends StatelessWidget {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 12),
-            
+
             // grblHAL Configuration Info
             if (machineState.grblHalDetected)
               Container(
@@ -268,24 +430,44 @@ class DebugSection extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    _buildInputStateRow('Firmware', _getFirmwareVersion(machineState), '⚙️'),
+                    _buildInputStateRow(
+                      'Firmware',
+                      _getFirmwareVersion(machineState),
+                      '⚙️',
+                    ),
                     const SizedBox(height: 4),
-                    if (machineState.configuration != null && machineState.configuration!.settings.isNotEmpty)
-                      _buildInputStateRow('Configuration', '${machineState.configuration!.settings.length} settings loaded', '📋'),
-                    if (machineState.configuration != null && machineState.configuration!.settings.isNotEmpty)
+                    if (machineState.configuration != null &&
+                        machineState.configuration!.settings.isNotEmpty)
+                      _buildInputStateRow(
+                        'Configuration',
+                        '${machineState.configuration!.settings.length} settings loaded',
+                        '📋',
+                      ),
+                    if (machineState.configuration != null &&
+                        machineState.configuration!.settings.isNotEmpty)
                       const SizedBox(height: 4),
-                    _buildInputStateRow('Auto Reporting', machineState.autoReportingConfigured ? 'Enabled (60Hz)' : 'Disabled', machineState.autoReportingConfigured ? '✅' : '❌'),
+                    _buildInputStateRow(
+                      'Status Polling',
+                      'Enabled (125Hz)',
+                      '✅',
+                    ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
                         color: VSCodeTheme.warning.withValues(alpha: 0.1),
-                        border: Border.all(color: VSCodeTheme.warning.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: VSCodeTheme.warning.withValues(alpha: 0.3),
+                        ),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info, size: 14, color: VSCodeTheme.warning),
+                          Icon(
+                            Icons.info,
+                            size: 14,
+                            color: VSCodeTheme.warning,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -306,34 +488,42 @@ class DebugSection extends StatelessWidget {
       },
     );
   }
-  
+
   Widget _buildInputStatesFromStatus(MachineControllerState machineState) {
     // Parse input states from the machine status
     final status = machineState.status;
     List<Widget> inputRows = [];
-    
+
     // Door state
     if (status == MachineStatus.door) {
       inputRows.add(_buildInputStateRow('Door Switch', 'Open', '🚪'));
     } else {
       inputRows.add(_buildInputStateRow('Door Switch', 'Closed', '🔒'));
     }
-    
+
     // Alarm/Error states indicate potential limit switch activation
     if (status == MachineStatus.alarm) {
-      inputRows.add(_buildInputStateRow('Limit Switches', 'ALARM - Possible activation', '⚠️'));
+      inputRows.add(
+        _buildInputStateRow(
+          'Limit Switches',
+          'ALARM - Possible activation',
+          '⚠️',
+        ),
+      );
     } else {
       inputRows.add(_buildInputStateRow('Limit Switches', 'Normal', '✅'));
     }
-    
+
     // If no specific input state info is available
     if (inputRows.isEmpty) {
-      inputRows.add(_buildInputStateRow('Input Detection', 'Status parsing active', 'ℹ️'));
+      inputRows.add(
+        _buildInputStateRow('Input Detection', 'Status parsing active', 'ℹ️'),
+      );
     }
-    
+
     return Column(children: inputRows);
   }
-  
+
   String _getFirmwareVersion(MachineControllerState machineState) {
     // Priority: Configuration firmware version > grblHAL version > Unknown
     if (machineState.configuration?.firmwareVersion != null) {
@@ -350,17 +540,9 @@ class DebugSection extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Text(
-            icon,
-            style: const TextStyle(fontSize: 14),
-          ),
+          Text(icon, style: const TextStyle(fontSize: 14)),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: VSCodeTheme.captionText,
-            ),
-          ),
+          Expanded(child: Text(label, style: VSCodeTheme.captionText)),
           Text(
             value,
             style: VSCodeTheme.statusText.copyWith(
@@ -371,7 +553,7 @@ class DebugSection extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildActionCard({
     required IconData icon,
     required String title,
@@ -396,32 +578,22 @@ class DebugSection extends StatelessWidget {
                 color: VSCodeTheme.focus.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Icon(
-                icon,
-                color: VSCodeTheme.focus,
-                size: 16,
-              ),
+              child: Icon(icon, color: VSCodeTheme.focus, size: 16),
             ),
-            
+
             const SizedBox(width: 12),
-            
+
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: VSCodeTheme.labelText,
-                  ),
+                  Text(title, style: VSCodeTheme.labelText),
                   const SizedBox(height: 2),
-                  Text(
-                    description,
-                    style: VSCodeTheme.smallText,
-                  ),
+                  Text(description, style: VSCodeTheme.smallText),
                 ],
               ),
             ),
-            
+
             const Icon(
               Icons.chevron_right,
               color: VSCodeTheme.secondaryText,
@@ -432,7 +604,7 @@ class DebugSection extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildStatusItem({
     required IconData icon,
     required String label,
@@ -448,32 +620,18 @@ class DebugSection extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: color,
-            size: 16,
-          ),
-          
+          Icon(icon, color: color, size: 16),
+
           const SizedBox(width: 10),
-          
-          Expanded(
-            child: Text(
-              label,
-              style: VSCodeTheme.labelText,
-            ),
-          ),
-          
-          Text(
-            status,
-            style: VSCodeTheme.statusText.copyWith(
-              color: color,
-            ),
-          ),
+
+          Expanded(child: Text(label, style: VSCodeTheme.labelText)),
+
+          Text(status, style: VSCodeTheme.statusText.copyWith(color: color)),
         ],
       ),
     );
   }
-  
+
   void _showFeatureNotImplemented(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

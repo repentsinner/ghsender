@@ -77,7 +77,13 @@ class PrimarySidebar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          Text(title.toUpperCase(), style: VSCodeTheme.sidebarOrPanelHeading),
+          Expanded(
+            child: Text(
+              title.toUpperCase(), 
+              style: VSCodeTheme.sidebarOrPanelHeading,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );

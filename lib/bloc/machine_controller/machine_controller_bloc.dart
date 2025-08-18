@@ -42,7 +42,6 @@ class MachineControllerBloc
     // grblHAL detection and configuration handlers
     on<MachineControllerGrblHalDetected>(_onGrblHalDetected);
     on<MachineControllerSetCommunicationBloc>(_onSetCommunicationBloc);
-    on<MachineControllerAutoReportingConfigured>(_onAutoReportingConfigured);
     on<MachineControllerConfigurationReceived>(_onConfigurationReceived);
 
     // Jog control handlers
@@ -442,6 +441,14 @@ class MachineControllerBloc
       AppLogger.machineInfo(
         'Machine connection changed: ${event.isOnline ? 'online' : 'offline'}',
       );
+
+      // Stop polling when machine goes offline
+      if (!event.isOnline && _communicationBloc != null) {
+        AppLogger.machineInfo('Machine offline - stopping status polling');
+        _communicationBloc.add(
+          CncCommunicationPollingControlRequested(enable: false),
+        );
+      }
     }
   }
 
@@ -505,12 +512,12 @@ class MachineControllerBloc
       ),
     );
 
-    // Automatically configure grblHAL auto reporting
-    _configureGrblHalAutoReporting();
+    // Configure grblHAL for optimal status reporting
+    _configureGrblHalReporting();
   }
 
-  /// Configure grblHAL automatic status reporting
-  void _configureGrblHalAutoReporting() {
+  /// Configure grblHAL for optimal status reporting and start polling
+  void _configureGrblHalReporting() {
     if (_communicationBloc == null) {
       AppLogger.machineError(
         'Cannot configure grblHAL - no communication bloc reference',
@@ -518,13 +525,20 @@ class MachineControllerBloc
       return;
     }
 
-    AppLogger.machineInfo('=== CONFIGURING grblHAL AUTO-REPORTING ===');
+    AppLogger.machineInfo('=== CONFIGURING grblHAL STATUS REPORTING ===');
 
     // Send grblHAL configuration commands directly
     AppLogger.machineInfo(
-      'MACHINE CONTROLLER: Sending 0x87 (enable async reporting)',
+      'MACHINE CONTROLLER: Sending 0x87 (enable extended status format)',
     );
     _communicationBloc.add(CncCommunicationSendRawBytes([0x87]));
+
+    // Configure status reporting mask ($10 setting)
+    // Set $10=511 for comprehensive status reporting (all flags enabled)
+    AppLogger.machineInfo(
+      'MACHINE CONTROLLER: Setting \$10=511 (enable comprehensive status reporting)',
+    );
+    _communicationBloc.add(CncCommunicationSendCommand('\$10=511'));
 
     // Query machine configuration to understand capabilities and settings
     AppLogger.machineInfo(
@@ -532,56 +546,24 @@ class MachineControllerBloc
     );
     _communicationBloc.add(CncCommunicationSendCommand('\$'));
 
-    // Send multiple status queries to ensure we get machine state
+    // Send initial status query to get immediate state
     AppLogger.machineInfo(
-      'MACHINE CONTROLLER: Sending ? (initial status query)',
+      'MACHINE CONTROLLER: Sending initial 0x80 (status query)',
     );
-    _communicationBloc.add(CncCommunicationSendCommand('?'));
+    _communicationBloc.add(CncCommunicationSendRawBytes([0x80]));
 
-    // Send additional status queries with delays to ensure we get a response
-    Timer(const Duration(milliseconds: 100), () {
-      if (_communicationBloc != null) {
-        AppLogger.machineInfo('MACHINE CONTROLLER: Sending delayed ? (100ms)');
-        _communicationBloc.add(CncCommunicationSendCommand('?'));
-      }
-    });
-
-    Timer(const Duration(milliseconds: 500), () {
-      if (_communicationBloc != null) {
-        AppLogger.machineInfo('MACHINE CONTROLLER: Sending delayed ? (500ms)');
-        _communicationBloc.add(CncCommunicationSendCommand('?'));
-      }
-    });
-
-    Timer(const Duration(milliseconds: 1000), () {
-      if (_communicationBloc != null) {
-        AppLogger.machineInfo('MACHINE CONTROLLER: Sending delayed ? (1000ms)');
-        _communicationBloc.add(CncCommunicationSendCommand('?'));
-      }
-    });
-
-    // Mark as configured
-    add(
-      MachineControllerAutoReportingConfigured(
-        enabled: true,
-        timestamp: DateTime.now(),
+    // Start continuous status polling using CommunicationBloc
+    AppLogger.machineInfo(
+      'MACHINE CONTROLLER: Starting status polling with 0x80 at 125Hz',
+    );
+    _communicationBloc.add(
+      CncCommunicationPollingControlRequested(
+        enable: true,
+        rawCommand: [0x80], // grblHAL preferred status request
       ),
     );
   }
 
-  /// Handle auto reporting configuration completion
-  void _onAutoReportingConfigured(
-    MachineControllerAutoReportingConfigured event,
-    Emitter<MachineControllerState> emit,
-  ) {
-    emit(state.copyWith(autoReportingConfigured: event.enabled));
-
-    if (event.enabled) {
-      AppLogger.machineInfo(
-        'grblHAL configured for async event-based status updates (0x87)',
-      );
-    }
-  }
 
   /// Handle machine configuration received from $ command parsing
   void _onConfigurationReceived(
@@ -673,8 +655,10 @@ class MachineControllerBloc
       return;
     }
 
-    // Build GRBL jog command: $J=X10.0F500 (jog X axis 10mm at 500mm/min)
-    final jogCommand = '\$J=${event.axis}${event.distance}F${event.feedRate}';
+    // Build GRBL jog command with G91 incremental mode and G21 metric units
+    // Format: $J=G91 G21 X10.0 F500 (jog X axis +10.0mm incrementally at 500mm/min)
+    final jogCommand =
+        '\$J=G91 G21 ${event.axis}${event.distance} F${event.feedRate}';
 
     AppLogger.machineInfo('Sending jog command: $jogCommand');
     _communicationBloc.add(CncCommunicationSendCommand(jogCommand));
@@ -724,7 +708,7 @@ class MachineControllerBloc
     // For continuous jog, send a long distance in the specified direction
     // grblHAL will stop when the jog cancel is received
     final distance = event.positive ? '1000' : '-1000'; // Large distance
-    final jogCommand = '\$J=${event.axis}${distance}F${event.feedRate}';
+    final jogCommand = '\$J=G91 G21 ${event.axis}$distance F${event.feedRate}';
 
     AppLogger.machineInfo('Starting continuous jog: $jogCommand');
     _communicationBloc.add(CncCommunicationSendCommand(jogCommand));
@@ -1075,9 +1059,6 @@ class MachineControllerBloc
       '  status: ${state.status.displayName} (${state.status.name})',
     );
     AppLogger.machineDebug('  grblHalDetected: ${state.grblHalDetected}');
-    AppLogger.machineDebug(
-      '  autoReportingConfigured: ${state.autoReportingConfigured}',
-    );
 
     if (!state.hasController || !state.isOnline) {
       AppLogger.machineWarning(

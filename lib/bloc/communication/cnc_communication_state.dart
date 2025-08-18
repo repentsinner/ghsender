@@ -124,6 +124,28 @@ class CncCommunicationWithData extends CncCommunicationState {
   }
 }
 
+/// Connected state with performance data updates
+class CncCommunicationConnectedWithPerformance extends CncCommunicationConnected {
+  final PerformanceData? performanceData;
+  
+  const CncCommunicationConnectedWithPerformance({
+    required super.url,
+    required super.statusMessage,
+    super.deviceInfo,
+    required super.connectedAt,
+    this.performanceData,
+  });
+  
+  @override
+  List<Object?> get props => [
+    url,
+    statusMessage,
+    deviceInfo,
+    connectedAt,
+    performanceData,
+  ];
+}
+
 /// Performance metrics for communication monitoring
 class PerformanceData extends Equatable {
   final int messagesPerSecond;
@@ -133,6 +155,13 @@ class PerformanceData extends Equatable {
   final int droppedMessages;
   final List<LatencyMeasurement> recentLatencies;
   
+  // Status message rate tracking
+  final double statusMessagesPerSecond;
+  final int totalStatusMessages;
+  final int expectedStatusMessages; // Based on polling rate
+  final double statusMessageDropRate; // Percentage of expected messages not received
+  final List<DateTime> recentStatusTimestamps;
+  
   const PerformanceData({
     required this.messagesPerSecond,
     required this.averageLatencyMs,
@@ -140,13 +169,24 @@ class PerformanceData extends Equatable {
     required this.totalMessages,
     required this.droppedMessages,
     required this.recentLatencies,
+    required this.statusMessagesPerSecond,
+    required this.totalStatusMessages,
+    required this.expectedStatusMessages,
+    required this.statusMessageDropRate,
+    required this.recentStatusTimestamps,
   });
   
   /// Check if latency meets performance requirements (< 20ms average)
   bool get meetsLatencyRequirement => averageLatencyMs < 20.0;
   
+  /// Check if status message rate meets polling expectations (>95% success rate)
+  bool get meetsStatusRateRequirement => statusMessageDropRate < 5.0;
+  
   /// Status indicator for latency performance
   String get latencyStatus => meetsLatencyRequirement ? "✅ PASS" : "❌ FAIL";
+  
+  /// Status indicator for status message rate performance
+  String get statusRateStatus => meetsStatusRateRequirement ? "✅ PASS" : "❌ FAIL";
   
   @override
   List<Object?> get props => [
@@ -156,6 +196,11 @@ class PerformanceData extends Equatable {
     totalMessages,
     droppedMessages,
     recentLatencies,
+    statusMessagesPerSecond,
+    totalStatusMessages,
+    expectedStatusMessages,
+    statusMessageDropRate,
+    recentStatusTimestamps,
   ];
 }
 

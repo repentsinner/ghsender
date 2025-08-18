@@ -271,19 +271,6 @@ class MachineControllerSetCommunicationBloc extends MachineControllerEvent {
   List<Object?> get props => [communicationBloc];
 }
 
-/// Auto reporting configuration completed successfully
-class MachineControllerAutoReportingConfigured extends MachineControllerEvent {
-  final bool enabled;
-  final DateTime timestamp;
-  
-  const MachineControllerAutoReportingConfigured({
-    required this.enabled,
-    required this.timestamp,
-  });
-  
-  @override
-  List<Object?> get props => [enabled, timestamp];
-}
 
 // Jog Control Events
 

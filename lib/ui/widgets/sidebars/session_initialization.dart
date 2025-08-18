@@ -25,6 +25,7 @@ class SessionInitializationSection extends StatefulWidget {
 class _SessionInitializationSectionState
     extends State<SessionInitializationSection> {
   double _selectedJogDistance = 1.0;
+  int _selectedJogFeedRate = 500; // Default jog feed rate
   final double _probeDistance = 10.0;
   final double _probeFeedRate = 100.0;
 
@@ -228,6 +229,28 @@ class _SessionInitializationSectionState
                 _buildJogDistanceButton(
                   1.0,
                 ), // Custom distance input could go here
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Jog Feed Rate Selector
+            Text(
+              'Jog Feed Rate (mm/min)',
+              style: VSCodeTheme.labelText.copyWith(
+                color: VSCodeTheme.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                _buildJogFeedRateButton(100),
+                const SizedBox(width: 8),
+                _buildJogFeedRateButton(500),
+                const SizedBox(width: 8),
+                _buildJogFeedRateButton(1000),
+                const SizedBox(width: 8),
+                _buildJogFeedRateButton(2000),
               ],
             ),
 
@@ -526,6 +549,27 @@ class _SessionInitializationSectionState
     );
   }
 
+  Widget _buildJogFeedRateButton(int feedRate) {
+    final isSelected = _selectedJogFeedRate == feedRate;
+    return Expanded(
+      child: ElevatedButton(
+        onPressed: () => setState(() => _selectedJogFeedRate = feedRate),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isSelected
+              ? VSCodeTheme.focus
+              : VSCodeTheme.sideBarBackground,
+          foregroundColor: isSelected ? Colors.white : VSCodeTheme.primaryText,
+          side: BorderSide(color: VSCodeTheme.border),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+        ),
+        child: Text(
+          feedRate.toString(),
+          style: VSCodeTheme.labelText,
+        ),
+      ),
+    );
+  }
+
   Widget _buildJogButton(
     IconData icon,
     String label,
@@ -609,14 +653,14 @@ class _SessionInitializationSectionState
   }
 
   void _jogAxis(String axis, double distance) {
-    AppLogger.info('Jog request: $axis axis by ${distance}mm');
+    AppLogger.info('Jog request: $axis axis by ${distance}mm at ${_selectedJogFeedRate}mm/min');
 
     // Send jog command through MachineControllerBloc
     context.read<MachineControllerBloc>().add(
       MachineControllerJogRequested(
         axis: axis,
         distance: distance,
-        feedRate: 500, // Default feed rate of 500mm/min
+        feedRate: _selectedJogFeedRate,
       ),
     );
   }
