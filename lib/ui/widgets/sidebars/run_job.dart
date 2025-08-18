@@ -331,36 +331,35 @@ class _RunJobSectionState extends State<RunJobSection> {
         ),
         const SizedBox(height: 8),
         // Reset button with info icon
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: hasJob ? _resetJob : null,
-            icon: const Icon(Icons.refresh, size: 18),
-            label: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Reset to Beginning'),
-                const SizedBox(width: 8),
-                Tooltip(
-                  message: 'Reset job progress to line 1',
-                  child: Icon(
-                    Icons.info_outline,
-                    size: 14,
-                    color: VSCodeTheme.infoTooltip,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: hasJob ? _resetJob : null,
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Reset to Beginning'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: VSCodeTheme.primaryText,
+                  side: BorderSide(color: VSCodeTheme.border),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
                   ),
+                  textStyle: VSCodeTheme.buttonText,
                 ),
-              ],
-            ),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: VSCodeTheme.primaryText,
-              side: BorderSide(color: VSCodeTheme.border),
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(6),
               ),
-              textStyle: VSCodeTheme.buttonText,
             ),
-          ),
+            const SizedBox(width: 8),
+            Tooltip(
+              message: 'Reset job progress to line 1',
+              child: Icon(
+                Icons.info_outline,
+                size: 14,
+                color: VSCodeTheme.infoTooltip,
+              ),
+            ),
+          ],
         ),
       ],
     );

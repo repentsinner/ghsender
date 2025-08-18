@@ -4,7 +4,6 @@ import '../../utils/logger.dart';
 import '../themes/vscode_theme.dart';
 
 /// Log output panel widget that displays real-time log messages
-/// TODO: this widget has significant UI redraw performance impacts
 class LogOutputPanel extends StatefulWidget {
   final double height;
   final bool autoScroll;
@@ -22,10 +21,23 @@ class LogOutputPanel extends StatefulWidget {
 class _LogOutputPanelState extends State<LogOutputPanel> {
   late StreamSubscription<LogMessage> _logSubscription;
   final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<int> _logCountNotifier = ValueNotifier<int>(0);
+
+  // Static color map for log levels
+  static const Map<String, Color> _levelColors = {
+    'SEVERE': VSCodeTheme.error,
+    'WARNING': VSCodeTheme.warning,
+    'INFO': VSCodeTheme.info,
+    'FINE': VSCodeTheme.secondaryText,
+  };
+
 
   @override
   void initState() {
     super.initState();
+    // Initialize with current log count
+    _logCountNotifier.value = AppLogger.logHistory.length;
+    
     // Subscribe to new log messages for real-time updates
     _logSubscription = AppLogger.logStream.listen(_onLogMessage);
 
@@ -41,12 +53,13 @@ class _LogOutputPanelState extends State<LogOutputPanel> {
   void dispose() {
     _logSubscription.cancel();
     _scrollController.dispose();
+    _logCountNotifier.dispose();
     super.dispose();
   }
 
   void _onLogMessage(LogMessage message) {
-    // Just trigger UI update - message is already stored in AppLogger
-    setState(() {});
+    // Update log count notifier instead of setState for better performance
+    _logCountNotifier.value = AppLogger.logHistory.length;
 
     // Auto-scroll to bottom if enabled
     if (widget.autoScroll) {
@@ -66,34 +79,48 @@ class _LogOutputPanelState extends State<LogOutputPanel> {
     }
   }
 
-  Color _getLevelColor(String level) {
-    switch (level.toUpperCase()) {
-      case 'SEVERE':
-        return VSCodeTheme.error;
-      case 'WARNING':
-        return VSCodeTheme.warning;
-      case 'INFO':
-        return VSCodeTheme.info;
-      case 'FINE':
-        return VSCodeTheme.secondaryText;
-      default:
-        return VSCodeTheme.primaryText;
-    }
+
+  // Create prototype item for optimal ListView performance
+  Widget _buildPrototypeItem() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+      child: Row(
+        children: [
+          // Time
+          Text(
+            '00:00:00.000 ',
+            style: VSCodeTheme.loglineTime.copyWith(fontSize: 11),
+          ),
+          // Logger name
+          Text(
+            'AppLogger ',
+            style: VSCodeTheme.loglineName.copyWith(fontSize: 11),
+          ),
+          // Level (colored)
+          Text(
+            'WARNING ',
+            style: VSCodeTheme.loglineLevel.copyWith(
+              fontSize: 11,
+              color: _levelColors['WARNING'],
+            ),
+          ),
+          // Message
+          Expanded(
+            child: Text(
+              'Sample log message for prototype sizing',
+              style: VSCodeTheme.loglineMessage.copyWith(fontSize: 11),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  IconData _getLevelIcon(String level) {
-    switch (level.toUpperCase()) {
-      case 'SEVERE':
-        return Icons.error;
-      case 'WARNING':
-        return Icons.warning;
-      case 'INFO':
-        return Icons.info;
-      case 'FINE':
-        return Icons.bug_report;
-      default:
-        return Icons.message;
-    }
+  // Helper method to get color for log level
+  Color _getLevelColor(String level) {
+    return _levelColors[level.toUpperCase()] ?? VSCodeTheme.primaryText;
   }
 
   @override
@@ -101,72 +128,66 @@ class _LogOutputPanelState extends State<LogOutputPanel> {
     return SizedBox(
       height: widget.height,
       child: Expanded(
-        child: AppLogger.logHistory.isEmpty
-            ? Center(
-                child: Text(
-                  'No log messages',
-                  style: VSCodeTheme.loglineMessage,
-                ),
-              )
-            : ListView.builder(
-                controller: _scrollController,
-                itemCount: AppLogger.logHistory.length,
-                itemBuilder: (context, index) {
-                  final message = AppLogger.logHistory[index];
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
+        child: ValueListenableBuilder<int>(
+          valueListenable: _logCountNotifier,
+          builder: (context, logCount, child) {
+            return logCount == 0
+                ? Center(
+                    child: Text(
+                      'No log messages',
+                      style: VSCodeTheme.loglineMessage,
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // Time
-                        Text(
-                          message.formattedTime,
-                          style: VSCodeTheme.loglineTime,
-                        ),
-                        const SizedBox(width: 8),
-                        // Logger name
-                        Container(
-                          constraints: const BoxConstraints(minWidth: 60),
-                          child: Text(
-                            message.name,
-                            style: VSCodeTheme.loglineName,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        // Level with icon
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              _getLevelIcon(message.level),
-                              size: 12,
-                              color: _getLevelColor(message.level),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              message.level.padRight(7),
-                              style: VSCodeTheme.loglineLevel.copyWith(
-                                color: _getLevelColor(message.level),
+                  )
+                : SelectionArea(
+                    child: ListView.builder(
+                      controller: _scrollController,
+                      itemCount: logCount,
+                      prototypeItem: _buildPrototypeItem(), // Optimal performance
+                      cacheExtent: 250, // Flutter default, proven optimal
+                      addAutomaticKeepAlives: false, // Performance optimization
+                      addRepaintBoundaries: true, // Optimal for visible items
+                      itemBuilder: (context, index) {
+                        final message = AppLogger.logHistory[index];
+                        
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(8, 0, 8, 0),
+                          child: Row(
+                            children: [
+                              // Time
+                              Text(
+                                '${message.formattedTime} ',
+                                style: VSCodeTheme.loglineTime.copyWith(fontSize: 11),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(width: 8),
-                        // Message
-                        Expanded(
-                          child: Text(
-                            message.message,
-                            style: VSCodeTheme.loglineMessage,
+                              // Logger name
+                              Text(
+                                '${message.name.padRight(8)} ',
+                                style: VSCodeTheme.loglineName.copyWith(fontSize: 11),
+                              ),
+                              // Level (colored)
+                              Text(
+                                '${message.level.padRight(7)} ',
+                                style: VSCodeTheme.loglineLevel.copyWith(
+                                  fontSize: 11,
+                                  color: _getLevelColor(message.level),
+                                ),
+                              ),
+                              // Message
+                              Expanded(
+                                child: Text(
+                                  message.message,
+                                  style: VSCodeTheme.loglineMessage.copyWith(fontSize: 11),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   );
-                },
-              ),
+          },
+        ),
       ),
     );
   }

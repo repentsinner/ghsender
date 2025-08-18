@@ -5,6 +5,8 @@ import '../widgets/problem_item.dart';
 import '../../bloc/bloc_exports.dart';
 import '../../bloc/graphics/graphics_bloc.dart';
 import '../../bloc/graphics/graphics_state.dart';
+import '../../bloc/performance/performance_bloc.dart';
+import '../../bloc/performance/performance_state.dart';
 import '../../models/machine_controller.dart';
 
 /// Status Bar widget - bottom status information
@@ -85,6 +87,29 @@ class StatusBar extends StatelessWidget {
           ),
 
           const Spacer(),
+
+          // FPS display
+          BlocBuilder<PerformanceBloc, PerformanceState>(
+            builder: (context, state) {
+              final fps = state is PerformanceLoaded ? state.fps : 0.0;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.speed, color: Colors.white70, size: 12),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${fps.toStringAsFixed(1)} FPS',
+                    style: GoogleFonts.inconsolata(
+                      color: Colors.white,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(width: 16),
 
           // Panel toggle
           GestureDetector(

@@ -174,22 +174,22 @@ class VSCodeTheme {
   ];
 
   /// Log line text styles - consistent sizing and Inconsolata font
-  static TextStyle get loglineTime => GoogleFonts.inconsolata(
+  static final TextStyle loglineTime = GoogleFonts.inconsolata(
     color: secondaryText,
     fontSize: 11,
     fontWeight: FontWeight.w400,
   );
 
-  static TextStyle get loglineName => GoogleFonts.inconsolata(
+  static final TextStyle loglineName = GoogleFonts.inconsolata(
     color: const Color(0xFF4FC1FF), // VS Code cyan
     fontSize: 11,
     fontWeight: FontWeight.w500,
   );
 
-  static TextStyle get loglineLevel =>
+  static final TextStyle loglineLevel =
       GoogleFonts.inconsolata(fontSize: 11, fontWeight: FontWeight.w600);
 
-  static TextStyle get loglineMessage => GoogleFonts.inconsolata(
+  static final TextStyle loglineMessage = GoogleFonts.inconsolata(
     color: primaryText,
     fontSize: 11,
     fontWeight: FontWeight.w400,
