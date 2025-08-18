@@ -132,10 +132,16 @@ class SceneManager {
       // Add example cube for demonstration
       final cubeSquares = _createExampleCube();
 
-      // Add machine position debug cube (will be positioned via renderer transform updates)
-      final machinePositionCube = _createMachinePositionCube(vm.Vector3.zero());
+      // Add machine position indicator (will be positioned via renderer transform updates)
+      final machinePositionIndicator = _createMachinePositionIndicator();
 
-      final allObjects = [...gcodeObjects, ...worldAxes, ...toolpathVisualization, ...cubeSquares, ...machinePositionCube];
+      final allObjects = [
+        ...gcodeObjects,
+        ...worldAxes,
+        ...toolpathVisualization,
+        ...cubeSquares,
+        machinePositionIndicator,
+      ];
 
       // Create camera configuration based on G-code content
       final cameraConfig = _createCameraConfiguration(gcodePath);
@@ -204,11 +210,11 @@ class SceneManager {
     // Add example cube for demonstration
     final cubeSquares = _createExampleCube();
 
-    // Add machine position debug cube (will be positioned via renderer transform updates)
-    final machinePositionCube = _createMachinePositionCube(vm.Vector3.zero());
-    
+    // Add machine position indicator (will be positioned via renderer transform updates)
+    final machinePositionIndicator = _createMachinePositionIndicator();
+
     _sceneData = SceneData(
-      objects: [...worldAxes, ...cubeSquares, ...machinePositionCube],
+      objects: [...worldAxes, ...cubeSquares, machinePositionIndicator],
       camera: cameraConfig,
       lighting: lightConfig,
     );
@@ -252,7 +258,9 @@ class SceneManager {
       // TODO: Safety zones will be implemented in machine controller system
       // based on actual sensor positions and physical obstacles
 
-      AppLogger.info('Created ${visualizationElements.length} toolpath visualization elements');
+      AppLogger.info(
+        'Created ${visualizationElements.length} toolpath visualization elements',
+      );
     } catch (e) {
       AppLogger.warning('Failed to create toolpath visualization elements: $e');
       // Return empty list if creation fails
@@ -262,112 +270,15 @@ class SceneManager {
     return visualizationElements;
   }
 
-  /// Create a 3x3x3 cube centered on the machine position for debugging
-  /// High visibility colors for easy identification during debugging
-  List<SceneObject> _createMachinePositionCube(vm.Vector3 machinePosition) {
-    final cubeSquares = <SceneObject>[];
-    const double cubeSize = 3.0; // 3x3x3 cube
-    const double halfSize = cubeSize / 2.0;
-    
-    // Cube center is at the machine position
-    final cubeCenter = machinePosition;
-    
-    // High visibility cube with distinct themed colors for each face pair
-    const double opacity = VisualizerTheme.machinePositionCubeOpacity;
-    const double edgeWidth = VisualizerTheme.machinePositionCubeEdgeWidth;
-
-    // XY plane faces (top and bottom)
-    cubeSquares.addAll([
-      // Top face (Z = machinePos.z + halfSize)
-      SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(cubeCenter.x, cubeCenter.y, cubeCenter.z + halfSize),
-        size: cubeSize,
-        plane: SquarePlane.xy,
-        fillColor: VisualizerTheme.machinePositionCubeXYFaceColor,
-        edgeColor: VisualizerTheme.machinePositionCubeXYFaceColor.withValues(alpha: 1.0),
-        opacity: opacity,
-        edgeWidth: edgeWidth,
-        color: VisualizerTheme.machinePositionCubeXYFaceColor,
-        id: 'machine_position_cube_face_top_xy',
-      ),
-      // Bottom face (Z = machinePos.z - halfSize)
-      SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(cubeCenter.x, cubeCenter.y, cubeCenter.z - halfSize),
-        size: cubeSize,
-        plane: SquarePlane.xy,
-        fillColor: VisualizerTheme.machinePositionCubeXYFaceColor.withValues(alpha: 0.6),
-        edgeColor: VisualizerTheme.machinePositionCubeXYFaceColor.withValues(alpha: 1.0),
-        opacity: opacity,
-        edgeWidth: edgeWidth,
-        color: VisualizerTheme.machinePositionCubeXYFaceColor,
-        id: 'machine_position_cube_face_bottom_xy',
-      ),
-    ]);
-
-    // XZ plane faces (front and back)
-    cubeSquares.addAll([
-      // Front face (Y = machinePos.y + halfSize)
-      SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(cubeCenter.x, cubeCenter.y + halfSize, cubeCenter.z),
-        size: cubeSize,
-        plane: SquarePlane.xz,
-        fillColor: VisualizerTheme.machinePositionCubeXZFaceColor,
-        edgeColor: VisualizerTheme.machinePositionCubeXZFaceColor.withValues(alpha: 1.0),
-        opacity: opacity,
-        edgeWidth: edgeWidth,
-        color: VisualizerTheme.machinePositionCubeXZFaceColor,
-        id: 'machine_position_cube_face_front_xz',
-      ),
-      // Back face (Y = machinePos.y - halfSize)
-      SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(cubeCenter.x, cubeCenter.y - halfSize, cubeCenter.z),
-        size: cubeSize,
-        plane: SquarePlane.xz,
-        fillColor: VisualizerTheme.machinePositionCubeXZFaceColor.withValues(alpha: 0.6),
-        edgeColor: VisualizerTheme.machinePositionCubeXZFaceColor.withValues(alpha: 1.0),
-        opacity: opacity,
-        edgeWidth: edgeWidth,
-        color: VisualizerTheme.machinePositionCubeXZFaceColor,
-        id: 'machine_position_cube_face_back_xz',
-      ),
-    ]);
-
-    // YZ plane faces (left and right)
-    cubeSquares.addAll([
-      // Right face (X = machinePos.x + halfSize)
-      SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(cubeCenter.x + halfSize, cubeCenter.y, cubeCenter.z),
-        size: cubeSize,
-        plane: SquarePlane.yz,
-        fillColor: VisualizerTheme.machinePositionCubeYZFaceColor,
-        edgeColor: VisualizerTheme.machinePositionCubeYZFaceColor.withValues(alpha: 1.0),
-        opacity: opacity,
-        edgeWidth: edgeWidth,
-        color: VisualizerTheme.machinePositionCubeYZFaceColor,
-        id: 'machine_position_cube_face_right_yz',
-      ),
-      // Left face (X = machinePos.x - halfSize)
-      SceneObject(
-        type: SceneObjectType.filledSquare,
-        center: vm.Vector3(cubeCenter.x - halfSize, cubeCenter.y, cubeCenter.z),
-        size: cubeSize,
-        plane: SquarePlane.yz,
-        fillColor: VisualizerTheme.machinePositionCubeYZFaceColor.withValues(alpha: 0.6),
-        edgeColor: VisualizerTheme.machinePositionCubeYZFaceColor.withValues(alpha: 1.0),
-        opacity: opacity,
-        edgeWidth: edgeWidth,
-        color: VisualizerTheme.machinePositionCubeYZFaceColor,
-        id: 'machine_position_cube_face_left_yz',
-      ),
-    ]);
-
-    AppLogger.info('Created machine position debug cube with 6 faces at position: $machinePosition');
-    return cubeSquares;
+  /// Create a logical machine position indicator
+  /// The renderer will decide how to visualize this (e.g., as a cube)
+  SceneObject _createMachinePositionIndicator() {
+    return SceneObject(
+      type: SceneObjectType.machinePosition,
+      position: vm.Vector3.zero(), // Will be updated via transform
+      color: Colors.red, // Default color, renderer may override
+      id: 'machine_position_indicator',
+    );
   }
 
   /// Create a 30x30x30 cube from origin to (-30, -30, -30) using filled squares
@@ -376,10 +287,10 @@ class SceneManager {
     final cubeSquares = <SceneObject>[];
     const double cubeSize = 30.0;
     const double halfSize = cubeSize / 2.0;
-    
+
     // Cube center is at (-15, -15, -15) since it extends from 0 to -30 in each axis
     final cubeCenter = vm.Vector3(-halfSize, -halfSize, -halfSize);
-    
+
     // Semi-transparent cube with distinct themed colors for each face pair
     const double opacity = VisualizerTheme.cubeOpacity;
     const double edgeWidth = VisualizerTheme.cubeEdgeWidth;
@@ -474,7 +385,9 @@ class SceneManager {
       ),
     ]);
 
-    AppLogger.info('Created cube with 6 faces: ${cubeSquares.length} filled squares from origin to (-30, -30, -30)');
+    AppLogger.info(
+      'Created cube with 6 faces: ${cubeSquares.length} filled squares from origin to (-30, -30, -30)',
+    );
     return cubeSquares;
   }
 
@@ -506,16 +419,16 @@ class SceneManager {
   /// Includes feeds, rapids, and any other movements in the G-code file
   List<SceneObject> _createToolPathBoundingBox(GCodePath gcodePath) {
     final lines = <SceneObject>[];
-    
+
     try {
       // Get the actual G-code bounds (not derived size)
       final minBounds = gcodePath.minBounds;
       final maxBounds = gcodePath.maxBounds;
-      
+
       // Use the actual G-code bounds for the cube, not a derived square
       final color = VisualizerTheme.toolPathBoundaryColor;
       const double thickness = VisualizerTheme.boundaryLineThickness;
-      
+
       // Bottom face (Z = minBounds.z)
       lines.addAll([
         // Bottom edges
@@ -552,7 +465,7 @@ class SceneManager {
           id: 'toolpath_bbox_bottom_left',
         ),
       ]);
-      
+
       // Top face (Z = maxBounds.z)
       lines.addAll([
         SceneObject(
@@ -588,7 +501,7 @@ class SceneManager {
           id: 'toolpath_bbox_top_left',
         ),
       ]);
-      
+
       // Vertical edges connecting bottom to top
       lines.addAll([
         SceneObject(
@@ -624,16 +537,14 @@ class SceneManager {
           id: 'toolpath_bbox_vertical_back_left',
         ),
       ]);
-      
+
       AppLogger.info('Created ${lines.length} toolpath bounding box edges');
     } catch (e) {
       AppLogger.warning('Failed to create toolpath bounding box: $e');
     }
-    
+
     return lines;
   }
-
-
 }
 
 /// Complete scene data that all renderers receive
@@ -676,6 +587,9 @@ class SceneObject {
   final double? worldSize; // Size in world units
   final Color? textBackgroundColor; // Background color for text
 
+  // Machine position properties (for SceneObjectType.machinePosition)
+  final vm.Vector3? position; // Machine position in world coordinates
+
   // G-code specific properties
   final int? operationIndex; // Index in the G-code operation sequence
   final double?
@@ -703,6 +617,7 @@ class SceneObject {
     this.textStyle,
     this.worldSize,
     this.textBackgroundColor,
+    this.position,
     this.operationIndex,
     this.estimatedTime,
     this.isRapidMove = false,
@@ -716,6 +631,7 @@ enum SceneObjectType {
   cube, // For 3D cube objects
   filledSquare, // For filled squares with outlined edges
   textBillboard, // For 3D-positioned, screen-aligned text
+  machinePosition, // For current machine position indicator
 }
 
 enum SquarePlane {

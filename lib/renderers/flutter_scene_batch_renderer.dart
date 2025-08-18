@@ -118,6 +118,11 @@ class FlutterSceneBatchRenderer implements Renderer {
         .where((obj) => obj.type == SceneObjectType.textBillboard)
         .toList();
 
+    // Process machine position indicators
+    final machinePositionObjects = sceneData.objects
+        .where((obj) => obj.type == SceneObjectType.machinePosition)
+        .toList();
+
     int actualLineTriangles = 0;
     if (lineObjects.isNotEmpty) {
       actualLineTriangles = await _processLinesWithLineMeshFactory(lineObjects);
@@ -128,8 +133,8 @@ class FlutterSceneBatchRenderer implements Renderer {
       actualSquareTriangles = await _processFilledSquares(filledSquareObjects);
     }
 
-    // Process machine position cube separately for efficient updates
-    await _setupMachinePositionCubeFromScene(filledSquareObjects);
+    // Process machine position indicators separately for efficient updates
+    await _setupMachinePositionIndicators(machinePositionObjects);
 
     int actualTextTriangles = 0;
     if (textBillboardObjects.isNotEmpty) {
@@ -140,11 +145,14 @@ class FlutterSceneBatchRenderer implements Renderer {
     _actualPolygons =
         actualLineTriangles + actualSquareTriangles + actualTextTriangles;
 
-    // Draw calls: lines + filled squares (each square creates 2 draw calls: fill + edges) + text billboards
+    // Draw calls: lines + filled squares (each square creates 2 draw calls: fill + edges) + text billboards + machine position (6 faces * 2 draw calls each)
     _actualDrawCalls =
         (lineObjects.isNotEmpty ? 1 : 0) +
         (filledSquareObjects.length * 2) +
-        textBillboardObjects.length;
+        textBillboardObjects.length +
+        (machinePositionObjects.isNotEmpty
+            ? 12
+            : 0); // 6 faces * 2 draw calls each
 
     // Initial camera setup - will be overridden by CameraDirector
     _setupInitialCamera();
@@ -159,6 +167,9 @@ class FlutterSceneBatchRenderer implements Renderer {
     );
     AppLogger.info(
       'Text billboards: ${textBillboardObjects.length} (texture-based)',
+    );
+    AppLogger.info(
+      'Machine position indicators: ${machinePositionObjects.length} (rendered as cubes)',
     );
     AppLogger.info(
       'ACTUAL performance metrics: $_actualPolygons triangles in $_actualDrawCalls draw calls',
@@ -309,10 +320,9 @@ class FlutterSceneBatchRenderer implements Renderer {
     _currentLineStyle = newStyle;
   }
 
-  
-
-  /// Process cube square objects into Flutter Scene nodes
-  List<Node> _processCubeSquareObjects(List<SceneObject> cubeSquares) {
+  /// Create cube visualization for machine position indicator
+  /// This is where the renderer decides HOW to visualize the logical machine position
+  List<Node> _createMachinePositionCubeVisualization(SceneObject indicator) {
     final nodes = <Node>[];
 
     // Get current viewport resolution for line edges
@@ -320,40 +330,130 @@ class FlutterSceneBatchRenderer implements Renderer {
         ? vm.Vector2(_lastViewportSize!.width, _lastViewportSize!.height)
         : vm.Vector2(1024, 768); // Default resolution
 
-    // Process each filled square individually
+    // Renderer decides the visual representation: 3x3x3 cube with themed colors
+    const double cubeSize = 3.0;
+    const double halfSize = cubeSize / 2.0;
+
+    // Import theme colors here in the renderer where they belong
+    const double opacity = 0.7; // VisualizerTheme.machinePositionCubeOpacity
+    const double edgeWidth =
+        2.0; // VisualizerTheme.machinePositionCubeEdgeWidth
+
+    // Define colors in renderer (could be moved to a renderer theme later)
+    const xyFaceColor = Color(0xFF4CAF50); // Green for XY faces
+    const xzFaceColor = Color(0xFF2196F3); // Blue for XZ faces
+    const yzFaceColor = Color(0xFFF44336); // Red for YZ faces
+
+    // Create cube faces as filled squares
+    final cubeSquares = <SceneObject>[
+      // XY plane faces (top and bottom)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(0, 0, halfSize), // Top face
+        size: cubeSize,
+        plane: SquarePlane.xy,
+        fillColor: xyFaceColor,
+        edgeColor: xyFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: xyFaceColor,
+        id: '${indicator.id}_face_top_xy',
+      ),
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(0, 0, -halfSize), // Bottom face
+        size: cubeSize,
+        plane: SquarePlane.xy,
+        fillColor: xyFaceColor.withValues(alpha: 0.6),
+        edgeColor: xyFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: xyFaceColor,
+        id: '${indicator.id}_face_bottom_xy',
+      ),
+
+      // XZ plane faces (front and back)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(0, halfSize, 0), // Front face
+        size: cubeSize,
+        plane: SquarePlane.xz,
+        fillColor: xzFaceColor,
+        edgeColor: xzFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: xzFaceColor,
+        id: '${indicator.id}_face_front_xz',
+      ),
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(0, -halfSize, 0), // Back face
+        size: cubeSize,
+        plane: SquarePlane.xz,
+        fillColor: xzFaceColor.withValues(alpha: 0.6),
+        edgeColor: xzFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: xzFaceColor,
+        id: '${indicator.id}_face_back_xz',
+      ),
+
+      // YZ plane faces (left and right)
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(halfSize, 0, 0), // Right face
+        size: cubeSize,
+        plane: SquarePlane.yz,
+        fillColor: yzFaceColor,
+        edgeColor: yzFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: yzFaceColor,
+        id: '${indicator.id}_face_right_yz',
+      ),
+      SceneObject(
+        type: SceneObjectType.filledSquare,
+        center: vm.Vector3(-halfSize, 0, 0), // Left face
+        size: cubeSize,
+        plane: SquarePlane.yz,
+        fillColor: yzFaceColor.withValues(alpha: 0.6),
+        edgeColor: yzFaceColor.withValues(alpha: 1.0),
+        opacity: opacity,
+        edgeWidth: edgeWidth,
+        color: yzFaceColor,
+        id: '${indicator.id}_face_left_yz',
+      ),
+    ];
+
+    // Process each filled square into render nodes
     for (final squareObject in cubeSquares) {
       try {
-        // Create filled square with both fill and edge meshes
         final squareResult = FilledSquareRenderer.createFromSceneObject(
           squareObject,
           resolution: currentResolution,
         );
-
-        // Add both fill and edge nodes to the result
         final squareNodes = squareResult.toNodes();
         nodes.addAll(squareNodes);
       } catch (e) {
         AppLogger.error(
-          'Failed to process machine cube square ${squareObject.id}: $e',
+          'Failed to process machine position cube face ${squareObject.id}: $e',
         );
       }
     }
 
+    AppLogger.info(
+      'Created machine position cube visualization with ${nodes.length} face nodes',
+    );
     return nodes;
   }
 
-  /// Set up machine position cube from scene objects for efficient transform updates
-  Future<void> _setupMachinePositionCubeFromScene(
-    List<SceneObject> filledSquareObjects,
+  /// Set up machine position indicators for efficient transform updates
+  Future<void> _setupMachinePositionIndicators(
+    List<SceneObject> machinePositionObjects,
   ) async {
     try {
-      // Find machine position cube objects by ID pattern
-      final machinePositionObjects = filledSquareObjects
-          .where((obj) => obj.id.startsWith('machine_position_cube_'))
-          .toList();
-
       if (machinePositionObjects.isEmpty) {
-        AppLogger.debug('No machine position cube objects found in scene');
+        AppLogger.debug('No machine position indicators found in scene');
         return;
       }
 
@@ -363,13 +463,16 @@ class FlutterSceneBatchRenderer implements Renderer {
         _machinePositionCubeNode = null;
       }
 
-      // Create a parent node for the cube
-      _machinePositionCubeNode = Node();
-      _machinePositionCubeNode!.name = 'machine_position_debug_cube';
+      // For now, we only handle the first machine position indicator
+      final indicator = machinePositionObjects.first;
 
-      // Process the cube squares and add them as child nodes
-      final nodes = _processCubeSquareObjects(machinePositionObjects);
-      for (final node in nodes) {
+      // Create a parent node for the cube visualization
+      _machinePositionCubeNode = Node();
+      _machinePositionCubeNode!.name = 'machine_position_indicator';
+
+      // Create cube visualization for the machine position
+      final cubeNodes = _createMachinePositionCubeVisualization(indicator);
+      for (final node in cubeNodes) {
         _machinePositionCubeNode!.add(node);
       }
 
@@ -377,10 +480,10 @@ class FlutterSceneBatchRenderer implements Renderer {
       _rootNode.add(_machinePositionCubeNode!);
 
       AppLogger.info(
-        'Machine position cube setup from scene with ${nodes.length} face nodes',
+        'Machine position indicator setup with ${cubeNodes.length} cube face nodes',
       );
     } catch (e) {
-      AppLogger.error('Failed to setup machine position cube from scene: $e');
+      AppLogger.error('Failed to setup machine position indicators: $e');
       _machinePositionCubeNode = null;
     }
   }
