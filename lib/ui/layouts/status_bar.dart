@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../themes/vscode_theme.dart';
 import '../widgets/problem_item.dart';
 import '../../bloc/bloc_exports.dart';
-import '../../bloc/graphics/graphics_bloc.dart';
-import '../../bloc/graphics/graphics_state.dart';
 import '../../bloc/performance/performance_bloc.dart';
 import '../../bloc/performance/performance_state.dart';
 import '../../models/machine_controller.dart';
@@ -38,29 +37,12 @@ class StatusBar extends StatelessWidget {
             },
           ),
 
-          _buildDivider(),
-
-          // Machine status indicator  
+          // Machine status indicator
           BlocBuilder<MachineControllerBloc, MachineControllerState>(
             builder: (context, machineState) {
               return _buildMachineStatusItem(machineState);
             },
           ),
-
-          _buildDivider(),
-
-          // Camera mode indicator
-          BlocBuilder<GraphicsBloc, GraphicsState>(
-            builder: (context, state) {
-              final isAutoMode = state is GraphicsLoaded ? state.isAutoMode : false;
-              return _buildStatusItem(
-                icon: isAutoMode ? Icons.play_circle : Icons.pause_circle,
-                text: isAutoMode ? 'Auto' : 'Manual',
-              );
-            },
-          ),
-
-          _buildDivider(),
 
           // Problems indicator
           BlocBuilder<ProblemsBloc, ProblemsState>(
@@ -88,46 +70,78 @@ class StatusBar extends StatelessWidget {
 
           const Spacer(),
 
+          InkWell(
+            onTap: () {
+              // Handle bug report tap
+              launchUrl(
+                Uri.parse('https://github.com/repentsinner/ghsender/issues'),
+              );
+            },
+            child: Row(
+              children: [
+                Icon(Icons.bug_report_outlined, size: 12),
+                Text(
+                  ' Report a bug / Suggest an improvement',
+                  style: GoogleFonts.inconsolata(
+                    color: Colors.white,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
           // FPS and Status Rate display with performance color coding
           BlocBuilder<PerformanceBloc, PerformanceState>(
             builder: (context, performanceState) {
               return BlocBuilder<CncCommunicationBloc, CncCommunicationState>(
                 builder: (context, commState) {
-                  final fps = performanceState is PerformanceLoaded ? performanceState.fps : 0.0;
-                  
+                  final fps = performanceState is PerformanceLoaded
+                      ? performanceState.fps
+                      : 0.0;
+
                   // Get performance data only from state to ensure real-time updates
                   // Only CncCommunicationConnectedWithPerformance state contains performance data
-                  final performanceData = commState is CncCommunicationConnectedWithPerformance 
-                      ? commState.performanceData 
+                  final performanceData =
+                      commState is CncCommunicationConnectedWithPerformance
+                      ? commState.performanceData
                       : null;
-                  
-                  final statusRate = performanceData?.statusMessagesPerSecond.toDouble();
-                  final isConnected = commState is CncCommunicationConnected || 
-                                    commState is CncCommunicationConnectedWithPerformance ||
-                                    commState is CncCommunicationWithData;
-                  
+
+                  final statusRate = performanceData?.statusMessagesPerSecond
+                      .toDouble();
+                  final isConnected =
+                      commState is CncCommunicationConnected ||
+                      commState is CncCommunicationConnectedWithPerformance ||
+                      commState is CncCommunicationWithData;
+
                   // Calculate performance percentages
                   // Expected: 60 FPS, 125 Hz status rate
                   final fpsPercentage = fps / 60.0;
-                  
+
                   // Determine performance color - only factor in status rate if connected and available
                   final Color iconColor;
                   if (isConnected && statusRate != null) {
                     final statusRatePercentage = statusRate / 125.0;
-                    iconColor = _getPerformanceColor(fpsPercentage, statusRatePercentage);
+                    iconColor = _getPerformanceColor(
+                      fpsPercentage,
+                      statusRatePercentage,
+                    );
                   } else {
                     // Only use FPS for color coding when not connected
                     iconColor = _getPerformanceColorFpsOnly(fpsPercentage);
                   }
-                  
+
                   // Build display text - include status rate only when connected and available
                   final String displayText;
                   if (isConnected && statusRate != null) {
-                    displayText = '${fps.toStringAsFixed(1)} FPS / ${statusRate.toStringAsFixed(1)} Hz';
+                    displayText =
+                        '${fps.toStringAsFixed(1)} FPS / ${statusRate.toStringAsFixed(1)} Hz';
                   } else {
                     displayText = '${fps.toStringAsFixed(1)} FPS';
                   }
-                  
+
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -280,60 +294,39 @@ class StatusBar extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusItem({required IconData icon, required String text}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      height: VSCodeTheme.statusBarHeight,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: Colors.white, size: 14),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: GoogleFonts.inconsolata(color: Colors.white, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Container(
-      width: 1,
-      height: 14,
-      color: Colors.white24,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-    );
-  }
-
   /// Determine performance color based on FPS and status rate percentages
   /// Green (success): Both metrics >= 95% of expected values
-  /// Orange (warning): Both metrics >= 90% of expected values  
+  /// Orange (warning): Both metrics >= 90% of expected values
   /// Red (error): Either metric < 90% of expected values
-  Color _getPerformanceColor(double fpsPercentage, double statusRatePercentage) {
-    final minPercentage = [fpsPercentage, statusRatePercentage].reduce((a, b) => a < b ? a : b);
-    
+  Color _getPerformanceColor(
+    double fpsPercentage,
+    double statusRatePercentage,
+  ) {
+    final minPercentage = [
+      fpsPercentage,
+      statusRatePercentage,
+    ].reduce((a, b) => a < b ? a : b);
+
     if (minPercentage >= 0.95) {
-      return VSCodeTheme.success;      // Green: Both >= 95%
+      return VSCodeTheme.success; // Green: Both >= 95%
     } else if (minPercentage >= 0.90) {
-      return VSCodeTheme.warning;      // Orange: Both >= 90%
+      return VSCodeTheme.warning; // Orange: Both >= 90%
     } else {
-      return VSCodeTheme.error;        // Red: Either < 90%
+      return VSCodeTheme.error; // Red: Either < 90%
     }
   }
 
   /// Determine performance color based only on FPS percentage (when not connected)
   /// Green (success): FPS >= 95% of expected value (60 FPS)
-  /// Orange (warning): FPS >= 90% of expected value  
+  /// Orange (warning): FPS >= 90% of expected value
   /// Red (error): FPS < 90% of expected value
   Color _getPerformanceColorFpsOnly(double fpsPercentage) {
     if (fpsPercentage >= 0.95) {
-      return VSCodeTheme.success;      // Green: >= 95%
+      return VSCodeTheme.success; // Green: >= 95%
     } else if (fpsPercentage >= 0.90) {
-      return VSCodeTheme.warning;      // Orange: >= 90%
+      return VSCodeTheme.warning; // Orange: >= 90%
     } else {
-      return VSCodeTheme.error;        // Red: < 90%
+      return VSCodeTheme.error; // Red: < 90%
     }
   }
 }
