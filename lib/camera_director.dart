@@ -82,21 +82,12 @@ class CameraDirector {
     if (workEnvelopeCentroid != null && machinePosition != null) {
       // Calculate midpoint between work envelope centroid and machine position (in CNC space)
       newCncTarget = (workEnvelopeCentroid + machinePosition) * 0.5;
-      AppLogger.info(
-        'CameraDirector: Target set to midpoint of work envelope centroid $workEnvelopeCentroid and machine position $machinePosition = $newCncTarget (CNC space)',
-      );
     } else if (workEnvelopeCentroid != null) {
       // Only work envelope available - use its centroid
       newCncTarget = workEnvelopeCentroid;
-      AppLogger.info(
-        'CameraDirector: Target set to work envelope centroid $newCncTarget (CNC space)',
-      );
     } else if (machinePosition != null) {
       // Only machine position available - use it as target
       newCncTarget = machinePosition;
-      AppLogger.info(
-        'CameraDirector: Target set to machine position $newCncTarget (CNC space)',
-      );
     }
     // If neither available, keep current target unchanged
     
@@ -104,9 +95,6 @@ class CameraDirector {
       // Convert CNC coordinates to display coordinates for camera system
       final displayTarget = CoordinateConverter.cncCameraTargetToDisplay(newCncTarget);
       _orbitTarget = displayTarget;
-      AppLogger.info(
-        'CameraDirector: Converted target to display coordinates: $displayTarget',
-      );
     }
   }
 

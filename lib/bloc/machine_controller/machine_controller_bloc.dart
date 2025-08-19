@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../models/machine_controller.dart';
 import '../../models/machine_configuration.dart';
+import '../../models/alarm_error_metadata.dart';
 import '../../utils/logger.dart';
 import 'machine_controller_event.dart';
 import 'machine_controller_state.dart';
@@ -13,6 +14,9 @@ class MachineControllerBloc
     extends Bloc<MachineControllerEvent, MachineControllerState> {
   // Reference to communication bloc for sending commands
   dynamic _communicationBloc;
+
+  // Reference to alarm/error bloc for metadata lookup
+  dynamic _alarmErrorBloc;
 
   // Timer for grblHAL detection timeout
   Timer? _grblHalDetectionTimeout;
@@ -38,8 +42,10 @@ class MachineControllerBloc
     on<MachineControllerFeedUpdated>(_onFeedUpdated);
     on<MachineControllerCodesUpdated>(_onCodesUpdated);
     on<MachineControllerAlarmAdded>(_onAlarmAdded);
+    on<MachineControllerAlarmConditionAdded>(_onAlarmConditionAdded);
     on<MachineControllerAlarmsCleared>(_onAlarmsCleared);
     on<MachineControllerErrorAdded>(_onErrorAdded);
+    on<MachineControllerErrorConditionAdded>(_onErrorConditionAdded);
     on<MachineControllerErrorsCleared>(_onErrorsCleared);
     on<MachineControllerInfoUpdated>(_onInfoUpdated);
     on<MachineControllerConnectionChanged>(_onConnectionChanged);
@@ -48,6 +54,7 @@ class MachineControllerBloc
     // grblHAL detection and configuration handlers
     on<MachineControllerGrblHalDetected>(_onGrblHalDetected);
     on<MachineControllerSetCommunicationBloc>(_onSetCommunicationBloc);
+    on<MachineControllerSetAlarmErrorBloc>(_onSetAlarmErrorBloc);
     on<MachineControllerConfigurationReceived>(_onConfigurationReceived);
     on<MachineControllerBufferStatusUpdated>(_onBufferStatusUpdated);
     on<MachineControllerPluginsDetected>(_onPluginsDetected);
@@ -319,6 +326,51 @@ class MachineControllerBloc
     }
   }
 
+  /// Handle alarm condition added with metadata
+  void _onAlarmConditionAdded(
+    MachineControllerAlarmConditionAdded event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    if (state.controller != null && _alarmErrorBloc != null) {
+      // Create ActiveCondition with metadata from AlarmErrorBloc
+      final alarmErrorState = _alarmErrorBloc.state;
+      final activeCondition = alarmErrorState.createActiveAlarm(
+        event.alarmCode,
+        event.timestamp,
+      );
+
+      // Add to active alarm conditions
+      final currentActiveAlarms = List<ActiveCondition>.from(state.activeAlarmConditions);
+      
+      // Remove any existing alarm with the same code (replace with newer one)
+      currentActiveAlarms.removeWhere((condition) => condition.code == event.alarmCode);
+      currentActiveAlarms.add(activeCondition);
+
+      // Also add to legacy alarms list for backward compatibility
+      final currentAlarms = List<String>.from(state.controller!.alarms);
+      if (!currentAlarms.contains(event.rawMessage)) {
+        currentAlarms.add(event.rawMessage);
+      }
+
+      final updatedController = state.controller!.copyWith(
+        alarms: currentAlarms,
+        lastCommunication: event.timestamp,
+      );
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          activeAlarmConditions: currentActiveAlarms,
+          lastUpdateTime: event.timestamp,
+        ),
+      );
+
+      AppLogger.machineWarning(
+        'Machine alarm condition added: Code ${event.alarmCode} - ${activeCondition.name}',
+      );
+    }
+  }
+
   /// Handle alarms cleared
   void _onAlarmsCleared(
     MachineControllerAlarmsCleared event,
@@ -333,6 +385,7 @@ class MachineControllerBloc
       emit(
         state.copyWith(
           controller: updatedController,
+          activeAlarmConditions: [],
           lastUpdateTime: DateTime.now(),
         ),
       );
@@ -368,6 +421,51 @@ class MachineControllerBloc
     }
   }
 
+  /// Handle error condition added with metadata
+  void _onErrorConditionAdded(
+    MachineControllerErrorConditionAdded event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    if (state.controller != null && _alarmErrorBloc != null) {
+      // Create ActiveCondition with metadata from AlarmErrorBloc
+      final alarmErrorState = _alarmErrorBloc.state;
+      final activeCondition = alarmErrorState.createActiveError(
+        event.errorCode,
+        event.timestamp,
+      );
+
+      // Add to active error conditions
+      final currentActiveErrors = List<ActiveCondition>.from(state.activeErrorConditions);
+      
+      // Remove any existing error with the same code (replace with newer one)
+      currentActiveErrors.removeWhere((condition) => condition.code == event.errorCode);
+      currentActiveErrors.add(activeCondition);
+
+      // Also add to legacy errors list for backward compatibility
+      final currentErrors = List<String>.from(state.controller!.errors);
+      if (!currentErrors.contains(event.rawMessage)) {
+        currentErrors.add(event.rawMessage);
+      }
+
+      final updatedController = state.controller!.copyWith(
+        errors: currentErrors,
+        lastCommunication: event.timestamp,
+      );
+
+      emit(
+        state.copyWith(
+          controller: updatedController,
+          activeErrorConditions: currentActiveErrors,
+          lastUpdateTime: event.timestamp,
+        ),
+      );
+
+      AppLogger.machineError(
+        'Machine error condition added: Code ${event.errorCode} - ${activeCondition.name}',
+      );
+    }
+  }
+
   /// Handle errors cleared
   void _onErrorsCleared(
     MachineControllerErrorsCleared event,
@@ -382,6 +480,7 @@ class MachineControllerBloc
       emit(
         state.copyWith(
           controller: updatedController,
+          activeErrorConditions: [],
           lastUpdateTime: DateTime.now(),
         ),
       );
@@ -493,6 +592,17 @@ class MachineControllerBloc
     }
   }
 
+  /// Set alarm/error bloc reference for metadata lookup
+  void _onSetAlarmErrorBloc(
+    MachineControllerSetAlarmErrorBloc event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    _alarmErrorBloc = event.alarmErrorBloc;
+    AppLogger.machineDebug(
+      'Alarm/Error bloc reference set in machine controller',
+    );
+  }
+
   /// Handle grblHAL detection
   void _onGrblHalDetected(
     MachineControllerGrblHalDetected event,
@@ -531,47 +641,57 @@ class MachineControllerBloc
     AppLogger.machineInfo('Configuring grblHAL for optimal reporting and starting status polling');
 
     // Send grblHAL configuration commands directly
-    AppLogger.machineInfo('Sending grblHAL initialization sequence...');
+    AppLogger.machineInfo('Sending grblHAL initialization sequence with context info...');
     AppLogger.machineInfo('1. Requesting complete real-time report (0x87)');
     _communicationBloc.add(CncCommunicationSendRawBytes([0x87]));
 
+    // Request all context information early - available regardless of alarm/error state
+    AppLogger.machineInfo('2. Requesting settings metadata (\$ES) for enhanced UI');
+    _communicationBloc.add(CncCommunicationSendCommand('\$ES'));
+    
+    AppLogger.machineInfo('3. Requesting settings groups (\$EG) for organization');
+    _communicationBloc.add(CncCommunicationSendCommand('\$EG'));
+    
+    AppLogger.machineInfo('4. Requesting alarm metadata (\$EA) for enhanced error reporting');
+    _communicationBloc.add(CncCommunicationSendCommand('\$EA'));
+    
+    AppLogger.machineInfo('5. Requesting error metadata (\$EE) for enhanced error reporting');
+    _communicationBloc.add(CncCommunicationSendCommand('\$EE'));
+    
+    AppLogger.machineInfo('6. Requesting alarm groups (\$EAG) for categorization');
+    _communicationBloc.add(CncCommunicationSendCommand('\$EAG'));
+    
+    AppLogger.machineInfo('7. Requesting error groups (\$EEG) for categorization');
+    _communicationBloc.add(CncCommunicationSendCommand('\$EEG'));
+
     // Configure status reporting mask ($10 setting)
     // Set $10=511 for comprehensive status reporting (all flags enabled)
-    AppLogger.machineInfo('2. Setting comprehensive status reporting (\$10=511)');
+    AppLogger.machineInfo('8. Setting comprehensive status reporting (\$10=511)');
     _communicationBloc.add(CncCommunicationSendCommand('\$10=511'));
 
-    // Query machine configuration to understand capabilities and settings
-    AppLogger.machineInfo('3. Requesting ALL machine settings (\$\$) - including travel limits \$130/\$131/\$132');
-    AppLogger.machineInfo('DEBUG: About to send bulk config command...');
+    // Query machine configuration (machine state only)
+    AppLogger.machineInfo('9. Requesting machine settings (\$\$) for machine state');
     _configMessagesReceived = 0; // Reset counter
-    
-    // DEBUG: Verify communication bloc state before sending
-    final commState = _communicationBloc.state;
-    final isConnected = _communicationBloc.isConnected;
-    AppLogger.machineInfo('DEBUG: CommunicationBloc state: ${commState.runtimeType}, connected: $isConnected');
-    
     _communicationBloc.add(CncCommunicationSendCommand('\$\$'));
-    AppLogger.machineInfo('DEBUG: Bulk config command (\$\$) sent to communication bloc - expecting fragmented response');
     
     // Set a timer to check if we received config messages
-    Timer(const Duration(seconds: 3), () {
-      AppLogger.machineInfo('DEBUG: Bulk config timeout check - received $_configMessagesReceived config messages');
+    Timer(const Duration(seconds: 5), () {
+      AppLogger.machineInfo('Configuration query timeout check - received $_configMessagesReceived config messages');
       if (_configMessagesReceived == 0) {
-        AppLogger.machineError('🚨 BULK CONFIG QUERY FAILED: No configuration messages received within 3 seconds!');
-        AppLogger.machineError('The \$\$ command was not sent, not received, or grblHAL did not respond properly');
+        AppLogger.machineWarning('No configuration messages received - check grblHAL firmware version');
       }
     });
 
     // Query build info and plugins to detect board capabilities
-    AppLogger.machineInfo('4. Requesting build info and plugins (\$I)');
+    AppLogger.machineInfo('10. Requesting build info and plugins (\$I)');
     _communicationBloc.add(CncCommunicationSendCommand('\$I'));
 
     // Send initial status query to get immediate state
-    AppLogger.machineInfo('5. Requesting initial status (0x80)');
+    AppLogger.machineInfo('11. Requesting initial status (0x80)');
     _communicationBloc.add(CncCommunicationSendRawBytes([0x80]));
 
     // Start continuous status polling using CommunicationBloc
-    AppLogger.machineInfo('6. Starting continuous status polling');
+    AppLogger.machineInfo('12. Starting continuous status polling');
     _communicationBloc.add(
       CncCommunicationPollingControlRequested(
         enable: true,
@@ -591,8 +711,8 @@ class MachineControllerBloc
     MachineControllerConfigurationReceived event,
     Emitter<MachineControllerState> emit,
   ) {
-    // Configuration received - only log when complete
-    if (event.configuration.settings.length > 50) {
+    // Configuration received - log only final complete configuration
+    if (event.configuration.settings.length > 130) {
       AppLogger.machineInfo('Machine configuration loaded: ${event.configuration.settings.length} settings');
     }
 
@@ -671,6 +791,11 @@ class MachineControllerBloc
   }
 
   /// Start grblHAL detection timeout
+  /// A correctly functioning grblHAL system automatically sends a welcome message upon connection.
+  /// If no welcome message is received within 5 seconds, this indicates either:
+  /// 1. The controller has crashed but is still accepting connections (zombie state)
+  /// 2. The firmware is standard GRBL (not grblHAL) which this sender doesn't support
+  /// 3. Network/communication issues preventing message delivery
   void _startGrblHalDetectionTimeout() {
     _cancelGrblHalDetectionTimeout();
 
@@ -680,11 +805,22 @@ class MachineControllerBloc
         AppLogger.machineError(
           'grblHAL not detected within timeout - this sender requires grblHAL firmware',
         );
+        AppLogger.machineError(
+          'This may indicate a crashed controller, standard GRBL firmware, or communication issues',
+        );
 
         // Disconnect since we only support grblHAL
         if (_communicationBloc != null) {
           _communicationBloc.add(CncCommunicationDisconnectRequested());
         }
+
+        // Update machine controller state to reflect disconnection and error
+        add(
+          MachineControllerConnectionChanged(
+            isOnline: false,
+            timestamp: DateTime.now(),
+          ),
+        );
 
         // Update firmware version to show error
         add(
@@ -865,6 +1001,20 @@ class MachineControllerBloc
         ? message.substring(10)
         : message;
 
+    // Check for alarm messages like "ALARM:1" 
+    final alarmMatch = RegExp(r'ALARM:(\d+)', caseSensitive: false).firstMatch(cleanMessage);
+    if (alarmMatch != null) {
+      final alarmCode = int.tryParse(alarmMatch.group(1)!);
+      if (alarmCode != null) {
+        AppLogger.machineWarning('Extracted alarm code: $alarmCode');
+        add(MachineControllerAlarmConditionAdded(
+          alarmCode: alarmCode,
+          rawMessage: cleanMessage,
+          timestamp: timestamp,
+        ));
+        return; // Don't process as regular status message
+      }
+    }
 
     // Parse status message like: <Idle|MPos:0.000,0.000,0.000|...>
     final statusMatch = RegExp(r'<([^|]+)').firstMatch(cleanMessage);
@@ -925,7 +1075,21 @@ class MachineControllerBloc
 
     AppLogger.machineError('CNC Error received: $cleanMessage');
 
-    // Add error to state
+    // Try to extract error code for enhanced metadata lookup
+    final errorCodeMatch = RegExp(r'error:(\d+)', caseSensitive: false).firstMatch(cleanMessage);
+    if (errorCodeMatch != null) {
+      final errorCode = int.tryParse(errorCodeMatch.group(1)!);
+      if (errorCode != null) {
+        AppLogger.machineError('Extracted error code: $errorCode');
+        add(MachineControllerErrorConditionAdded(
+          errorCode: errorCode,
+          rawMessage: cleanMessage,
+          timestamp: timestamp,
+        ));
+      }
+    }
+
+    // Add error to state (legacy format)
     add(MachineControllerErrorAdded(error: cleanMessage, timestamp: timestamp));
   }
 

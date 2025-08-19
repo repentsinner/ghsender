@@ -31,3 +31,8 @@ export 'machine_controller/machine_controller_state.dart';
 export 'jog_controller/jog_controller_bloc.dart';
 export 'jog_controller/jog_controller_event.dart';
 export 'jog_controller/jog_controller_state.dart';
+
+// Settings BLoC (UI Metadata)
+export 'settings/settings_bloc.dart';
+export 'settings/settings_event.dart';
+export 'settings/settings_state.dart';

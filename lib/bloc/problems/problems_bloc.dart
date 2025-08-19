@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../models/problem.dart';
+import '../../models/alarm_error_metadata.dart';
 import '../../utils/logger.dart';
 import 'problems_event.dart';
 import 'problems_state.dart';
@@ -302,11 +303,56 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
       AppLogger.warning('Machine door is open - added problem');
     }
 
-    // Could add other machine state problems here:
-    // - Alarm states
-    // - Limit switch activation
-    // - Emergency stop
-    // - etc.
+    // Check for alarm conditions with metadata
+    if (event.state.hasActiveAlarmConditions) {
+      for (final alarmCondition in event.state.activeAlarmConditions) {
+        final problemId = 'alarm_${alarmCondition.code}';
+        final alarmProblem = Problem(
+          id: problemId,
+          severity: _convertConditionSeverityToProblemSeverity(alarmCondition.severity),
+          source: 'Machine State',
+          title: 'Alarm: ${alarmCondition.name}',
+          description: alarmCondition.description,
+          timestamp: alarmCondition.detectedAt,
+          metadata: {
+            'alarmCode': alarmCondition.code,
+            'isAlarm': true,
+            'severity': alarmCondition.severity.name,
+          },
+        );
+        newProblems.add(alarmProblem);
+        AppLogger.warning('Added alarm condition to problems: Code ${alarmCondition.code} - ${alarmCondition.name}');
+      }
+    }
+
+    // Check for error conditions with metadata  
+    if (event.state.hasActiveErrorConditions) {
+      for (final errorCondition in event.state.activeErrorConditions) {
+        final problemId = 'error_${errorCondition.code}';
+        final errorProblem = Problem(
+          id: problemId,
+          severity: _convertConditionSeverityToProblemSeverity(errorCondition.severity),
+          source: 'Machine State',
+          title: 'Error: ${errorCondition.name}',
+          description: errorCondition.description,
+          timestamp: errorCondition.detectedAt,
+          metadata: {
+            'errorCode': errorCondition.code,
+            'isAlarm': false,
+            'severity': errorCondition.severity.name,
+          },
+        );
+        newProblems.add(errorProblem);
+        AppLogger.error('Added error condition to problems: Code ${errorCondition.code} - ${errorCondition.name}');
+      }
+    }
+
+    // Fallback: Check legacy alarm/error strings if no metadata available
+    if (event.state.hasController && !event.state.hasActiveAlarmConditions && event.state.hasAlarms) {
+      final alarmDetails = event.state.controller!.alarms.join(', ');
+      newProblems.add(ProblemFactory.cncMachineAlarm(alarmDetails));
+      AppLogger.warning('Added legacy alarm to problems: $alarmDetails');
+    }
 
     if (newProblems.length != state.problems.length ||
         !_problemListsEqual(newProblems, state.problems)) {
@@ -333,6 +379,20 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
     }
 
     return true;
+  }
+
+  /// Convert ConditionSeverity to ProblemSeverity
+  ProblemSeverity _convertConditionSeverityToProblemSeverity(ConditionSeverity conditionSeverity) {
+    switch (conditionSeverity) {
+      case ConditionSeverity.fatal:
+      case ConditionSeverity.critical:
+      case ConditionSeverity.error:
+        return ProblemSeverity.error;
+      case ConditionSeverity.warning:
+        return ProblemSeverity.warning;
+      case ConditionSeverity.info:
+        return ProblemSeverity.info;
+    }
   }
 
   @override

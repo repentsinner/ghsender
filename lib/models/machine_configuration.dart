@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-/// Represents a single grblHAL configuration setting
+/// Represents a single grblHAL configuration setting (machine state only)
+/// Contains only the setting value and basic identification - no UI metadata
 class ConfigurationSetting extends Equatable {
   final int number;
   final String rawValue;
@@ -189,7 +190,7 @@ class MachineConfiguration extends Equatable {
     );
   }
 
-  /// Factory method to parse configuration from raw message lines
+  /// Factory method to parse configuration from raw message lines (basic $$ format only)
   static MachineConfiguration parseFromMessages(List<String> messages) {
     final settings = <int, ConfigurationSetting>{};
     final parseTime = DateTime.now();
@@ -198,7 +199,7 @@ class MachineConfiguration extends Equatable {
     for (final message in messages) {
       final trimmed = message.trim();
       
-      // Try to parse as a setting line
+      // Parse basic setting line ($100=250.000 format)
       final setting = _parseSettingLine(trimmed, parseTime);
       if (setting != null) {
         settings[setting.number] = setting;
@@ -279,6 +280,7 @@ class MachineConfiguration extends Equatable {
     
     return null;
   }
+
 
   @override
   String toString() {

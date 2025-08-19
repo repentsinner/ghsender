@@ -3,6 +3,9 @@ import '../themes/vscode_theme.dart';
 import '../widgets/problem_item.dart';
 import '../widgets/log_output_panel.dart';
 import '../../bloc/bloc_exports.dart';
+import '../../models/machine_configuration.dart';
+import '../../models/machine_controller.dart';
+import '../../models/settings_metadata.dart';
 import '../../utils/logger.dart';
 
 /// Bottom Panel widget - tabbed interface for console, problems, output
@@ -23,7 +26,7 @@ class _BottomPanelState extends State<BottomPanel>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     // Listen to tab changes to trigger UI updates for conditional controls
     _tabController.addListener(() {
       setState(() {});
@@ -95,6 +98,7 @@ class _BottomPanelState extends State<BottomPanel>
                                 ],
                               ),
                             ),
+                            Tab(text: 'Machine State'.toUpperCase()),
                             Tab(text: 'Console'.toUpperCase()),
                             Tab(text: 'Output'.toUpperCase()),
                           ],
@@ -104,7 +108,7 @@ class _BottomPanelState extends State<BottomPanel>
                   ),
 
                   // Output tab controls (only visible when Output tab is active)
-                  if (_tabController.index == 2) ...[
+                  if (_tabController.index == 3) ...[
                     // Auto-scroll toggle
                     IconButton(
                       onPressed: _toggleAutoScroll,
@@ -160,6 +164,7 @@ class _BottomPanelState extends State<BottomPanel>
                 controller: _tabController,
                 children: [
                   _buildProblemsTab(),
+                  _buildMachineStateTab(),
                   _buildConsoleTab(),
                   _buildOutputTab(),
                 ],
@@ -285,9 +290,331 @@ class _BottomPanelState extends State<BottomPanel>
     );
   }
 
+  Widget _buildMachineStateTab() {
+    return BlocBuilder<MachineControllerBloc, MachineControllerState>(
+      builder: (context, machineState) {
+        return BlocBuilder<SettingsBloc, SettingsState>(
+          builder: (context, settingsState) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Parser State Section
+                  _buildStateSection(
+                    'Parser State',
+                    machineState.hasController
+                        ? _buildParserStateContent(machineState)
+                        : [Text('No machine controller connected', style: VSCodeTheme.captionText)],
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  
+                  // Configuration State Section  
+                  _buildStateSection(
+                    'Configuration (\$ Registers)',
+                    machineState.configuration != null
+                        ? _buildEnhancedConfigurationContent(machineState.configuration!, settingsState)
+                        : [Text('No configuration data available', style: VSCodeTheme.captionText)],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildOutputTab() {
     return LogOutputPanel(autoScroll: _autoScroll);
   }
+
+  // Helper methods for machine state tab
+  Widget _buildStateSection(String title, List<Widget> content) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: VSCodeTheme.captionText.copyWith(
+            fontWeight: FontWeight.w600,
+            color: VSCodeTheme.accentText,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: VSCodeTheme.inputBackground,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: VSCodeTheme.border.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: content,
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildParserStateContent(MachineControllerState machineState) {
+    final controller = machineState.controller!;
+    final List<Widget> content = [];
+
+    // Status information
+    content.add(_buildStateRow('Status', '${controller.status.icon} ${controller.status.displayName}'));
+    
+    if (controller.firmwareVersion != null) {
+      content.add(_buildStateRow('Firmware', controller.firmwareVersion!));
+    }
+    
+    if (controller.hardwareVersion != null) {
+      content.add(_buildStateRow('Hardware', controller.hardwareVersion!));
+    }
+
+    // Position information
+    if (controller.workPosition != null) {
+      content.add(_buildStateRow('Work Position', controller.workPosition.toString()));
+    }
+    
+    if (controller.machinePosition != null) {
+      content.add(_buildStateRow('Machine Position', controller.machinePosition.toString()));
+    }
+
+    // Feed and spindle state
+    if (controller.feedState != null) {
+      final feed = controller.feedState!;
+      content.add(_buildStateRow('Feed Rate', '${feed.rate.toStringAsFixed(1)} ${feed.units}'));
+    }
+    
+    if (controller.spindleState != null) {
+      final spindle = controller.spindleState!;
+      final status = spindle.isRunning ? 'Running' : 'Stopped';
+      final direction = spindle.isClockwise ? 'CW' : 'CCW';
+      content.add(_buildStateRow('Spindle', '$status @ ${spindle.speed.toStringAsFixed(0)} RPM $direction'));
+    }
+
+    // Active codes
+    if (controller.activeCodes != null) {
+      final codes = controller.activeCodes!;
+      if (codes.gCodes.isNotEmpty) {
+        content.add(_buildStateRow('Active G-Codes', codes.gCodes.join(', ')));
+      }
+      if (codes.mCodes.isNotEmpty) {
+        content.add(_buildStateRow('Active M-Codes', codes.mCodes.join(', ')));
+      }
+    }
+
+    // Buffer status
+    if (machineState.plannerBlocksAvailable != null) {
+      content.add(_buildStateRow('Planner Buffer', '${machineState.plannerBlocksAvailable} blocks available'));
+    }
+    
+    if (machineState.rxBytesAvailable != null) {
+      content.add(_buildStateRow('RX Buffer', '${machineState.rxBytesAvailable} bytes available'));
+    }
+
+    // Alarms and errors
+    if (controller.alarms.isNotEmpty) {
+      content.add(_buildStateRow('Alarms', controller.alarms.join(', '), isError: true));
+    }
+    
+    if (controller.errors.isNotEmpty) {
+      content.add(_buildStateRow('Errors', controller.errors.join(', '), isError: true));
+    }
+
+    return content.isNotEmpty 
+        ? content 
+        : [Text('Parser state information not available', style: VSCodeTheme.captionText)];
+  }
+
+  List<Widget> _buildEnhancedConfigurationContent(MachineConfiguration config, SettingsState settingsState) {
+    final List<Widget> content = [];
+    
+    // Firmware info
+    if (config.firmwareVersion != null) {
+      content.add(_buildStateRow('Firmware Version', config.firmwareVersion!));
+    }
+    
+    content.add(_buildStateRow('Settings Count', '${config.settings.length}'));
+    content.add(_buildStateRow('Last Updated', config.lastUpdated.toLocal().toString().substring(0, 19)));
+    
+    // Show metadata loading status if settings are available
+    if (settingsState.isInitialized) {
+      content.add(_buildStateRow('UI Metadata', '${settingsState.metadataCount} descriptions, ${settingsState.groupsCount} groups'));
+    }
+    
+    if (config.settings.isEmpty) {
+      content.add(const SizedBox(height: 8));
+      content.add(Text('No configuration settings available', style: VSCodeTheme.captionText));
+      return content;
+    }
+    
+    content.add(const SizedBox(height: 8));
+    
+    // Check if we have group information for hierarchical display
+    if (settingsState.groupsLoaded && settingsState.getTopLevelGroups().isNotEmpty) {
+      // Display settings organized by groups from $EG
+      _addHierarchicalSettingsContent(content, config, settingsState);
+    } else {
+      // Display all settings in a flat list (fallback)
+      _addFlatSettingsContent(content, config, settingsState);
+    }
+
+    return content;
+  }
+
+  /// Add hierarchical settings content organized by groups
+  void _addHierarchicalSettingsContent(List<Widget> content, MachineConfiguration config, SettingsState settingsState) {
+    final topLevelGroups = settingsState.getTopLevelGroups();
+    
+    for (final group in topLevelGroups) {
+      // Get settings for this group
+      final groupMetadata = settingsState.getMetadataForGroup(group.id);
+      if (groupMetadata.isEmpty) continue;
+      
+      // Add group header
+      content.add(const SizedBox(height: 8));
+      content.add(Text(
+        group.name,
+        style: VSCodeTheme.smallText.copyWith(
+          fontWeight: FontWeight.w600,
+          color: VSCodeTheme.info,
+        ),
+      ));
+      content.add(const SizedBox(height: 4));
+      
+      // Add settings in this group
+      for (final metadata in groupMetadata) {
+        final setting = config.getSetting(metadata.settingId);
+        if (setting != null) {
+          final enrichedSetting = EnrichedSetting(
+            settingId: metadata.settingId,
+            currentValue: setting.rawValue,
+            metadata: metadata,
+            valueUpdated: setting.lastUpdated,
+          );
+          
+          content.add(_buildStateRow(
+            '\$${metadata.settingId}',
+            enrichedSetting.formattedValue,
+          ));
+        }
+      }
+    }
+    
+    // Show ungrouped settings
+    _addUngroupedSettings(content, config, settingsState);
+  }
+
+  /// Add flat settings content (fallback when no groups available)
+  void _addFlatSettingsContent(List<Widget> content, MachineConfiguration config, SettingsState settingsState) {
+    final sortedSettings = config.settings.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    
+    content.add(Text(
+      'Configuration Registers',
+      style: VSCodeTheme.smallText.copyWith(
+        fontWeight: FontWeight.w600,
+        color: VSCodeTheme.info,
+      ),
+    ));
+    content.add(const SizedBox(height: 4));
+    
+    for (final settingEntry in sortedSettings) {
+      final settingNumber = settingEntry.key;
+      final setting = settingEntry.value;
+      final metadata = settingsState.getMetadata(settingNumber);
+      
+      final enrichedSetting = EnrichedSetting(
+        settingId: settingNumber,
+        currentValue: setting.rawValue,
+        metadata: metadata,
+        valueUpdated: setting.lastUpdated,
+      );
+      
+      content.add(_buildStateRow(
+        '\$$settingNumber',
+        enrichedSetting.formattedValue,
+      ));
+    }
+  }
+
+  /// Add settings that don't belong to any group
+  void _addUngroupedSettings(List<Widget> content, MachineConfiguration config, SettingsState settingsState) {
+    final ungroupedSettings = <ConfigurationSetting>[];
+    
+    for (final setting in config.settings.values) {
+      final metadata = settingsState.getMetadata(setting.number);
+      if (metadata == null || metadata.groupId == null) {
+        ungroupedSettings.add(setting);
+      }
+    }
+    
+    if (ungroupedSettings.isNotEmpty) {
+      content.add(const SizedBox(height: 8));
+      content.add(Text(
+        'Other Settings',
+        style: VSCodeTheme.smallText.copyWith(
+          fontWeight: FontWeight.w600,
+          color: VSCodeTheme.info,
+        ),
+      ));
+      content.add(const SizedBox(height: 4));
+      
+      ungroupedSettings.sort((a, b) => a.number.compareTo(b.number));
+      
+      for (final setting in ungroupedSettings) {
+        final metadata = settingsState.getMetadata(setting.number);
+        final enrichedSetting = EnrichedSetting(
+          settingId: setting.number,
+          currentValue: setting.rawValue,
+          metadata: metadata,
+          valueUpdated: setting.lastUpdated,
+        );
+        
+        content.add(_buildStateRow(
+          '\$${setting.number}',
+          enrichedSetting.formattedValue,
+        ));
+      }
+    }
+  }
+
+
+  Widget _buildStateRow(String label, String value, {bool isError = false}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 140,
+            child: Text(
+              label,
+              style: VSCodeTheme.smallText.copyWith(
+                color: VSCodeTheme.secondaryText,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: VSCodeTheme.smallText.copyWith(
+                color: isError ? VSCodeTheme.error : VSCodeTheme.primaryText,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   // Helper methods for console integration
   String _buildConsoleContent(CncCommunicationState state) {

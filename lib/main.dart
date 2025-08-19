@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:window_manager/window_manager.dart';
 import 'bloc/bloc_exports.dart';
+import 'bloc/alarm_error/alarm_error_bloc.dart';
 import 'ui/app/app_integration.dart';
 import 'utils/logger.dart';
 
@@ -54,6 +55,8 @@ class _MyAppState extends State<MyApp> {
         ),
         BlocProvider(create: (context) => ProblemsBloc()),
         BlocProvider(create: (context) => MachineControllerBloc()),
+        BlocProvider(create: (context) => SettingsBloc()),
+        BlocProvider(create: (context) => AlarmErrorBloc()),
         BlocProvider(
           create: (context) => JogControllerBloc(
             machineControllerBloc: context.read<MachineControllerBloc>(),

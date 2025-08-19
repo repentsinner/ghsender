@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import '../../models/machine_controller.dart';
 import '../../models/machine_configuration.dart';
+import '../../models/alarm_error_metadata.dart';
 import '../communication/cnc_communication_state.dart';
 
 /// State for the Machine Controller BLoC
@@ -38,6 +39,10 @@ class MachineControllerState extends Equatable {
   // Plugin detection from $I command
   final List<String> plugins;
   
+  // Active alarm and error conditions with metadata
+  final List<ActiveCondition> activeAlarmConditions;
+  final List<ActiveCondition> activeErrorConditions;
+  
   const MachineControllerState({
     this.controller,
     this.isInitialized = false,
@@ -59,6 +64,8 @@ class MachineControllerState extends Equatable {
     this.rxBytesAvailable,
     this.maxObservedBufferBlocks,
     this.plugins = const [],
+    this.activeAlarmConditions = const [],
+    this.activeErrorConditions = const [],
   });
   
   /// Create a copy with updated fields
@@ -83,6 +90,8 @@ class MachineControllerState extends Equatable {
     int? rxBytesAvailable,
     int? maxObservedBufferBlocks,
     List<String>? plugins,
+    List<ActiveCondition>? activeAlarmConditions,
+    List<ActiveCondition>? activeErrorConditions,
     bool clearLastMessage = false,
     bool clearPerformanceData = false,
     bool clearJogTestStartTime = false,
@@ -111,6 +120,8 @@ class MachineControllerState extends Equatable {
       rxBytesAvailable: rxBytesAvailable ?? this.rxBytesAvailable,
       maxObservedBufferBlocks: maxObservedBufferBlocks ?? this.maxObservedBufferBlocks,
       plugins: plugins ?? this.plugins,
+      activeAlarmConditions: activeAlarmConditions ?? this.activeAlarmConditions,
+      activeErrorConditions: activeErrorConditions ?? this.activeErrorConditions,
     );
   }
   
@@ -134,6 +145,29 @@ class MachineControllerState extends Equatable {
   
   /// Whether the machine has any alarms
   bool get hasAlarms => controller?.alarms.isNotEmpty ?? false;
+  
+  /// Whether the machine has any active alarm conditions with metadata
+  bool get hasActiveAlarmConditions => activeAlarmConditions.isNotEmpty;
+  
+  /// Whether the machine has any active error conditions with metadata
+  bool get hasActiveErrorConditions => activeErrorConditions.isNotEmpty;
+  
+  /// Get all active conditions (alarms and errors combined)
+  List<ActiveCondition> get allActiveConditions => [
+    ...activeAlarmConditions,
+    ...activeErrorConditions,
+  ];
+  
+  /// Get the most severe condition currently active
+  ActiveCondition? get mostSevereCondition {
+    if (allActiveConditions.isEmpty) return null;
+    
+    // Sort by severity (fatal > critical > error > warning > info)
+    final sorted = allActiveConditions.toList()
+      ..sort((a, b) => b.severity.index.compareTo(a.severity.index));
+    
+    return sorted.first;
+  }
   
   /// Current work position
   MachineCoordinates? get workPosition => controller?.workPosition;
@@ -244,6 +278,8 @@ class MachineControllerState extends Equatable {
     rxBytesAvailable,
     maxObservedBufferBlocks,
     plugins,
+    activeAlarmConditions,
+    activeErrorConditions,
   ];
   
   @override

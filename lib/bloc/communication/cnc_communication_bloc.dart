@@ -107,8 +107,10 @@ class CncCommunicationBloc
 
       emit(const CncCommunicationConnecting());
 
-      // Test connection with a single status request after WebSocket is established
-      AppLogger.commInfo('Testing WebSocket connection with status request');
+      // Note: A correctly functioning grblHAL system automatically sends a welcome message 
+      // after WebSocket connection establishment. We do not need to request one.
+      // The machine controller will detect grblHAL from this automatic welcome message.
+      AppLogger.commInfo('WebSocket connected - waiting for automatic grblHAL welcome message');
 
       // Note: Heartbeat mechanism removed for simplicity
 
@@ -234,16 +236,12 @@ class CncCommunicationBloc
     CncCommunicationSendCommand event,
     Emitter<CncCommunicationState> emit,
   ) {
-    AppLogger.commDebug('_onSendCommand called with: "${event.command}"');
-    
     if (!_isConnected || _webSocketChannel == null) {
       AppLogger.commWarning('Cannot send command - not connected (isConnected: $_isConnected, channel: ${_webSocketChannel != null})');
       return;
     }
 
     final commandId = ++_commandIdCounter;
-    AppLogger.commDebug('Calling _sendCommand with: "${event.command}", id: $commandId');
-
     _sendCommand(event.command, commandId);
 
     _messageStreamController?.add(
@@ -448,10 +446,7 @@ class CncCommunicationBloc
       final commandWithNewline = '$command\r\n';
       _webSocketChannel!.sink.add(commandWithNewline);
 
-      // Minimal command logging for non-bulk queries
-      if (command != r'$$' && command != '?' && !command.startsWith(r'$J=')) {
-        AppLogger.commDebug('Sent: "$command"');
-      }
+      // No debug logging for command sends - already logged via message stream
     } catch (e, stackTrace) {
       // Reset expectation on send failure
       if (command == r'$$') {

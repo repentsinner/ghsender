@@ -113,6 +113,22 @@ class MachineControllerAlarmAdded extends MachineControllerEvent {
   List<Object?> get props => [alarm, timestamp];
 }
 
+/// Add alarm condition with code for enhanced metadata lookup
+class MachineControllerAlarmConditionAdded extends MachineControllerEvent {
+  final int alarmCode;
+  final String rawMessage;
+  final DateTime timestamp;
+  
+  const MachineControllerAlarmConditionAdded({
+    required this.alarmCode,
+    required this.rawMessage,
+    required this.timestamp,
+  });
+  
+  @override
+  List<Object?> get props => [alarmCode, rawMessage, timestamp];
+}
+
 /// Clear alarms from machine controller
 class MachineControllerAlarmsCleared extends MachineControllerEvent {
   const MachineControllerAlarmsCleared();
@@ -130,6 +146,22 @@ class MachineControllerErrorAdded extends MachineControllerEvent {
   
   @override
   List<Object?> get props => [error, timestamp];
+}
+
+/// Add error condition with code for enhanced metadata lookup
+class MachineControllerErrorConditionAdded extends MachineControllerEvent {
+  final int errorCode;
+  final String rawMessage;
+  final DateTime timestamp;
+  
+  const MachineControllerErrorConditionAdded({
+    required this.errorCode,
+    required this.rawMessage,
+    required this.timestamp,
+  });
+  
+  @override
+  List<Object?> get props => [errorCode, rawMessage, timestamp];
 }
 
 /// Clear errors from machine controller
@@ -269,6 +301,16 @@ class MachineControllerSetCommunicationBloc extends MachineControllerEvent {
   
   @override
   List<Object?> get props => [communicationBloc];
+}
+
+/// Set alarm/error bloc reference for metadata lookup
+class MachineControllerSetAlarmErrorBloc extends MachineControllerEvent {
+  final dynamic alarmErrorBloc;
+  
+  const MachineControllerSetAlarmErrorBloc(this.alarmErrorBloc);
+  
+  @override
+  List<Object?> get props => [alarmErrorBloc];
 }
 
 
