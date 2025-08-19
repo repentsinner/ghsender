@@ -191,7 +191,7 @@ class LineMaterial extends UnlitMaterial {
 
     // Debug: Log alpha blending and depth writing state (but throttle to avoid spam)
     if (_depthWriteLogCount < 3) {
-      AppLogger.info(
+      AppLogger.debug(
         'LineMaterial: Alpha blending + depth writing enabled for anti-aliased lines in translucent pass (call ${_depthWriteLogCount + 1})',
       );
       _depthWriteLogCount++;

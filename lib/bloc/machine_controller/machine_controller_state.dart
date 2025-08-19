@@ -42,6 +42,10 @@ class MachineControllerState extends Equatable {
   // Active alarm and error conditions with metadata
   final List<ActiveCondition> activeAlarmConditions;
   final List<ActiveCondition> activeErrorConditions;
+
+  // Firmware unresponsive detection
+  final DateTime? firmwareWelcomeReceivedAt;
+  final DateTime? lastStatusReceivedAt;
   
   const MachineControllerState({
     this.controller,
@@ -66,6 +70,8 @@ class MachineControllerState extends Equatable {
     this.plugins = const [],
     this.activeAlarmConditions = const [],
     this.activeErrorConditions = const [],
+    this.firmwareWelcomeReceivedAt,
+    this.lastStatusReceivedAt,
   });
   
   /// Create a copy with updated fields
@@ -92,12 +98,16 @@ class MachineControllerState extends Equatable {
     List<String>? plugins,
     List<ActiveCondition>? activeAlarmConditions,
     List<ActiveCondition>? activeErrorConditions,
+    DateTime? firmwareWelcomeReceivedAt,
+    DateTime? lastStatusReceivedAt,
     bool clearLastMessage = false,
     bool clearPerformanceData = false,
     bool clearJogTestStartTime = false,
     bool clearGrblHalVersion = false,
     bool clearGrblHalDetectedAt = false,
     bool clearConfiguration = false,
+    bool clearFirmwareWelcomeReceivedAt = false,
+    bool clearLastStatusReceivedAt = false,
   }) {
     return MachineControllerState(
       controller: controller ?? this.controller,
@@ -122,6 +132,8 @@ class MachineControllerState extends Equatable {
       plugins: plugins ?? this.plugins,
       activeAlarmConditions: activeAlarmConditions ?? this.activeAlarmConditions,
       activeErrorConditions: activeErrorConditions ?? this.activeErrorConditions,
+      firmwareWelcomeReceivedAt: clearFirmwareWelcomeReceivedAt ? null : firmwareWelcomeReceivedAt ?? this.firmwareWelcomeReceivedAt,
+      lastStatusReceivedAt: clearLastStatusReceivedAt ? null : lastStatusReceivedAt ?? this.lastStatusReceivedAt,
     );
   }
   
@@ -204,6 +216,17 @@ class MachineControllerState extends Equatable {
   /// List of detected plugins
   List<String> get detectedPlugins => List.unmodifiable(plugins);
   
+  /// Whether firmware is suspected to be unresponsive (welcome received but no status for >10 seconds)
+  bool get hasSuspectedUnresponsiveFirmware {
+    // Check if we received welcome but no status updates within reasonable time
+    if (firmwareWelcomeReceivedAt != null && lastStatusReceivedAt == null) {
+      final timeSinceWelcome = DateTime.now().difference(firmwareWelcomeReceivedAt!);
+      return timeSinceWelcome.inSeconds > 10; // Firmware should send status within 10 seconds
+    }
+    
+    return false;
+  }
+  
   /// Status summary for display
   String get statusSummary {
     if (!hasController) return 'No Controller';
@@ -280,6 +303,8 @@ class MachineControllerState extends Equatable {
     plugins,
     activeAlarmConditions,
     activeErrorConditions,
+    firmwareWelcomeReceivedAt,
+    lastStatusReceivedAt,
   ];
   
   @override

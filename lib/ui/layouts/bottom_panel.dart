@@ -6,6 +6,7 @@ import '../../bloc/bloc_exports.dart';
 import '../../models/machine_configuration.dart';
 import '../../models/machine_controller.dart';
 import '../../models/settings_metadata.dart';
+import '../../models/problem.dart';
 import '../../utils/logger.dart';
 
 /// Bottom Panel widget - tabbed interface for console, problems, output
@@ -37,6 +38,85 @@ class _BottomPanelState extends State<BottomPanel>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// Handle action button taps from problem items
+  void _handleProblemAction(BuildContext context, ProblemAction action) {
+    AppLogger.info('Problem action triggered: ${action.id} (${action.label})');
+    
+    switch (action.type) {
+      case ProblemActionType.machineCommand:
+        _executeMachineCommand(context, action);
+        break;
+      case ProblemActionType.rawCommand:
+        _executeRawCommand(context, action);
+        break;
+      case ProblemActionType.navigate:
+        _handleNavigationAction(context, action);
+        break;
+      case ProblemActionType.dismiss:
+        _dismissProblem(context, action);
+        break;
+    }
+  }
+
+  /// Execute a machine command (like homing, unlock, etc.)
+  void _executeMachineCommand(BuildContext context, ProblemAction action) {
+    if (action.command == null) {
+      AppLogger.warning('Machine command action has no command: ${action.id}');
+      return;
+    }
+
+    final communicationBloc = context.read<CncCommunicationBloc>();
+    communicationBloc.add(CncCommunicationSendCommand(action.command!));
+    
+    AppLogger.info('Executed machine command: ${action.command}');
+    _showActionFeedback(context, 'Sent: ${action.label}');
+  }
+
+  /// Execute a raw command (like 0x18 soft reset)
+  void _executeRawCommand(BuildContext context, ProblemAction action) {
+    if (action.command == null) {
+      AppLogger.warning('Raw command action has no command: ${action.id}');
+      return;
+    }
+
+    final communicationBloc = context.read<CncCommunicationBloc>();
+    
+    // Handle hex commands like 0x18
+    if (action.command!.startsWith('0x')) {
+      final hexValue = action.command!.substring(2);
+      final byteValue = int.parse(hexValue, radix: 16);
+      communicationBloc.add(CncCommunicationSendRawBytes([byteValue]));
+    } else {
+      communicationBloc.add(CncCommunicationSendCommand(action.command!));
+    }
+    
+    AppLogger.info('Executed raw command: ${action.command}');
+    _showActionFeedback(context, 'Sent: ${action.label}');
+  }
+
+  /// Handle navigation actions
+  void _handleNavigationAction(BuildContext context, ProblemAction action) {
+    AppLogger.info('Navigation action not yet implemented: ${action.id}');
+    _showActionFeedback(context, 'Navigation: ${action.label}');
+  }
+
+  /// Dismiss a problem
+  void _dismissProblem(BuildContext context, ProblemAction action) {
+    AppLogger.info('Problem dismissal not yet implemented: ${action.id}');
+    _showActionFeedback(context, 'Dismissed: ${action.label}');
+  }
+
+  /// Show feedback to user after action execution
+  void _showActionFeedback(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+        backgroundColor: VSCodeTheme.success,
+      ),
+    );
   }
 
   @override
@@ -196,6 +276,7 @@ class _BottomPanelState extends State<BottomPanel>
                         // Could add problem-specific actions here
                         AppLogger.info('Problem tapped: ${problem.id}');
                       },
+                      onActionTap: (action) => _handleProblemAction(context, action),
                     ),
                   ),
                 ] else ...[

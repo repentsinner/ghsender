@@ -7,11 +7,13 @@ import '../../models/problem.dart';
 class ProblemItem extends StatelessWidget {
   final Problem problem;
   final VoidCallback? onTap;
+  final Function(ProblemAction)? onActionTap;
   
   const ProblemItem({
     super.key,
     required this.problem,
     this.onTap,
+    this.onActionTap,
   });
 
   @override
@@ -98,10 +100,92 @@ class ProblemItem extends StatelessWidget {
                 ),
               ),
             ],
+
+            // Action buttons if available
+            if (problem.actions.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: problem.actions.map((action) => _buildActionButton(action)).toList(),
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  /// Build an action button for a problem action
+  Widget _buildActionButton(ProblemAction action) {
+    return SizedBox(
+      height: 28,
+      child: ElevatedButton(
+        onPressed: () => onActionTap?.call(action),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _getActionButtonColor(action.type),
+          foregroundColor: VSCodeTheme.primaryText,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          minimumSize: Size.zero,
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(4),
+            side: BorderSide(
+              color: _getActionButtonBorderColor(action.type),
+              width: 1,
+            ),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (action.icon != null) ...[
+              Text(
+                action.icon!,
+                style: const TextStyle(fontSize: 12),
+              ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              action.label,
+              style: GoogleFonts.inconsolata(
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Get action button background color based on action type
+  Color _getActionButtonColor(ProblemActionType type) {
+    switch (type) {
+      case ProblemActionType.machineCommand:
+        return VSCodeTheme.focus.withValues(alpha: 0.1);
+      case ProblemActionType.rawCommand:
+        return VSCodeTheme.warning.withValues(alpha: 0.1);
+      case ProblemActionType.navigate:
+        return VSCodeTheme.info.withValues(alpha: 0.1);
+      case ProblemActionType.dismiss:
+        return VSCodeTheme.inputBackground;
+    }
+  }
+
+  /// Get action button border color based on action type
+  Color _getActionButtonBorderColor(ProblemActionType type) {
+    switch (type) {
+      case ProblemActionType.machineCommand:
+        return VSCodeTheme.focus.withValues(alpha: 0.3);
+      case ProblemActionType.rawCommand:
+        return VSCodeTheme.warning.withValues(alpha: 0.3);
+      case ProblemActionType.navigate:
+        return VSCodeTheme.info.withValues(alpha: 0.3);
+      case ProblemActionType.dismiss:
+        return VSCodeTheme.border;
+    }
   }
   
   /// Get border color based on severity

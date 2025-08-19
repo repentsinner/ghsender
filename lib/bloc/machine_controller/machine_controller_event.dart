@@ -313,6 +313,19 @@ class MachineControllerSetAlarmErrorBloc extends MachineControllerEvent {
   List<Object?> get props => [alarmErrorBloc];
 }
 
+/// Firmware welcome message received
+class MachineControllerFirmwareWelcomeReceived extends MachineControllerEvent {
+  final DateTime timestamp;
+  
+  const MachineControllerFirmwareWelcomeReceived({
+    required this.timestamp,
+  });
+  
+  @override
+  List<Object?> get props => [timestamp];
+}
+
+
 
 // Jog Control Events
 

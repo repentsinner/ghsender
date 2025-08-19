@@ -440,7 +440,7 @@ class CncCommunicationBloc
       if (command == r'$$') {
         _expectingMultilineResponse = true;
         _messageBuffer = ''; // Clear any existing buffer
-        AppLogger.commInfo('🔍 SENT BULK CONFIG QUERY: "$command" - expecting fragmented multi-line response');
+        AppLogger.commInfo('🔍 SENT BULK CONFIG QUERY: "\$\$" - expecting fragmented multi-line response');
       }
       
       final commandWithNewline = '$command\r\n';

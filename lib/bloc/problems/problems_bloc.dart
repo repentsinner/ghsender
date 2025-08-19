@@ -303,10 +303,17 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
       AppLogger.warning('Machine door is open - added problem');
     }
 
+    // Check for firmware unresponsive
+    if (event.state.hasSuspectedUnresponsiveFirmware) {
+      newProblems.add(ProblemFactory.cncFirmwareUnresponsive());
+      AppLogger.warning('Firmware unresponsive suspected - added problem');
+    }
+
     // Check for alarm conditions with metadata
     if (event.state.hasActiveAlarmConditions) {
       for (final alarmCondition in event.state.activeAlarmConditions) {
         final problemId = 'alarm_${alarmCondition.code}';
+        final actions = _getActionsForAlarm(alarmCondition.code, alarmCondition.name);
         final alarmProblem = Problem(
           id: problemId,
           severity: _convertConditionSeverityToProblemSeverity(alarmCondition.severity),
@@ -319,6 +326,7 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
             'isAlarm': true,
             'severity': alarmCondition.severity.name,
           },
+          actions: actions,
         );
         newProblems.add(alarmProblem);
         AppLogger.warning('Added alarm condition to problems: Code ${alarmCondition.code} - ${alarmCondition.name}');
@@ -393,6 +401,40 @@ class ProblemsBloc extends Bloc<ProblemsEvent, ProblemsState> {
       case ConditionSeverity.info:
         return ProblemSeverity.info;
     }
+  }
+
+  /// Get appropriate actions for an alarm based on alarm code and name
+  List<ProblemAction> _getActionsForAlarm(int alarmCode, String alarmName) {
+    final actions = <ProblemAction>[];
+    final lowerName = alarmName.toLowerCase();
+
+    // Hard limit alarms - need homing
+    if (lowerName.contains('hard limit') || lowerName.contains('limit switch') || alarmCode == 1 || alarmCode == 11) {
+      actions.add(ProblemActions.resetAlarms);
+      actions.add(ProblemActions.homeMachine);
+    }
+    // Soft limit alarms - need homing  
+    else if (lowerName.contains('soft limit') || alarmCode == 2 || alarmCode == 12) {
+      actions.add(ProblemActions.resetAlarms);
+      actions.add(ProblemActions.homeMachine);
+    }
+    // Emergency stop - just reset and unlock
+    else if (lowerName.contains('emergency') || lowerName.contains('e-stop') || alarmCode == 10) {
+      actions.add(ProblemActions.resetAlarms);
+      actions.add(ProblemActions.unlockMachine);
+    }
+    // Homing failure - try homing again
+    else if (lowerName.contains('homing') || alarmCode == 8 || alarmCode == 9) {
+      actions.add(ProblemActions.resetAlarms);
+      actions.add(ProblemActions.homeMachine);
+    }
+    // Generic alarms - reset and unlock
+    else {
+      actions.add(ProblemActions.resetAlarms);
+      actions.add(ProblemActions.unlockMachine);
+    }
+
+    return actions;
   }
 
   @override

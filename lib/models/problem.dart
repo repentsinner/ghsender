@@ -1,5 +1,46 @@
 import 'package:equatable/equatable.dart';
 
+/// Action that can be performed to address a problem
+class ProblemAction extends Equatable {
+  /// Unique identifier for the action type
+  final String id;
+  
+  /// Display label for the action button
+  final String label;
+  
+  /// Type of action to perform
+  final ProblemActionType type;
+  
+  /// Optional command or parameter for the action
+  final String? command;
+  
+  /// Icon to display on the button
+  final String? icon;
+
+  const ProblemAction({
+    required this.id,
+    required this.label,
+    required this.type,
+    this.command,
+    this.icon,
+  });
+
+  @override
+  List<Object?> get props => [id, label, type, command, icon];
+}
+
+/// Types of actions that can be performed to resolve problems
+enum ProblemActionType {
+  /// Send a machine command (like homing, reset, etc.)
+  machineCommand,
+  /// Send a raw command/bytes to the controller
+  rawCommand,
+  /// Navigate to a specific UI panel
+  navigate,
+  /// Dismiss the problem
+  dismiss,
+}
+
 /// Severity levels for problems in the system
 enum ProblemSeverity { 
   error,   // Critical issues that prevent functionality
@@ -69,6 +110,9 @@ class Problem extends Equatable {
   /// Additional metadata for context (e.g., latency values, error codes)
   final Map<String, dynamic>? metadata;
   
+  /// Available actions to resolve this problem
+  final List<ProblemAction> actions;
+  
   const Problem({
     required this.id,
     required this.severity,
@@ -77,6 +121,7 @@ class Problem extends Equatable {
     required this.description,
     required this.timestamp,
     this.metadata,
+    this.actions = const [],
   });
   
   /// Create a copy with updated fields
@@ -88,6 +133,7 @@ class Problem extends Equatable {
     String? description,
     DateTime? timestamp,
     Map<String, dynamic>? metadata,
+    List<ProblemAction>? actions,
   }) {
     return Problem(
       id: id ?? this.id,
@@ -97,6 +143,7 @@ class Problem extends Equatable {
       description: description ?? this.description,
       timestamp: timestamp ?? this.timestamp,
       metadata: metadata ?? this.metadata,
+      actions: actions ?? this.actions,
     );
   }
   
@@ -110,6 +157,7 @@ class Problem extends Equatable {
       'description': description,
       'timestamp': timestamp.toIso8601String(),
       'metadata': metadata,
+      'actions': actions.map((a) => a.id).toList(),
     };
   }
   
@@ -138,6 +186,7 @@ class Problem extends Equatable {
     description,
     timestamp,
     metadata,
+    actions,
   ];
   
   @override
@@ -155,6 +204,7 @@ class ProblemIds {
   static const String cncMachineAlarm = 'cnc_machine_alarm';
   static const String cncConnectionTimeout = 'cnc_connection_timeout';
   static const String cncDoorOpen = 'cnc_door_open';
+  static const String cncFirmwareUnresponsive = 'cnc_firmware_unresponsive';
   
   static const String fileManagerError = 'file_manager_error';
   static const String fileManagerNoFiles = 'file_manager_no_files';
@@ -164,6 +214,45 @@ class ProblemIds {
   static const String profileNoProfiles = 'profile_no_profiles';
   static const String profileLoadError = 'profile_load_error';
   static const String profileMissingAddress = 'profile_missing_address';
+}
+
+/// Common problem actions
+class ProblemActions {
+  /// Home the machine (for hard limit alarms)
+  static const ProblemAction homeMachine = ProblemAction(
+    id: 'home_machine',
+    label: 'Home Machine',
+    type: ProblemActionType.machineCommand,
+    command: '\$H',
+    icon: '🏠',
+  );
+
+  /// Reset alarms/errors
+  static const ProblemAction resetAlarms = ProblemAction(
+    id: 'reset_alarms',
+    label: 'Reset Alarms',
+    type: ProblemActionType.rawCommand,
+    command: '0x18', // Soft reset
+    icon: '🔄',
+  );
+
+  /// Unlock machine (after alarm reset)
+  static const ProblemAction unlockMachine = ProblemAction(
+    id: 'unlock_machine',
+    label: 'Unlock Machine',
+    type: ProblemActionType.machineCommand,
+    command: '\$X',
+    icon: '🔓',
+  );
+
+  /// Kill alarm (for non-critical alarms)
+  static const ProblemAction killAlarm = ProblemAction(
+    id: 'kill_alarm',
+    label: 'Kill Alarm',
+    type: ProblemActionType.machineCommand,
+    command: '\$X',
+    icon: '❌',
+  );
 }
 
 /// Factory methods for creating common problems
@@ -317,6 +406,32 @@ class ProblemFactory {
       description: 'The machine safety door is open. The machine will not run while the door is open. '
           'Close the safety door to resume normal operation.',
       timestamp: DateTime.now(),
+    );
+  }
+
+  /// Create a firmware unresponsive problem
+  static Problem cncFirmwareUnresponsive() {
+    return Problem(
+      id: ProblemIds.cncFirmwareUnresponsive,
+      severity: ProblemSeverity.error,
+      source: 'Machine State',
+      title: 'Firmware Unresponsive',
+      description: 'The firmware sent a welcome message but is not responding to status requests. '
+          'This typically indicates the firmware is hung or unresponsive.',
+      timestamp: DateTime.now(),
+      metadata: {
+        'suggestedAction': 'reboot',
+        'rebootCommand': '0x18',
+      },
+      actions: [
+        ProblemAction(
+          id: 'reboot_firmware',
+          label: 'Reboot Firmware',
+          type: ProblemActionType.rawCommand,
+          command: '0x18', // grblHAL soft reset command
+          icon: '🔄',
+        ),
+      ],
     );
   }
 }

@@ -21,6 +21,9 @@ class MachineControllerBloc
   // Timer for grblHAL detection timeout
   Timer? _grblHalDetectionTimeout;
 
+  // Timer for firmware unresponsive detection
+  Timer? _firmwareUnresponsiveDetectionTimer;
+
   // Stream subscription for real-time message processing
   StreamSubscription? _messageStreamSubscription;
   
@@ -58,6 +61,7 @@ class MachineControllerBloc
     on<MachineControllerConfigurationReceived>(_onConfigurationReceived);
     on<MachineControllerBufferStatusUpdated>(_onBufferStatusUpdated);
     on<MachineControllerPluginsDetected>(_onPluginsDetected);
+    on<MachineControllerFirmwareWelcomeReceived>(_onFirmwareWelcomeReceived);
 
     // Jog control handlers
     on<MachineControllerJogRequested>(_onJogRequested);
@@ -161,6 +165,7 @@ class MachineControllerBloc
   ) {
     // Cancel grblHAL detection timeout on disconnect
     _cancelGrblHalDetectionTimeout();
+    _cancelFirmwareUnresponsiveDetectionTimer();
 
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
@@ -201,9 +206,23 @@ class MachineControllerBloc
         lastCommunication: event.timestamp,
       );
 
+      // Clear active alarm conditions if status is no longer alarm
+      final newActiveAlarmConditions = event.status == MachineStatus.alarm 
+          ? state.activeAlarmConditions 
+          : <ActiveCondition>[];
+
+      // Clear legacy alarms if status is no longer alarm
+      final newAlarms = event.status == MachineStatus.alarm
+          ? updatedController.alarms
+          : <String>[];
+
+      final finalController = updatedController.copyWith(alarms: newAlarms);
+
       emit(
         state.copyWith(
-          controller: updatedController,
+          controller: finalController,
+          activeAlarmConditions: newActiveAlarmConditions,
+          lastStatusReceivedAt: event.timestamp, // Track when we last received status
           lastUpdateTime: event.timestamp,
         ),
       );
@@ -790,10 +809,29 @@ class MachineControllerBloc
     );
   }
 
+  /// Handle firmware welcome message received
+  void _onFirmwareWelcomeReceived(
+    MachineControllerFirmwareWelcomeReceived event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    AppLogger.machineInfo('Firmware welcome message received - tracking for unresponsive detection');
+    
+    // Start firmware unresponsive detection timer
+    _startFirmwareUnresponsiveDetectionTimer();
+    
+    emit(
+      state.copyWith(
+        firmwareWelcomeReceivedAt: event.timestamp,
+        lastUpdateTime: event.timestamp,
+      ),
+    );
+  }
+
+
   /// Start grblHAL detection timeout
   /// A correctly functioning grblHAL system automatically sends a welcome message upon connection.
   /// If no welcome message is received within 5 seconds, this indicates either:
-  /// 1. The controller has crashed but is still accepting connections (zombie state)
+  /// 1. The controller is unresponsive but is still accepting connections (zombie state)
   /// 2. The firmware is standard GRBL (not grblHAL) which this sender doesn't support
   /// 3. Network/communication issues preventing message delivery
   void _startGrblHalDetectionTimeout() {
@@ -806,7 +844,7 @@ class MachineControllerBloc
           'grblHAL not detected within timeout - this sender requires grblHAL firmware',
         );
         AppLogger.machineError(
-          'This may indicate a crashed controller, standard GRBL firmware, or communication issues',
+          'This may indicate an unresponsive controller, standard GRBL firmware, or communication issues',
         );
 
         // Disconnect since we only support grblHAL
@@ -837,6 +875,32 @@ class MachineControllerBloc
   void _cancelGrblHalDetectionTimeout() {
     _grblHalDetectionTimeout?.cancel();
     _grblHalDetectionTimeout = null;
+  }
+
+  /// Start firmware unresponsive detection timer
+  /// Checks periodically if firmware appears to be unresponsive after sending welcome message
+  void _startFirmwareUnresponsiveDetectionTimer() {
+    _cancelFirmwareUnresponsiveDetectionTimer();
+
+    AppLogger.machineInfo('Starting firmware unresponsive detection timer');
+    _firmwareUnresponsiveDetectionTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (state.hasSuspectedUnresponsiveFirmware) {
+        AppLogger.machineWarning('Firmware unresponsive detected: Welcome received but no status updates');
+        // Unresponsive detection is now purely computed - no event needed since Problems bloc 
+        // can detect this directly from state.hasSuspectedUnresponsiveFirmware
+      }
+      
+      // Stop timer if no longer needed
+      if (state.lastStatusReceivedAt != null || !state.grblHalDetected) {
+        _cancelFirmwareUnresponsiveDetectionTimer();
+      }
+    });
+  }
+
+  /// Cancel firmware unresponsive detection timer
+  void _cancelFirmwareUnresponsiveDetectionTimer() {
+    _firmwareUnresponsiveDetectionTimer?.cancel();
+    _firmwareUnresponsiveDetectionTimer = null;
   }
 
   @override
@@ -1000,6 +1064,12 @@ class MachineControllerBloc
     final cleanMessage = message.startsWith('Received: ')
         ? message.substring(10)
         : message;
+
+    // Check for firmware welcome messages (grblHAL sends these on startup)
+    if (cleanMessage.toLowerCase().contains('grbl') && 
+        (cleanMessage.toLowerCase().contains('hal') || cleanMessage.toLowerCase().contains('ready'))) {
+      add(MachineControllerFirmwareWelcomeReceived(timestamp: timestamp));
+    }
 
     // Check for alarm messages like "ALARM:1" 
     final alarmMatch = RegExp(r'ALARM:(\d+)', caseSensitive: false).firstMatch(cleanMessage);
@@ -1265,6 +1335,20 @@ class MachineControllerBloc
     } else if (lowerStatus.startsWith('hold')) {
       return MachineStatus.hold;
     } else if (lowerStatus.startsWith('alarm')) {
+      // Extract alarm code from status string like "Alarm:11" or "alarm"
+      final alarmCodeMatch = RegExp(r'alarm:?(\d+)', caseSensitive: false).firstMatch(statusString);
+      if (alarmCodeMatch != null) {
+        final alarmCode = int.tryParse(alarmCodeMatch.group(1)!);
+        if (alarmCode != null) {
+          // Trigger alarm condition with metadata instead of just setting status
+          add(MachineControllerAlarmConditionAdded(
+            alarmCode: alarmCode,
+            rawMessage: 'Alarm:$alarmCode',
+            timestamp: DateTime.now(),
+          ));
+          AppLogger.machineWarning('Status alarm detected: Code $alarmCode');
+        }
+      }
       return MachineStatus.alarm;
     } else if (lowerStatus.startsWith('door') || lowerStatus.contains('door')) {
       return MachineStatus.door;
@@ -1511,6 +1595,7 @@ class MachineControllerBloc
   @override
   Future<void> close() {
     _cancelGrblHalDetectionTimeout();
+    _cancelFirmwareUnresponsiveDetectionTimer();
     _messageStreamSubscription?.cancel();
     return super.close();
   }
