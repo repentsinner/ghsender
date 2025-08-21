@@ -10,6 +10,7 @@ import 'line_mesh_factory.dart';
 import 'line_style.dart';
 import 'filled_rectangle_renderer.dart';
 import 'billboard_text_renderer.dart';
+import 'screen_space_utils.dart';
 
 /// Custom UnlitMaterial that supports transparency
 class TransparentUnlitMaterial extends UnlitMaterial {
@@ -671,6 +672,13 @@ class FlutterSceneBatchRenderer implements Renderer {
             continue;
           }
 
+          // Determine size mode and pixel size based on billboard type
+          final isAxisLabel = billboardObject.id.contains('_label_');
+          final sizeMode = isAxisLabel 
+              ? BillboardSizeMode.screenSpace 
+              : BillboardSizeMode.worldSpace;
+          final pixelSize = isAxisLabel ? 24.0 : 24.0; // Default to 24px for all billboards
+          
           // Create text billboard node
           final billboardNode = await BillboardTextRenderer.createTextBillboard(
             text: billboardObject.text!,
@@ -687,6 +695,8 @@ class FlutterSceneBatchRenderer implements Renderer {
                 billboardObject.textBackgroundColor ?? Colors.transparent,
             opacity: billboardObject.opacity ?? 1.0,
             id: billboardObject.id,
+            sizeMode: sizeMode,
+            pixelSize: pixelSize,
           );
 
           // Add to scene
@@ -744,6 +754,9 @@ class FlutterSceneBatchRenderer implements Renderer {
   }
 
   /// Calculate and apply billboard transform
+  /// 
+  /// Transforms a billboard to face the camera while maintaining its world position.
+  /// Applies transformations in the correct order: Position * CoordinateTransform * (Rotation * Scale)
   void _updateBillboardTransform(
     Node billboardNode,
     vm.Vector3 cameraPosition,
@@ -753,23 +766,100 @@ class FlutterSceneBatchRenderer implements Renderer {
     final currentTransform = billboardNode.localTransform;
     final billboardPosition = currentTransform.getTranslation();
 
-    // Calculate look-at rotation using view matrix
-    final lookAtMatrix = _calculateBillboardLookAt(
+    // Parse billboard metadata to determine if screen-space scaling is needed
+    final billboardInfo = _parseBillboardMetadata(billboardNode.name);
+
+    // Step 1: Calculate camera-facing rotation in billboard's local coordinate system
+    final billboardRotation = _calculateBillboardRotation(
       billboardPosition,
       cameraPosition,
       viewportSize,
     );
 
-    // Apply coordinate transformation to the billboard orientation to account for
-    // the Y-axis negation transformation applied to the root node
-    final transformedLookAtMatrix =
-        _cncToImpellerCoordinateTransform * lookAtMatrix;
+    // Step 2: Apply screen-space scaling to the rotation matrix if needed
+    // This must be done BEFORE coordinate transformation to avoid Y-axis issues
+    final scaledBillboardRotation = _applyScreenSpaceScaling(
+      rotation: billboardRotation,
+      billboardInfo: billboardInfo,
+      billboardPosition: billboardPosition,
+      cameraPosition: cameraPosition,
+      viewportSize: viewportSize,
+    );
 
-    // Apply look-at rotation while preserving position
-    final finalTransform = transformedLookAtMatrix.clone();
-    finalTransform.setTranslation(billboardPosition);
+    // Step 3: Apply coordinate system transformation for CNC->Impeller conversion
+    // This ensures the billboard orientation works correctly with the Y-negated root transform
+    final coordinateTransformedRotation = _applyCoordinateTransformToBillboard(scaledBillboardRotation);
+
+    // Step 4: Compose final transform with proper position
+    final finalTransform = _composeBillboardTransform(
+      rotation: coordinateTransformedRotation,
+      position: billboardPosition,
+      scale: 1.0, // Scale is already applied to rotation matrix
+    );
 
     billboardNode.localTransform = finalTransform;
+  }
+
+  /// Calculate billboard rotation matrix to face the camera
+  /// 
+  /// Returns a rotation matrix in billboard's local coordinate system
+  vm.Matrix4 _calculateBillboardRotation(
+    vm.Vector3 billboardPosition,
+    vm.Vector3 cameraPosition,
+    Size viewportSize,
+  ) {
+    return _calculateBillboardLookAt(billboardPosition, cameraPosition, viewportSize);
+  }
+
+  /// Apply screen-space scaling to billboard rotation matrix
+  /// 
+  /// If billboard uses screen-space sizing, scales the rotation matrix to maintain constant pixel size.
+  /// This must be applied BEFORE coordinate transformation to avoid Y-axis scaling issues.
+  vm.Matrix4 _applyScreenSpaceScaling({
+    required vm.Matrix4 rotation,
+    required _BillboardMetadata? billboardInfo,
+    required vm.Vector3 billboardPosition,
+    required vm.Vector3 cameraPosition,
+    required Size viewportSize,
+  }) {
+    // If no metadata or using world space, return rotation unchanged
+    if (billboardInfo == null || billboardInfo.sizeMode == BillboardSizeMode.worldSpace) {
+      return rotation;
+    }
+
+    // Calculate screen-space scale factor
+    final scale = _calculateScreenSpaceScale(
+      billboardPosition,
+      cameraPosition,
+      billboardInfo.pixelSize,
+      viewportSize,
+    );
+
+    // Apply scale to rotation matrix by post-multiplying with scale matrix
+    // This scales the billboard in its local coordinate system
+    final scaleMatrix = vm.Matrix4.identity()..scaleByDouble(scale, scale, 1.0, 1.0);
+    return rotation * scaleMatrix;
+  }
+
+  /// Apply coordinate system transformation to billboard rotation
+  /// 
+  /// Transforms the billboard rotation from CNC coordinates to Impeller coordinates
+  vm.Matrix4 _applyCoordinateTransformToBillboard(vm.Matrix4 billboardRotation) {
+    return _cncToImpellerCoordinateTransform * billboardRotation;
+  }
+
+  /// Compose final billboard transform from components
+  /// 
+  /// Combines rotation, scale, and position into final transformation matrix
+  vm.Matrix4 _composeBillboardTransform({
+    required vm.Matrix4 rotation,
+    required vm.Vector3 position,
+    required double scale,
+  }) {
+    // For now, just apply rotation and position (scale will be added later)
+    final finalTransform = rotation.clone();
+    finalTransform.setTranslation(position);
+    return finalTransform;
   }
 
   /// Calculate look-at matrix for billboard facing camera
@@ -826,6 +916,77 @@ class FlutterSceneBatchRenderer implements Renderer {
     return rotationMatrix;
   }
 
+  /// Parse billboard metadata from node name
+  /// 
+  /// Node names are encoded as: 'billboard_{id}_{sizeMode}_{pixelSize}'
+  /// Example: 'billboard_axis_label_x_screenSpace_24.0'
+  /// Returns null if name doesn't contain metadata (preserves backward compatibility)
+  _BillboardMetadata? _parseBillboardMetadata(String nodeName) {
+    final parts = nodeName.split('_');
+    
+    // Expected format: billboard_{id}_{sizeMode}_{pixelSize}
+    // Minimum parts: ['billboard', id, sizeMode, pixelSize]
+    if (parts.length < 4) {
+      return null; // Old format or invalid name - use default behavior
+    }
+    
+    try {
+      // Extract size mode (second to last part)
+      final sizeModeStr = parts[parts.length - 2];
+      final sizeMode = BillboardSizeMode.values.firstWhere(
+        (mode) => mode.name == sizeModeStr,
+        orElse: () => BillboardSizeMode.worldSpace,
+      );
+      
+      // Extract pixel size (last part)
+      final pixelSizeStr = parts[parts.length - 1];
+      final pixelSize = double.tryParse(pixelSizeStr) ?? 24.0;
+      
+      return _BillboardMetadata(
+        sizeMode: sizeMode,
+        pixelSize: pixelSize,
+      );
+    } catch (e) {
+      // Failed to parse - return null to use default behavior
+      return null;
+    }
+  }
+
+  /// Calculate screen-space scale factor for a billboard
+  /// 
+  /// This calculates the scale needed to maintain constant pixel size
+  /// regardless of camera distance.
+  double _calculateScreenSpaceScale(
+    vm.Vector3 billboardPosition,
+    vm.Vector3 cameraPosition,
+    double targetPixelSize,
+    Size viewportSize,
+  ) {
+    // Calculate camera distance to billboard
+    // Both positions are already in transformed (display) coordinate space
+    final cameraDistance = ScreenSpaceUtils.calculateCameraDistance(
+      cameraPosition,
+      billboardPosition,
+    );
+    
+    // Get camera field of view
+    final fovRadians = camera.fovRadiansY;
+    
+    // Calculate required world size for target pixel size
+    final requiredWorldSize = ScreenSpaceUtils.pixelSizeToWorldSize(
+      targetPixelSize,
+      cameraDistance,
+      fovRadians,
+      vm.Vector2(viewportSize.width, viewportSize.height),
+    );
+    
+    // The original billboard was created with worldSize = 10.0 (default in createTextBillboard)
+    const double originalWorldSize = 10.0;
+    final scale = requiredWorldSize / originalWorldSize;
+    
+    return scale;
+  }
+
   @override
   void dispose() {
     _rootNode.children.clear();
@@ -834,4 +995,15 @@ class FlutterSceneBatchRenderer implements Renderer {
     // LineMeshFactory doesn't require disposal - it's a static factory
     _sceneData = null;
   }
+}
+
+/// Helper class to store billboard metadata parsed from node names
+class _BillboardMetadata {
+  final BillboardSizeMode sizeMode;
+  final double pixelSize;
+  
+  const _BillboardMetadata({
+    required this.sizeMode,
+    required this.pixelSize,
+  });
 }

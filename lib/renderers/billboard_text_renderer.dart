@@ -4,6 +4,15 @@ import 'package:vector_math/vector_math.dart' as vm;
 import '../utils/logger.dart';
 import 'text_texture_factory.dart';
 
+/// Size mode for billboard text rendering
+enum BillboardSizeMode {
+  /// Billboard size is specified in world units and scales with camera distance
+  worldSpace,
+  
+  /// Billboard size is specified in pixels and maintains constant screen size
+  screenSpace,
+}
+
 /// Renderer for 3D-positioned, screen-aligned text billboards
 /// Creates text textures and positions them in 3D space while keeping them facing the camera
 class BillboardTextRenderer {
@@ -17,6 +26,8 @@ class BillboardTextRenderer {
     Color backgroundColor = Colors.transparent,
     double opacity = 1.0,
     String? id,
+    BillboardSizeMode sizeMode = BillboardSizeMode.worldSpace,
+    double pixelSize = 24.0, // Size in pixels for screen space mode
   }) async {
     try {
       // Create text texture using Flutter's text rendering
@@ -55,8 +66,9 @@ class BillboardTextRenderer {
       node.mesh = mesh;
       node.localTransform = vm.Matrix4.translation(position);
       
-      // Mark as billboard for detection during rendering
-      node.name = 'billboard_${id ?? 'text'}'; // Use name to identify billboards
+      // Mark as billboard for detection during rendering and store size mode metadata
+      final nodeId = id ?? 'text';
+      node.name = 'billboard_${nodeId}_${sizeMode.name}_${pixelSize.toStringAsFixed(1)}'; // Encode size info in name
       
       return node;
       
@@ -83,6 +95,8 @@ class BillboardTextRenderer {
           backgroundColor: billboard.backgroundColor,
           opacity: billboard.opacity,
           id: billboard.id,
+          sizeMode: billboard.sizeMode,
+          pixelSize: billboard.pixelSize,
         );
         nodes.add(node);
       } catch (e) {
@@ -202,6 +216,8 @@ class TextBillboardData {
   final Color backgroundColor;
   final double opacity;
   final String? id;
+  final BillboardSizeMode sizeMode;
+  final double pixelSize;
   
   const TextBillboardData({
     required this.text,
@@ -211,5 +227,7 @@ class TextBillboardData {
     this.backgroundColor = Colors.transparent,
     this.opacity = 1.0,
     this.id,
+    this.sizeMode = BillboardSizeMode.worldSpace, // Default to world space for backward compatibility
+    this.pixelSize = 24.0, // Default pixel size for screen space mode
   });
 }
