@@ -5,14 +5,8 @@ import 'package:vector_math/vector_math.dart' as vm;
 import 'package:flutter_scene/scene.dart';
 import '../utils/logger.dart';
 
-/// Size mode for billboard rendering
-enum BillboardSizeMode {
-  /// Billboard size is specified in world units and scales with camera distance
-  worldSpace,
-  
-  /// Billboard size is specified in pixels and maintains constant screen size
-  screenSpace,
-}
+// Note: Billboard sizing is now always pixel-accurate using clip-space calculations
+// No need for separate size modes - viewport dimensions handle the conversion
 
 /// Billboard geometry for flutter_scene integration
 /// 
@@ -22,9 +16,9 @@ enum BillboardSizeMode {
 class BillboardGeometry extends UnskinnedGeometry {
   final double width;
   final double height;
-  final BillboardSizeMode sizeMode;
   final vm.Vector3 position;
-  final double pixelSize;
+  final double viewportWidth;
+  final double viewportHeight;
   
   // Shader loading state
   static gpu.ShaderLibrary? _shaderLibrary;
@@ -35,8 +29,8 @@ class BillboardGeometry extends UnskinnedGeometry {
     required this.width,
     required this.height,
     required this.position,
-    this.sizeMode = BillboardSizeMode.worldSpace,
-    this.pixelSize = 24.0,
+    required this.viewportWidth,
+    required this.viewportHeight,
   }) {
     // FAIL FAST: Require shaders to be loaded before creating geometry
     if (!_shaderLoadingAttempted) {
@@ -96,30 +90,31 @@ class BillboardGeometry extends UnskinnedGeometry {
 
   void _generateQuadGeometry() {
     try {
-      // Create vertices for a simple quad using normalized coordinates
-      // The vertex shader will scale these by the billboard size
+      // Create vertices for a simple quad - shader generates corners using gl_VertexID
       final vertices = <double>[];
       final indices = <int>[];
       
-      // Define the 4 corners with normalized coordinates (-0.5 to +0.5)
+      // Use the viewport size passed to the constructor
+      
+      // Define the 4 corners with their UV coordinates and corner offsets
       // Note: Proper winding order for Impeller (counter-clockwise when facing camera)
       final corners = [
-        {'pos': vm.Vector3(-0.5, -0.5, 0), 'uv': vm.Vector2(0, 1)}, // Bottom left
-        {'pos': vm.Vector3(0.5, -0.5, 0), 'uv': vm.Vector2(1, 1)},  // Bottom right
-        {'pos': vm.Vector3(0.5, 0.5, 0), 'uv': vm.Vector2(1, 0)},   // Top right
-        {'pos': vm.Vector3(-0.5, 0.5, 0), 'uv': vm.Vector2(0, 0)},  // Top left
+        {'uv': vm.Vector2(0, 1), 'offset': vm.Vector3(-0.5, -0.5, 0.0)}, // Bottom left
+        {'uv': vm.Vector2(1, 1), 'offset': vm.Vector3( 0.5, -0.5, 0.0)}, // Bottom right  
+        {'uv': vm.Vector2(1, 0), 'offset': vm.Vector3( 0.5,  0.5, 0.0)}, // Top right
+        {'uv': vm.Vector2(0, 0), 'offset': vm.Vector3(-0.5,  0.5, 0.0)}, // Top left
       ];
 
-      // Add vertices (position + uv + billboard data packed in remaining attributes)
+      // Add vertices with corner offsets in normal attribute
       for (final corner in corners) {
-        final pos = corner['pos'] as vm.Vector3;
         final uv = corner['uv'] as vm.Vector2;
+        final offset = corner['offset'] as vm.Vector3;
         
         vertices.addAll([
-          pos.x, pos.y, pos.z,           // position (3) - local quad coordinates
-          position.x, position.y, position.z, // normal (3) - billboard world position
-          uv.x, uv.y,                    // texture coordinates (2)
-          width, height, sizeMode == BillboardSizeMode.screenSpace ? 1.0 : 0.0, pixelSize, // color (4) - billboard info
+          position.x, position.y, position.z, // position (3) - billboard center world position
+          offset.x, offset.y, offset.z,       // normal (3) - corner offset for quad generation
+          uv.x, uv.y,                         // texture coordinates (2) - different per vertex
+          width, height, viewportWidth, viewportHeight, // color (4) - [width_pixels, height_pixels, viewport_width, viewport_height]
         ]);
       }
 
@@ -191,8 +186,6 @@ class BillboardGeometry extends UnskinnedGeometry {
 /// REQUIRES custom billboard shaders - no fallback to default materials.
 /// Extends UnlitMaterial for proper uniform binding and blending support.
 class BillboardMaterial extends UnlitMaterial {
-  final BillboardSizeMode sizeMode;
-  final double pixelSize;
   final vm.Vector3 billboardPosition;
   final vm.Vector2 billboardSize;
   final Color color;
@@ -204,8 +197,6 @@ class BillboardMaterial extends UnlitMaterial {
   BillboardMaterial({
     required this.billboardPosition,
     required this.billboardSize,
-    this.sizeMode = BillboardSizeMode.worldSpace,
-    this.pixelSize = 24.0,
     this.color = Colors.white,
     this.opacity = 1.0,
     gpu.Texture? colorTexture,
@@ -294,8 +285,8 @@ class BillboardRenderer {
     required vm.Vector3 position,
     required vm.Vector2 size,
     required Color color,
-    BillboardSizeMode sizeMode = BillboardSizeMode.worldSpace,
-    double pixelSize = 24.0,
+    required double viewportWidth,
+    required double viewportHeight,
     double opacity = 1.0,
     String? id,
   }) {
@@ -305,16 +296,14 @@ class BillboardRenderer {
         width: size.x,
         height: size.y,
         position: vm.Vector3.zero(), // Position handled by Node's localTransform
-        sizeMode: sizeMode,
-        pixelSize: pixelSize,
+        viewportWidth: viewportWidth,
+        viewportHeight: viewportHeight,
       );
       
       // Create billboard material
       final material = BillboardMaterial(
         billboardPosition: position,
         billboardSize: size,
-        sizeMode: sizeMode,
-        pixelSize: pixelSize,
         color: color,
         opacity: opacity,
       );
@@ -331,7 +320,7 @@ class BillboardRenderer {
       
       // Encode metadata in name for scene graph processing
       final nodeId = id ?? 'billboard';
-      node.name = 'billboard_${nodeId}_${sizeMode.name}_${pixelSize.toStringAsFixed(1)}';
+      node.name = 'billboard_${nodeId}_${size.x.toStringAsFixed(0)}x${size.y.toStringAsFixed(0)}';
       
       return node;
       
@@ -355,8 +344,8 @@ class BillboardRenderer {
     required vm.Vector3 position,
     required vm.Vector2 size,
     required gpu.Texture texture,
-    BillboardSizeMode sizeMode = BillboardSizeMode.worldSpace,
-    double pixelSize = 24.0,
+    required double viewportWidth,
+    required double viewportHeight,
     Color tintColor = Colors.white,
     double opacity = 1.0,
     String? id,
@@ -367,16 +356,14 @@ class BillboardRenderer {
         width: size.x,
         height: size.y,
         position: vm.Vector3.zero(), // Position handled by Node's localTransform
-        sizeMode: sizeMode,
-        pixelSize: pixelSize,
+        viewportWidth: viewportWidth,
+        viewportHeight: viewportHeight,
       );
       
       // Create billboard material with texture
       final material = BillboardMaterial(
         billboardPosition: position,
         billboardSize: size,
-        sizeMode: sizeMode,
-        pixelSize: pixelSize,
         color: tintColor,
         opacity: opacity,
       );
@@ -396,7 +383,7 @@ class BillboardRenderer {
       
       // Encode metadata in name for scene graph processing
       final nodeId = id ?? 'billboard';
-      node.name = 'billboard_${nodeId}_${sizeMode.name}_${pixelSize.toStringAsFixed(1)}';
+      node.name = 'billboard_${nodeId}_${size.x.toStringAsFixed(0)}x${size.y.toStringAsFixed(0)}';
       
       return node;
       

@@ -8,7 +8,6 @@
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import '../ui/themes/visualizer_theme.dart';
-import '../renderers/billboard_shader_renderer.dart';
 import 'scene_manager.dart';
 
 /// Color mode for coordinate axes rendering (extends theme enum)
@@ -35,7 +34,6 @@ class AxesConfiguration {
   final String idPrefix;
   final double labelOffset;
   final double labelSize;
-  final BillboardSizeMode labelSizeMode;
   final double labelPixelSize;
 
   const AxesConfiguration({
@@ -53,8 +51,7 @@ class AxesConfiguration {
     this.idPrefix = 'axes',
     this.labelOffset = 5.0,
     this.labelSize = 8.0,
-    this.labelSizeMode = BillboardSizeMode.screenSpace, // Default to screen space for axis labels
-    this.labelPixelSize = 24.0, // Default 24px screen size
+    this.labelPixelSize = 24.0, // Default pixel size for axis labels
   });
 }
 
@@ -187,9 +184,7 @@ class AxesFactory {
         center: config.origin + vm.Vector3(config.length + config.labelOffset, 0, 0),
         text: 'X',
         textStyle: config.labelStyle.copyWith(color: colors['x']),
-        worldSize: config.labelSizeMode == BillboardSizeMode.worldSpace 
-            ? config.labelSize 
-            : 10.0, // Use default world size for screen space mode
+        worldSize: config.labelPixelSize, // Use pixel size directly
         textBackgroundColor: Colors.transparent,
         // Store size mode information in extensions or custom properties
         // Note: We'll encode this in the renderer when creating the billboard
@@ -202,9 +197,7 @@ class AxesFactory {
         center: config.origin + vm.Vector3(0, config.length + config.labelOffset, 0),
         text: 'Y',
         textStyle: config.labelStyle.copyWith(color: colors['y']),
-        worldSize: config.labelSizeMode == BillboardSizeMode.worldSpace 
-            ? config.labelSize 
-            : 10.0, // Use default world size for screen space mode
+        worldSize: config.labelPixelSize, // Use pixel size directly
         textBackgroundColor: Colors.transparent,
       ),
       // Z-axis label
@@ -215,9 +208,7 @@ class AxesFactory {
         center: config.origin + vm.Vector3(0, 0, config.length + config.labelOffset),
         text: 'Z',
         textStyle: config.labelStyle.copyWith(color: colors['z']),
-        worldSize: config.labelSizeMode == BillboardSizeMode.worldSpace 
-            ? config.labelSize 
-            : 10.0, // Use default world size for screen space mode
+        worldSize: config.labelPixelSize, // Use pixel size directly
         textBackgroundColor: Colors.transparent,
       ),
     ];

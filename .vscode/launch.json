@@ -5,7 +5,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "ghSender (Debug)",
+            "name": "ghSender (macOS Debug)",
             "type": "dart",
             "request": "launch",
             "program": "lib/main.dart",
@@ -26,8 +26,27 @@
             "preLaunchTask": "activate-environment"
         },
         {
-            "name": "ghSender (Profile)",
-            "type": "dart", 
+            "name": "ghSender (iPad Debug)",
+            "type": "dart",
+            "request": "launch",
+            "program": "lib/main.dart",
+            "cwd": "${workspaceFolder}",
+            "deviceId": "00008132-001E25311E99001C",
+            "flutterMode": "debug",
+            "args": [
+                "--enable-impeller"
+            ],
+            "env": {
+                "PATH": "${workspaceFolder}/toolchain/asdf-data/shims:${workspaceFolder}/toolchain/flutter/bin:${env:PATH}",
+                "FLUTTER_ROOT": "${workspaceFolder}/toolchain/flutter",
+                "ASDF_DIR": "${workspaceFolder}/toolchain/asdf",
+                "ASDF_DATA_DIR": "${workspaceFolder}/toolchain/asdf-data",
+                "PUB_CACHE": "${workspaceFolder}/toolchain/cache/pub"
+            },
+        },
+        {
+            "name": "ghSender (macOS Profile)",
+            "type": "dart",
             "request": "launch",
             "program": "lib/main.dart",
             "cwd": "${workspaceFolder}",
@@ -39,9 +58,9 @@
             "console": "debugConsole"
         },
         {
-            "name": "ghSender (Release)",
+            "name": "ghSender (macOS Release)",
             "type": "dart",
-            "request": "launch", 
+            "request": "launch",
             "program": "lib/main.dart",
             "cwd": "${workspaceFolder}",
             "deviceId": "macos",

@@ -128,6 +128,8 @@ class TextTextureFactory {
       width: width, 
       height: height,
       position: position ?? vm.Vector3.zero(),
+      viewportWidth: 800.0, // TODO: Get actual viewport size
+      viewportHeight: 600.0, // TODO: Get actual viewport size
     );
   }
 }

@@ -672,31 +672,30 @@ class FlutterSceneBatchRenderer implements Renderer {
             continue;
           }
 
-          // Determine size mode and pixel size based on billboard type
+          // Determine pixel size based on billboard type
           final isAxisLabel = billboardObject.id.contains('_label_');
-          final sizeMode = isAxisLabel 
-              ? BillboardSizeMode.screenSpace 
-              : BillboardSizeMode.worldSpace;
-          final pixelSize = isAxisLabel ? 24.0 : 24.0; // Default to 24px for all billboards
+          final pixelSize = isAxisLabel ? 24.0 : 12.0; // Default sizes for different types
           
           // For now, create solid color billboards (text rendering will be added later)
-          // Use different colors for different types for testing
-          final color = isAxisLabel 
-              ? billboardObject.color
-              : billboardObject.color;
+          final color = billboardObject.color;
           
           final billboardSize = vm.Vector2(
-            billboardObject.worldSize ?? 10.0,
-            billboardObject.worldSize ?? 10.0,
+            pixelSize, // Use pixel size directly
+            pixelSize, // Square billboards for now
           );
+          
+          // Get current viewport resolution for pixel-perfect billboard rendering
+          final currentResolution = _lastViewportSize != null
+              ? vm.Vector2(_lastViewportSize!.width, _lastViewportSize!.height)
+              : vm.Vector2(1024, 768); // Default resolution
           
           // Create solid billboard node
           final billboardNode = BillboardRenderer.createSolidBillboard(
             position: billboardObject.center!,
             size: billboardSize,
             color: color,
-            sizeMode: sizeMode,
-            pixelSize: pixelSize,
+            viewportWidth: currentResolution.x,
+            viewportHeight: currentResolution.y,
             opacity: billboardObject.opacity ?? 1.0,
             id: billboardObject.id,
           );
@@ -824,8 +823,8 @@ class FlutterSceneBatchRenderer implements Renderer {
     required vm.Vector3 cameraPosition,
     required Size viewportSize,
   }) {
-    // If no metadata or using world space, return rotation unchanged
-    if (billboardInfo == null || billboardInfo.sizeMode == BillboardSizeMode.worldSpace) {
+    // All billboards now use pixel-accurate sizing, so always apply rotation
+    if (billboardInfo == null) {
       return rotation;
     }
 
@@ -933,19 +932,13 @@ class FlutterSceneBatchRenderer implements Renderer {
     }
     
     try {
-      // Extract size mode (second to last part)
-      final sizeModeStr = parts[parts.length - 2];
-      final sizeMode = BillboardSizeMode.values.firstWhere(
-        (mode) => mode.name == sizeModeStr,
-        orElse: () => BillboardSizeMode.worldSpace,
-      );
+      // Size mode is no longer used - all billboards use pixel sizing
       
       // Extract pixel size (last part)
       final pixelSizeStr = parts[parts.length - 1];
       final pixelSize = double.tryParse(pixelSizeStr) ?? 24.0;
       
       return _BillboardMetadata(
-        sizeMode: sizeMode,
         pixelSize: pixelSize,
       );
     } catch (e) {
@@ -1001,11 +994,9 @@ class FlutterSceneBatchRenderer implements Renderer {
 
 /// Helper class to store billboard metadata parsed from node names
 class _BillboardMetadata {
-  final BillboardSizeMode sizeMode;
   final double pixelSize;
   
   const _BillboardMetadata({
-    required this.sizeMode,
     required this.pixelSize,
   });
 }
