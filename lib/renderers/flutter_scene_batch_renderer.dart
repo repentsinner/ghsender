@@ -9,9 +9,8 @@ import 'renderer_interface.dart';
 import 'line_mesh_factory.dart';
 import 'line_style.dart';
 import 'filled_rectangle_renderer.dart';
-import 'billboard_shader_renderer.dart';
 import 'screen_space_utils.dart';
-import 'text_texture_factory.dart';
+import '../scene/text_billboard_factory.dart';
 
 /// Custom UnlitMaterial that supports transparency
 class TransparentUnlitMaterial extends UnlitMaterial {
@@ -206,10 +205,16 @@ class FlutterSceneBatchRenderer implements Renderer {
   }
 
   @override
-  void render(Canvas canvas, Size size, double rotationX, double rotationY, {double devicePixelRatio = 1.0}) {
+  void render(
+    Canvas canvas,
+    Size size,
+    double rotationX,
+    double rotationY, {
+    double devicePixelRatio = 1.0,
+  }) {
     // Store device pixel ratio for billboard text scaling
     _devicePixelRatio = devicePixelRatio;
-    
+
     // Camera state is now managed by CameraDirector and set via setCameraState()
     // rotationX and rotationY parameters are ignored
 
@@ -681,9 +686,15 @@ class FlutterSceneBatchRenderer implements Renderer {
             continue;
           }
 
-          // Create text texture from the billboard text
-          final textTexture = await TextTextureFactory.createTextTexture(
+          // Get current viewport resolution for billboard creation
+          final currentResolution = _lastViewportSize != null
+              ? vm.Vector2(_lastViewportSize!.width, _lastViewportSize!.height)
+              : vm.Vector2(1024, 768); // Default resolution
+
+          // Create text billboard using factory (handles texture generation and billboard creation)
+          final billboardNode = await TextBillboardFactory.createTextBillboard(
             text: billboardObject.text ?? '?', // Use '?' as fallback if no text
+            position: billboardObject.center!,
             textStyle:
                 billboardObject.textStyle ??
                 const TextStyle(
@@ -691,30 +702,9 @@ class FlutterSceneBatchRenderer implements Renderer {
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
-            backgroundColor: Colors.transparent,
-            renderScale: _devicePixelRatio, // Match texture resolution to display resolution
-          );
-
-          final billboardSize = vm.Vector2(
-            textTexture.textWidth * _devicePixelRatio,
-            textTexture.textHeight * _devicePixelRatio,
-          );
-          
-          // Debug logging for device pixel ratio scaling
-          AppLogger.debug('Billboard text scaling: textWidth=${textTexture.textWidth}, textHeight=${textTexture.textHeight}, devicePixelRatio=$_devicePixelRatio, renderScale=$_devicePixelRatio, scaledSize=(${billboardSize.x}, ${billboardSize.y})');
-
-          // Get current viewport resolution for pixel-perfect billboard rendering
-          final currentResolution = _lastViewportSize != null
-              ? vm.Vector2(_lastViewportSize!.width, _lastViewportSize!.height)
-              : vm.Vector2(1024, 768); // Default resolution
-
-          // Create textured billboard node with the text texture
-          final billboardNode = BillboardRenderer.createTexturedBillboard(
-            position: billboardObject.center!,
-            size: billboardSize,
-            texture: textTexture.texture,
             viewportWidth: currentResolution.x,
             viewportHeight: currentResolution.y,
+            devicePixelRatio: _devicePixelRatio,
             tintColor: billboardObject.color,
             opacity: billboardObject.opacity ?? 1.0,
             id: billboardObject.id,

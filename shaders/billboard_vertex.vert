@@ -42,6 +42,16 @@ void main() {
   vec4 billboard_model_pos = frame_info.model_transform * vec4(billboard_world_pos, 1.0);
   vec4 billboard_clip_pos = frame_info.camera_transform * billboard_model_pos;
   
+  // Step 1.5: Snap billboard center to whole pixels for crisp text rendering
+  // Convert clip space to screen space
+  vec2 screen_pos = (billboard_clip_pos.xy / billboard_clip_pos.w + 1.0) * 0.5 * viewport_size;
+  
+  // Snap to nearest pixel
+  vec2 snapped_screen_pos = floor(screen_pos + 0.5);
+  
+  // Convert back to clip space
+  billboard_clip_pos.xy = (snapped_screen_pos / viewport_size * 2.0 - 1.0) * billboard_clip_pos.w;
+  
   // Step 2: Get quad corner from normal attribute
   // Corner offset is passed via normal.xy attribute
   vec2 quad_corner = normal.xy;

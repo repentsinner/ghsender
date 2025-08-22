@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
 import '../../../bloc/machine_controller/machine_controller_bloc.dart';
@@ -7,6 +9,8 @@ import '../../../bloc/machine_controller/machine_controller_state.dart';
 import '../../../bloc/communication/cnc_communication_bloc.dart';
 import '../../../bloc/communication/cnc_communication_state.dart';
 import '../../../models/machine_controller.dart';
+import '../../../renderers/text_texture_factory.dart';
+import '../../../utils/logger.dart';
 
 /// Debug section in the sidebar - system information and debugging tools
 class DebugSection extends StatelessWidget {
@@ -92,6 +96,15 @@ class DebugSection extends StatelessWidget {
                     // TODO: Implement memory viewer
                     _showFeatureNotImplemented(context);
                   },
+                ),
+
+                const SizedBox(height: 12),
+
+                _buildActionCard(
+                  icon: Icons.texture,
+                  title: 'Save Text Texture',
+                  description: 'Generate and save billboard text texture sample',
+                  onTap: () => _saveTextTextureSample(context),
                 ),
               ],
             ),
@@ -630,6 +643,62 @@ class DebugSection extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _saveTextTextureSample(BuildContext context) async {
+    try {
+      final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      
+      // Get the Documents directory for reliable file access
+      final documentsDir = await getApplicationDocumentsDirectory();
+      final filename = 'debug_text_texture_$timestamp.png';
+      final filePath = path.join(documentsDir.path, filename);
+      
+      AppLogger.info('Generating text texture sample with device pixel ratio: $devicePixelRatio');
+      AppLogger.info('Target file path: $filePath');
+      
+      await TextTextureFactory.createTextTexture(
+        text: 'Sample Text 18pt\nMulti-line Test\nDevice Ratio: ${devicePixelRatio.toStringAsFixed(1)}x',
+        textStyle: const TextStyle(
+          fontSize: 18,
+          color: Colors.white,
+          fontWeight: FontWeight.normal,
+        ),
+        devicePixelRatio: devicePixelRatio,
+        backgroundColor: Colors.black,
+        debugSaveToFile: filePath,
+      );
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Text texture saved to:\n$filePath',
+              style: VSCodeTheme.labelText,
+            ),
+            backgroundColor: VSCodeTheme.success,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      
+    } catch (e) {
+      AppLogger.error('Failed to save text texture sample: $e');
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Failed to save text texture: $e',
+              style: VSCodeTheme.labelText,
+            ),
+            backgroundColor: VSCodeTheme.error,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 
   void _showFeatureNotImplemented(BuildContext context) {

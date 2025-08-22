@@ -199,8 +199,8 @@ class BillboardMaterial extends UnlitMaterial {
     required this.billboardSize,
     this.color = Colors.white,
     this.opacity = 1.0,
-    gpu.Texture? colorTexture,
-  }) : super(colorTexture: colorTexture) {
+    super.colorTexture,
+  }) {
     // FAIL FAST: Require shaders to be loaded before creating material
     if (!BillboardGeometry._shadersSuccessfullyLoaded) {
       throw Exception(
@@ -210,7 +210,7 @@ class BillboardMaterial extends UnlitMaterial {
     }
     
     // Set base color factor from the color parameter  
-    baseColorFactor = vm.Vector4(color.red / 255.0, color.green / 255.0, color.blue / 255.0, opacity);
+    baseColorFactor = vm.Vector4((color.r * 255.0).round().clamp(0, 255) / 255.0, (color.g * 255.0).round().clamp(0, 255) / 255.0, (color.b * 255.0).round().clamp(0, 255) / 255.0, opacity);
   }
   
   /// Provide fragment shader for billboard rendering
@@ -246,28 +246,23 @@ class BillboardMaterial extends UnlitMaterial {
     gpu.HostBuffer transientsBuffer,
     Environment environment,
   ) {
-    // Call parent bind first for standard culling and winding setup
+    // Call parent Material.bind first for basic setup
     super.bind(pass, transientsBuffer, environment);
     
-    // Start with minimal approach - just use what UnlitMaterial provides
-    // The parent bind() already handles FragInfo and base_color_texture
+    // Override texture binding with pixel-perfect sampling for text
+    pass.bindTexture(
+      fragmentShader.getUniformSlot('base_color_texture'),
+      baseColorTexture,
+      sampler: gpu.SamplerOptions(
+        minFilter: gpu.MinMagFilter.nearest,           // Pixel-perfect text sampling
+        magFilter: gpu.MinMagFilter.nearest,           // No interpolation between pixels
+        mipFilter: gpu.MipFilter.nearest,              // No mipmap blending
+        widthAddressMode: gpu.SamplerAddressMode.clampToEdge,  // Prevent edge artifacts
+        heightAddressMode: gpu.SamplerAddressMode.clampToEdge, // Prevent edge artifacts
+      ),
+    );
     
-    // Set up blending for transparent billboards
-    if (!isOpaque()) {
-      pass.setColorBlendEnable(true);
-      pass.setColorBlendEquation(
-        gpu.ColorBlendEquation(
-          colorBlendOperation: gpu.BlendOperation.add,
-          sourceColorBlendFactor: gpu.BlendFactor.sourceAlpha,
-          destinationColorBlendFactor: gpu.BlendFactor.oneMinusSourceAlpha,
-          alphaBlendOperation: gpu.BlendOperation.add,
-          sourceAlphaBlendFactor: gpu.BlendFactor.one,
-          destinationAlphaBlendFactor: gpu.BlendFactor.oneMinusSourceAlpha,
-        ),
-      );
-    }
-    
-    AppLogger.debug('BillboardMaterial.bind() completed successfully');
+    AppLogger.debug('BillboardMaterial.bind() completed with pixel-perfect texture sampling');
   }
 }
 

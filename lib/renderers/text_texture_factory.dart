@@ -1,25 +1,24 @@
 import 'dart:ui' as ui;
+import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_scene/scene.dart';
 import 'package:flutter_gpu/gpu.dart' as gpu;
-import 'package:vector_math/vector_math.dart' as vm;
 import '../utils/logger.dart';
-import 'billboard_shader_renderer.dart';
-import 'transparent_material.dart';
 
 /// Factory for creating textures from Flutter text rendering
 /// Converts TextPainter output to flutter_scene textures for 3D billboard text
 class TextTextureFactory {
   /// Create a texture from text using Flutter's TextPainter
-  /// Renders text at high resolution for crisp display
-  /// renderScale: multiplier for resolution (e.g., 7.0 renders 18pt at ~126px)
+  /// Renders text at device pixel ratio resolution for crisp display
+  /// devicePixelRatio: device DPI scale from MediaQuery.devicePixelRatio
+  /// debugSaveToFile: optional file path to save rendered image for debugging
   static Future<TextTextureResult> createTextTexture({
     required String text,
     required TextStyle textStyle,
+    required double devicePixelRatio,
     TextAlign textAlign = TextAlign.center,
     Color backgroundColor = Colors.transparent,
     EdgeInsets padding = const EdgeInsets.all(8.0),
-    double renderScale = 7.0,  // Scale factor for high-DPI rendering
+    String? debugSaveToFile,
   }) async {
     try {
       // Create TextPainter to measure and render text
@@ -28,59 +27,112 @@ class TextTextureFactory {
         textAlign: textAlign,
         textDirection: TextDirection.ltr,
       );
-      
+
       // Layout the text at original size for proper font hinting
       textPainter.layout();
-      
-      // Calculate base dimensions
+
+      // Calculate base dimensions (logical pixels from TextPainter)
       final textWidth = textPainter.width;
       final textHeight = textPainter.height;
-      
-      // Scale up for high-DPI rendering
-      final scaledWidth = (textWidth * renderScale).ceil();
-      final scaledHeight = (textHeight * renderScale).ceil();
-      final scaledPaddingH = (padding.horizontal * renderScale).ceil();
-      final scaledPaddingV = (padding.vertical * renderScale).ceil();
-      
-      final textureWidth = scaledWidth + scaledPaddingH;
-      final textureHeight = scaledHeight + scaledPaddingV;
-      
+
+      // Calculate texture dimensions at device pixel ratio resolution
+      final textureWidth = ((textWidth + padding.horizontal) * devicePixelRatio)
+          .ceil();
+      final textureHeight = ((textHeight + padding.vertical) * devicePixelRatio)
+          .ceil();
+
       // Create image recorder for rendering
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      
-      // Draw background
+
+      // Draw filled background
       if (backgroundColor != Colors.transparent) {
         canvas.drawRect(
-          Rect.fromLTWH(0, 0, textureWidth.toDouble(), textureHeight.toDouble()),
+          Rect.fromLTWH(
+            0,
+            0,
+            textureWidth.toDouble(),
+            textureHeight.toDouble(),
+          ),
           Paint()..color = backgroundColor,
         );
       }
-      
-      // Scale canvas and draw text at high resolution
+
+      // Scale canvas and draw text at device pixel ratio resolution
       canvas.save();
-      canvas.scale(renderScale, renderScale);
+      canvas.scale(devicePixelRatio);
       textPainter.paint(canvas, Offset(padding.left, padding.top));
       canvas.restore();
-      
+
       // Convert to image at scaled resolution
       final picture = recorder.endRecording();
       final image = await picture.toImage(textureWidth, textureHeight);
-      
-      // Convert to byte data
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+
+      // Debug: Save image to file if requested
+      if (debugSaveToFile != null) {
+        try {
+          AppLogger.debug('Starting debug texture save to: $debugSaveToFile');
+
+          final pngBytes = await image.toByteData(
+            format: ui.ImageByteFormat.png,
+          );
+          if (pngBytes != null) {
+            final file = File(debugSaveToFile);
+
+            // Ensure parent directory exists
+            final parentDir = file.parent;
+            if (!await parentDir.exists()) {
+              AppLogger.debug('Creating parent directory: ${parentDir.path}');
+              await parentDir.create(recursive: true);
+            }
+
+            AppLogger.debug(
+              'Writing ${pngBytes.lengthInBytes} bytes to: ${file.absolute.path}',
+            );
+            await file.writeAsBytes(pngBytes.buffer.asUint8List());
+
+            // Verify file was created
+            if (await file.exists()) {
+              final fileSize = await file.length();
+              AppLogger.info(
+                'Successfully saved text texture: ${file.absolute.path} ($fileSize bytes)',
+              );
+            } else {
+              AppLogger.error(
+                'File save appeared to succeed but file does not exist: ${file.absolute.path}',
+              );
+            }
+          } else {
+            AppLogger.error('Failed to convert image to PNG bytes');
+          }
+        } catch (e, stackTrace) {
+          AppLogger.error(
+            'Failed to save debug texture to $debugSaveToFile: $e',
+          );
+          AppLogger.error('Stack trace: $stackTrace');
+        }
+      }
+
+      // Convert to byte data, note that alpha is pre-multiplied
+      final byteData = await image.toByteData(
+        format: ui.ImageByteFormat.rawRgba,
+      );
       if (byteData == null) {
         throw Exception('Failed to convert text image to byte data');
       }
-      
-      // Create GPU texture from the image data
+
+      // Create GPU texture from the image data with pixel-perfect parameters
       final texture = gpu.gpuContext.createTexture(
         gpu.StorageMode.hostVisible,
         textureWidth,
         textureHeight,
+        format: gpu.PixelFormat.r8g8b8a8UNormInt, // Explicit RGBA8 format
+        enableRenderTargetUsage: false, // Read-only texture
+        enableShaderReadUsage: true, // Enable shader sampling
+        coordinateSystem: gpu.TextureCoordinateSystem.renderToTexture,
       );
       texture.overwrite(byteData);
-      
+
       return TextTextureResult(
         texture: texture,
         textWidth: textWidth,
@@ -89,60 +141,22 @@ class TextTextureFactory {
         textureHeight: textureHeight,
         aspectRatio: textureWidth / textureHeight,
       );
-      
     } catch (e) {
       AppLogger.error('Failed to create text texture: $e');
       rethrow;
     }
   }
-  
-  /// Create a billboard material with linear filtering
-  static BillboardMaterial createBillboardMaterial({
-    gpu.Texture? texture,
-    double opacity = 1.0,
-    Color color = Colors.white,
-    bool enableAlphaBlending = true,
-  }) {
-    // Create material with texture and linear filtering
-    final material = BillboardMaterial(colorTexture: texture);
-    
-    // Set base color factor for tinting/opacity
-    material.baseColorFactor = vm.Vector4(
-      color.r,
-      color.g,
-      color.b,
-      opacity,
-    );
-    
-    return material;
-  }
-  
-  /// Create a quad geometry for billboard rendering
-  /// Returns a geometry that can be used for text billboards
-  static BillboardGeometry createBillboardGeometry({
-    required double width,
-    required double height,
-    vm.Vector3? position,
-  }) {
-    return BillboardGeometry(
-      width: width, 
-      height: height,
-      position: position ?? vm.Vector3.zero(),
-      viewportWidth: 800.0, // TODO: Get actual viewport size
-      viewportHeight: 600.0, // TODO: Get actual viewport size
-    );
-  }
 }
 
 /// Result of text texture creation
 class TextTextureResult {
-  final gpu.Texture texture;   // GPU texture with rendered text
-  final double textWidth;      // Actual text width in pixels
-  final double textHeight;     // Actual text height in pixels
-  final int textureWidth;      // Texture width in pixels
-  final int textureHeight;     // Texture height in pixels
-  final double aspectRatio;    // Texture aspect ratio
-  
+  final gpu.Texture texture; // GPU texture with rendered text
+  final double textWidth; // Actual text width in pixels
+  final double textHeight; // Actual text height in pixels
+  final int textureWidth; // Texture width in pixels
+  final int textureHeight; // Texture height in pixels
+  final double aspectRatio; // Texture aspect ratio
+
   const TextTextureResult({
     required this.texture,
     required this.textWidth,
@@ -151,32 +165,4 @@ class TextTextureResult {
     required this.textureHeight,
     required this.aspectRatio,
   });
-}
-
-/// Custom TransparentMaterial with linear texture filtering for smooth text rendering
-class BillboardMaterial extends TransparentMaterial {
-  BillboardMaterial({super.colorTexture});
-  
-  @override
-  void bind(
-    gpu.RenderPass pass,
-    gpu.HostBuffer transientsBuffer,
-    Environment environment,
-  ) {
-    // Call parent bind first for blend mode setup and standard material setup
-    super.bind(pass, transientsBuffer, environment);
-    
-    // Re-bind texture with linear filtering for smooth text interpolation
-    pass.bindTexture(
-      fragmentShader.getUniformSlot('base_color_texture'),
-      baseColorTexture,
-      sampler: gpu.SamplerOptions(
-        minFilter: gpu.MinMagFilter.linear,  // Linear when texture is minified
-        magFilter: gpu.MinMagFilter.linear,  // Linear when texture is magnified
-        mipFilter: gpu.MipFilter.linear,     // Linear between mipmap levels
-        widthAddressMode: gpu.SamplerAddressMode.clampToEdge,  // Don't repeat
-        heightAddressMode: gpu.SamplerAddressMode.clampToEdge, // Don't repeat
-      ),
-    );
-  }
 }

@@ -60,8 +60,8 @@ void main() {
     discard;
   }
   
-  // Premultiply alpha for proper blending
-  frag_color.rgb *= frag_color.a;
+  // Note: Flutter's rawRgba format already contains premultiplied alpha
+  // No additional premultiplication needed here
   
   // Calculate proper depth for z-ordering
   // Transform world position to clip space for depth calculation
