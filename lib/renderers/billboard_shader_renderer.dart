@@ -1,5 +1,5 @@
 import 'dart:typed_data';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Material;
 import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:flutter_scene/scene.dart';
@@ -18,8 +18,7 @@ enum BillboardSizeMode {
 /// 
 /// Creates a simple quad geometry that REQUIRES custom billboard shaders.
 /// Will throw exceptions if shaders fail to load or compile.
-/// Inherits from UnskinnedGeometry only for flutter_scene compatibility,
-/// but enforces that ONLY custom shaders are used.
+/// Uses UnskinnedGeometry for flutter_scene compatibility with repurposed attributes.
 class BillboardGeometry extends UnskinnedGeometry {
   final double width;
   final double height;
@@ -28,6 +27,7 @@ class BillboardGeometry extends UnskinnedGeometry {
   final double pixelSize;
   
   // Shader loading state
+  static gpu.ShaderLibrary? _shaderLibrary;
   static bool _shaderLoadingAttempted = false;
   static bool _shadersSuccessfullyLoaded = false;
 
@@ -57,11 +57,11 @@ class BillboardGeometry extends UnskinnedGeometry {
   static Future<void> _loadShaders() async {
     _shaderLoadingAttempted = true;
     try {
-      final shaderLibrary = gpu.ShaderLibrary.fromAsset(
+      _shaderLibrary = gpu.ShaderLibrary.fromAsset(
         'build/shaderbundles/ghsender.shaderbundle',
       );
       _shadersSuccessfullyLoaded = true;
-      AppLogger.info('Billboard shaders loaded successfully: $shaderLibrary');
+      AppLogger.info('Billboard shaders loaded successfully');
     } catch (e) {
       _shadersSuccessfullyLoaded = false;
       AppLogger.error('SHADER LOADING FAILED - Billboard shaders are REQUIRED during development: $e');
@@ -73,49 +73,64 @@ class BillboardGeometry extends UnskinnedGeometry {
     }
   }
 
+  /// Provide vertex shader for billboard rendering
+  @override
+  gpu.Shader get vertexShader {
+    if (!_shadersSuccessfullyLoaded || _shaderLibrary == null) {
+      throw Exception(
+        'BillboardGeometry vertex shader not available. '
+        'Custom shaders must be loaded before using billboard rendering.',
+      );
+    }
+
+    final customVertexShader = _shaderLibrary!['BillboardVertex'];
+    if (customVertexShader == null) {
+      throw Exception(
+        'BillboardVertex shader not found in shader bundle. '
+        'Check that ghsender.shaderbundle.json contains "BillboardVertex" entry.',
+      );
+    }
+
+    return customVertexShader;
+  }
+
   void _generateQuadGeometry() {
     try {
-      // Create vertices for a simple quad
-      // Position will be handled by the vertex shader
-      final halfWidth = width / 2;
-      final halfHeight = height / 2;
-      
+      // Create vertices for a simple quad using normalized coordinates
+      // The vertex shader will scale these by the billboard size
       final vertices = <double>[];
       final indices = <int>[];
-
-      // Normal pointing towards camera (will be overridden by billboard shader)
-      final normal = vm.Vector3(0, 0, 1);
       
-      // Define the 4 corners with UV coordinates
+      // Define the 4 corners with normalized coordinates (-0.5 to +0.5)
       // Note: Proper winding order for Impeller (counter-clockwise when facing camera)
       final corners = [
-        {'pos': vm.Vector3(-halfWidth, -halfHeight, 0), 'uv': vm.Vector2(0, 1)}, // Bottom left
-        {'pos': vm.Vector3(halfWidth, -halfHeight, 0), 'uv': vm.Vector2(1, 1)},  // Bottom right
-        {'pos': vm.Vector3(halfWidth, halfHeight, 0), 'uv': vm.Vector2(1, 0)},   // Top right
-        {'pos': vm.Vector3(-halfWidth, halfHeight, 0), 'uv': vm.Vector2(0, 0)},  // Top left
+        {'pos': vm.Vector3(-0.5, -0.5, 0), 'uv': vm.Vector2(0, 1)}, // Bottom left
+        {'pos': vm.Vector3(0.5, -0.5, 0), 'uv': vm.Vector2(1, 1)},  // Bottom right
+        {'pos': vm.Vector3(0.5, 0.5, 0), 'uv': vm.Vector2(1, 0)},   // Top right
+        {'pos': vm.Vector3(-0.5, 0.5, 0), 'uv': vm.Vector2(0, 0)},  // Top left
       ];
 
-      // Add vertices (position + normal + uv + color = 12 floats per vertex)
+      // Add vertices (position + uv + billboard data packed in remaining attributes)
       for (final corner in corners) {
         final pos = corner['pos'] as vm.Vector3;
         final uv = corner['uv'] as vm.Vector2;
         
         vertices.addAll([
-          pos.x, pos.y, pos.z,           // position (3)
-          normal.x, normal.y, normal.z,  // normal (3)
+          pos.x, pos.y, pos.z,           // position (3) - local quad coordinates
+          position.x, position.y, position.z, // normal (3) - billboard world position
           uv.x, uv.y,                    // texture coordinates (2)
-          1.0, 1.0, 1.0, 1.0,           // color (4) - white, full alpha
+          width, height, sizeMode == BillboardSizeMode.screenSpace ? 1.0 : 0.0, pixelSize, // color (4) - billboard info
         ]);
       }
 
       // Define triangles (2 triangles for the quad)
-      // Counter-clockwise winding for front-facing
+      // Counter-clockwise winding (try opposite of line renderer)
       indices.addAll([
         0, 1, 2, // First triangle: bottom-left, bottom-right, top-right
         0, 2, 3, // Second triangle: bottom-left, top-right, top-left
       ]);
 
-      // Create buffers using the same pattern as other geometries
+      // Create GPU buffers using standard UnskinnedGeometry approach
       _createBuffers(vertices, indices);
       
     } catch (e) {
@@ -174,22 +189,27 @@ class BillboardGeometry extends UnskinnedGeometry {
 /// Billboard material for flutter_scene integration
 /// 
 /// REQUIRES custom billboard shaders - no fallback to default materials.
-/// Inherits from UnlitMaterial only for flutter_scene compatibility,
-/// but enforces that ONLY custom shaders are used.
+/// Extends UnlitMaterial for proper uniform binding and blending support.
 class BillboardMaterial extends UnlitMaterial {
   final BillboardSizeMode sizeMode;
   final double pixelSize;
   final vm.Vector3 billboardPosition;
   final vm.Vector2 billboardSize;
+  final Color color;
+  final double opacity;
+  
+  // Billboard-specific properties (inherited from UnlitMaterial)
+  // Note: baseColorTexture is inherited from UnlitMaterial
   
   BillboardMaterial({
     required this.billboardPosition,
     required this.billboardSize,
     this.sizeMode = BillboardSizeMode.worldSpace,
     this.pixelSize = 24.0,
-    Color color = Colors.white,
-    double opacity = 1.0,
-  }) {
+    this.color = Colors.white,
+    this.opacity = 1.0,
+    gpu.Texture? colorTexture,
+  }) : super(colorTexture: colorTexture) {
     // FAIL FAST: Require shaders to be loaded before creating material
     if (!BillboardGeometry._shadersSuccessfullyLoaded) {
       throw Exception(
@@ -198,17 +218,65 @@ class BillboardMaterial extends UnlitMaterial {
       );
     }
     
-    // Set base color - this will be passed to custom fragment shader
-    baseColorFactor = vm.Vector4(color.r, color.g, color.b, opacity);
-    
-    // Store size mode as vertex color weight for custom shader access
-    vertexColorWeight = sizeMode == BillboardSizeMode.screenSpace ? 1.0 : 0.0;
+    // Set base color factor from the color parameter  
+    baseColorFactor = vm.Vector4(color.red / 255.0, color.green / 255.0, color.blue / 255.0, opacity);
+  }
+  
+  /// Provide fragment shader for billboard rendering
+  @override
+  gpu.Shader get fragmentShader {
+    if (!BillboardGeometry._shadersSuccessfullyLoaded || BillboardGeometry._shaderLibrary == null) {
+      throw Exception(
+        'BillboardMaterial fragment shader not available. '
+        'Custom shaders must be loaded before using billboard rendering.',
+      );
+    }
+
+    final customFragmentShader = BillboardGeometry._shaderLibrary!['BillboardFragmentSolid'];
+    if (customFragmentShader == null) {
+      throw Exception(
+        'BillboardFragmentSolid shader not found in shader bundle. '
+        'Check that ghsender.shaderbundle.json contains "BillboardFragmentSolid" entry.',
+      );
+    }
+
+    return customFragmentShader;
   }
   
   @override
   bool isOpaque() {
     // Enable alpha blending for billboards
-    return baseColorFactor.w >= 1.0;
+    return opacity >= 1.0;
+  }
+  
+  @override
+  void bind(
+    gpu.RenderPass pass,
+    gpu.HostBuffer transientsBuffer,
+    Environment environment,
+  ) {
+    // Call parent bind first for standard culling and winding setup
+    super.bind(pass, transientsBuffer, environment);
+    
+    // Start with minimal approach - just use what UnlitMaterial provides
+    // The parent bind() already handles FragInfo and base_color_texture
+    
+    // Set up blending for transparent billboards
+    if (!isOpaque()) {
+      pass.setColorBlendEnable(true);
+      pass.setColorBlendEquation(
+        gpu.ColorBlendEquation(
+          colorBlendOperation: gpu.BlendOperation.add,
+          sourceColorBlendFactor: gpu.BlendFactor.sourceAlpha,
+          destinationColorBlendFactor: gpu.BlendFactor.oneMinusSourceAlpha,
+          alphaBlendOperation: gpu.BlendOperation.add,
+          sourceAlphaBlendFactor: gpu.BlendFactor.one,
+          destinationAlphaBlendFactor: gpu.BlendFactor.oneMinusSourceAlpha,
+        ),
+      );
+    }
+    
+    AppLogger.debug('BillboardMaterial.bind() completed successfully');
   }
 }
 
@@ -232,11 +300,11 @@ class BillboardRenderer {
     String? id,
   }) {
     try {
-      // Create billboard geometry
+      // Create billboard geometry at origin (0,0,0) - Node's localTransform handles positioning
       final geometry = BillboardGeometry(
         width: size.x,
         height: size.y,
-        position: position,
+        position: vm.Vector3.zero(), // Position handled by Node's localTransform
         sizeMode: sizeMode,
         pixelSize: pixelSize,
       );
@@ -294,11 +362,11 @@ class BillboardRenderer {
     String? id,
   }) {
     try {
-      // Create billboard geometry
+      // Create billboard geometry at origin (0,0,0) - Node's localTransform handles positioning
       final geometry = BillboardGeometry(
         width: size.x,
         height: size.y,
-        position: position,
+        position: vm.Vector3.zero(), // Position handled by Node's localTransform
         sizeMode: sizeMode,
         pixelSize: pixelSize,
       );

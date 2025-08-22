@@ -25,6 +25,8 @@ uniform FragInfo {
 }
 frag_info;
 
+uniform sampler2D base_color_texture;
+
 // Inputs from vertex shader
 in vec3 v_position;       // World position of fragment
 in vec3 v_normal;         // Billboard facing direction  
@@ -35,28 +37,12 @@ in vec4 v_color;          // Vertex color
 out vec4 frag_color;
 
 void main() {
-  // Base color from material uniform
-  vec4 base_color = frag_info.color;
+  // Base color from material uniform and texture (standard UnlitMaterial approach)
+  vec4 texture_color = texture(base_color_texture, v_texture_coords);
+  vec4 base_color = frag_info.color * texture_color;
   
-  // Blend with vertex color if specified
-  if (frag_info.vertex_color_weight > 0.0) {
-    base_color = mix(base_color, v_color, frag_info.vertex_color_weight);
-  }
-  
-  // For testing: create a simple gradient based on UV coordinates
-  // This helps verify orientation and UV mapping
-  vec2 centered_uv = v_texture_coords - 0.5; // Center UV coordinates
-  float distance_from_center = length(centered_uv);
-  
-  // Create a circular gradient for visual testing
-  float gradient_factor = 1.0 - smoothstep(0.0, 0.5, distance_from_center);
-  
-  // Apply gradient to alpha for circular billboards (optional)
-  float alpha_multiplier = mix(0.8, 1.0, gradient_factor);
-  
-  // Final color calculation
+  // Final color calculation - keep it simple to avoid crashes
   frag_color = base_color;
-  frag_color.a *= alpha_multiplier;
   
   // Premultiply alpha for proper blending
   frag_color.rgb *= frag_color.a;

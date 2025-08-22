@@ -1,17 +1,15 @@
 #version 320 es
 
 /*
- * Billboard Vertex Shader - Three.js Sprite System Equivalent
+ * Simplified Billboard Vertex Shader
  * 
- * Creates camera-facing quads that maintain orientation towards the camera
- * regardless of camera position. Handles both world-space and screen-space
- * sizing modes with proper coordinate system conversion.
+ * Creates camera-facing quads using view-space expansion instead of 
+ * trying to extract camera vectors from matrices.
  * 
- * Key features:
- * - GPU-based billboard orientation (no CPU matrix calculations)
- * - Right-handed CNC to left-handed Impeller coordinate system conversion
- * - Screen-space size invariance
- * - Correct winding order to avoid back-face culling
+ * Approach:
+ * 1. Transform billboard center to view space  
+ * 2. Expand in view space where X=right, Y=up relative to camera
+ * 3. Transform back to clip space
  */
 
 uniform FrameInfo {
@@ -21,21 +19,11 @@ uniform FrameInfo {
 }
 frame_info;
 
-// Billboard-specific uniforms
-uniform BillboardInfo {
-  vec3 billboard_position;    // Billboard center position in world space (CNC coordinates)
-  vec2 billboard_size;        // Width, height in world units or pixels (depending on size_mode)
-  float size_mode;           // 0.0 = world space, 1.0 = screen space
-  vec2 screen_resolution;    // Viewport width, height for screen-space calculations
-  float field_of_view;       // Camera FOV in radians for screen-space calculations
-}
-billboard_info;
-
-// Input vertex attributes (simple quad)
-in vec3 position;      // Quad corner position: (-0.5,-0.5,0), (0.5,-0.5,0), (0.5,0.5,0), (-0.5,0.5,0)
-//in vec3 normal;        // Not used for billboards (could be repurposed for orientation later)
+// Input vertex attributes (UnskinnedGeometry format, repurposed for billboards)
+in vec3 position;      // Local quad corner position: (-0.5,-0.5,0), etc.
+in vec3 normal;        // Billboard world position (repurposed)
 in vec2 texture_coords; // UV coordinates: (0,1), (1,1), (1,0), (0,0)
-in vec4 color;         // Vertex color (passed through)
+in vec4 color;         // Billboard info: [width, height, size_mode, pixel_size] (repurposed)
 
 // Outputs to fragment shader
 out vec3 v_position;      // World position for depth calculations
@@ -45,69 +33,66 @@ out vec2 v_texture_coords;
 out vec4 v_color;
 
 void main() {
-  // Step 1: Convert billboard position from CNC coordinates to display coordinates
-  // Apply Y-negation transformation: CNC(x,y,z) -> Display(x,-y,z)
-  vec3 display_billboard_pos = vec3(
-    billboard_info.billboard_position.x,
-    -billboard_info.billboard_position.y,  // Y-negation for coordinate system conversion
-    billboard_info.billboard_position.z
-  );
+  // Extract billboard data from repurposed UnskinnedGeometry attributes
+  vec3 billboard_world_pos = normal;          // Billboard center position (repurposed normal)
+  vec2 current_billboard_size = color.xy;     // Width, height (repurposed color.xy)
+  float current_size_mode = color.z;          // 0.0 = world space, 1.0 = screen space (repurposed color.z)
+  float current_pixel_size = color.w;         // Pixel size for screen-space mode (repurposed color.w)
   
-  // Step 2: Calculate camera direction vectors from camera transform matrix
-  // Extract camera basis vectors from view matrix (inverse of camera transform)
-  mat4 view_matrix = inverse(frame_info.camera_transform);
+  // DEBUG: For testing coordinate system, temporarily override positions
+  // This will help us verify if the transformation pipeline works correctly
+  // Comment out after testing
+  // if (abs(billboard_world_pos.x) > 0.1) billboard_world_pos = vec3(50.0, 0.0, 0.0); // X-axis test
+  // if (abs(billboard_world_pos.y) > 0.1) billboard_world_pos = vec3(0.0, 50.0, 0.0); // Y-axis test  
+  // if (abs(billboard_world_pos.z) > 0.1) billboard_world_pos = vec3(0.0, 0.0, 50.0); // Z-axis test
   
-  // Camera right vector (world X-axis in camera space) - Row 0 of view matrix
-  vec3 camera_right = normalize(vec3(view_matrix[0][0], view_matrix[1][0], view_matrix[2][0]));
+  // Step 1: Transform billboard center to view space
+  // For debugging: try direct transformation without coordinate system conversion
+  vec4 billboard_model_pos = frame_info.model_transform * vec4(billboard_world_pos, 1.0);
+  vec4 billboard_view_pos = frame_info.camera_transform * billboard_model_pos;
   
-  // Camera up vector (world Y-axis in camera space) - Row 1 of view matrix  
-  vec3 camera_up = normalize(vec3(view_matrix[0][1], view_matrix[1][1], view_matrix[2][1]));
+  // Step 2: Calculate final billboard size
+  vec2 final_billboard_size = current_billboard_size;
   
-  // Step 3: Calculate billboard size based on size mode
-  vec2 final_billboard_size = billboard_info.billboard_size;
-  
-  if (billboard_info.size_mode > 0.5) { // Screen space mode
-    // Calculate distance from camera to billboard (both in display coordinates)
-    float camera_distance = length(frame_info.camera_position - display_billboard_pos);
+  if (current_size_mode > 0.5) { // Screen space mode
+    // For screen-space mode, scale size by distance to maintain constant pixel size
+    // Distance is simply the Z coordinate in view space (negative)
+    float view_distance = -billboard_view_pos.z;
     
-    // Convert pixel size to world size using perspective projection
-    // Formula: worldSize = pixelSize * (2 * distance * tan(fov/2)) / screenHeight
-    float world_height_at_distance = 2.0 * camera_distance * tan(billboard_info.field_of_view / 2.0);
+    // Convert pixel size to world size at this view distance
+    // Assume 60-degree FOV and 800px viewport height
+    float tan_half_fov = tan(1.0472 * 0.5); // ~60 degrees / 2
+    float world_height_at_distance = 2.0 * view_distance * tan_half_fov;
+    float pixels_to_world = world_height_at_distance / 800.0;
     
-    // Scale factor from pixels to world units
-    float pixels_to_world = world_height_at_distance / billboard_info.screen_resolution.y;
-    
-    // Convert pixel sizes to world sizes
-    final_billboard_size = billboard_info.billboard_size * pixels_to_world;
+    // Scale pixel size to world size
+    final_billboard_size = vec2(current_pixel_size) * pixels_to_world;
   }
   
-  // Step 4: Create billboard quad in camera-aligned space
-  // position.xy contains the local quad coordinates (-0.5 to 0.5)
-  vec3 local_offset = 
-    camera_right * position.x * final_billboard_size.x +
-    camera_up * position.y * final_billboard_size.y;
+  // Step 3: Create billboard quad corners in view space
+  // In view space: X=right, Y=up, Z=forward (toward camera)
+  // position.xy are normalized coordinates (-0.5 to +0.5)
+  vec2 corner_offset = position.xy * final_billboard_size;
   
-  // Step 5: Final world position of this vertex
-  vec3 world_position = display_billboard_pos + local_offset;
+  // Create the corner position by adding offset to the center
+  // The center stays at billboard_view_pos, corners are offset from center
+  vec4 corner_view_pos = billboard_view_pos;
+  corner_view_pos.x += corner_offset.x;  // Offset this corner right/left from center
+  corner_view_pos.y += corner_offset.y;  // Offset this corner up/down from center
   
-  // Step 6: Transform to clip space using the full transform pipeline
-  // Apply model transform first (this includes the CNC->Impeller transform at root level)
-  vec4 model_position = frame_info.model_transform * vec4(world_position, 1.0);
+  // Step 4: Set final position (already in clip space since we applied camera_transform)
+  gl_Position = corner_view_pos;
   
-  // Then apply camera transform
-  gl_Position = frame_info.camera_transform * model_position;
+  // Step 5: Calculate world position for fragment shader outputs
+  // For simplicity, just use the billboard center position
+  vec3 world_position = billboard_model_pos.xyz;
+  v_position = world_position;
   
-  // Step 7: Calculate outputs for fragment shader
-  v_position = world_position;  // World position for depth calculations
-  
-  // Billboard normal points towards camera (for lighting calculations if needed)
-  vec3 to_camera = normalize(frame_info.camera_position - display_billboard_pos);
-  v_normal = to_camera;
-  
-  // View vector for potential lighting calculations
+  // Billboard faces toward camera
+  v_normal = normalize(frame_info.camera_position - world_position);
   v_viewvector = frame_info.camera_position - world_position;
   
-  // Pass through texture coordinates and color
+  // Pass through texture coordinates  
   v_texture_coords = texture_coords;
-  v_color = color;
+  v_color = vec4(1.0);
 }
