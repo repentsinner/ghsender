@@ -114,7 +114,7 @@ class BillboardGeometry extends UnskinnedGeometry {
           position.x, position.y, position.z, // position (3) - billboard center world position
           offset.x, offset.y, offset.z,       // normal (3) - corner offset for quad generation
           uv.x, uv.y,                         // texture coordinates (2) - different per vertex
-          width, height, viewportWidth, viewportHeight, // color (4) - [width_pixels, height_pixels, viewport_width, viewport_height]
+          viewportWidth, viewportHeight, width, height, // color (4) - [viewport_width, viewport_height, width_pixels, height_pixels]
         ]);
       }
 

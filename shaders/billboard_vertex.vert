@@ -23,7 +23,7 @@ frame_info;
 in vec3 position;       // Billboard center world position
 in vec3 normal;         // Corner offset: xy=corner position (-0.5 to +0.5), z=unused
 in vec2 texture_coords; // UV coordinates for texture mapping
-in vec4 color;          // Billboard info: [width_pixels, height_pixels, viewport_width, viewport_height]
+in vec4 color;          // Billboard info: [viewport_width, viewport_height, width_pixels, height_pixels]
 
 // Outputs to fragment shader
 out vec3 v_position;      // World position for depth calculations
@@ -35,8 +35,8 @@ out vec4 v_color;
 void main() {
   // Extract billboard data from vertex attributes
   vec3 billboard_world_pos = position;        // Billboard center world position
-  vec2 billboard_pixel_size = color.xy;       // Width, height in pixels
-  vec2 viewport_size = color.zw;              // Viewport width, height in pixels
+  vec2 viewport_size = color.xy;              // Viewport width, height in pixels
+  vec2 billboard_pixel_size = color.zw;       // Width, height in pixels
   
   // Step 1: Transform billboard center to clip space
   vec4 billboard_model_pos = frame_info.model_transform * vec4(billboard_world_pos, 1.0);

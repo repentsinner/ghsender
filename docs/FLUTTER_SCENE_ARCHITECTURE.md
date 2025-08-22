@@ -314,6 +314,173 @@ If Flutter Scene evolves to support these features:
 
 Until then, the attribute repurposing approach provides a pragmatic balance between functionality and integration with Flutter Scene's ecosystem.
 
+## Screen-Space and Clip-Space Rendering Conventions
+
+### Overview
+
+When implementing custom renderers that need pixel-accurate sizing or screen-space effects (like consistent line widths or billboard sizing), we've established standardized conventions for attribute packing and coordinate transformations.
+
+### Critical Architectural Constraints
+
+#### 1. Flutter Scene Uniform Binding Limitations Force Attribute Abuse
+
+**Flutter Scene's separated uniform binding makes it impossible to pass custom data to vertex shaders via uniforms:**
+
+- **Material.bind()** can only bind uniforms to fragment shaders
+- **Geometry.bind()** can only bind uniforms to vertex shaders, but has no access to material data
+- **No mechanism exists** for materials to pass data to vertex shaders
+
+**Therefore, we MUST repurpose vertex attributes to carry non-vertex data:**
+
+```glsl
+// What we WANT to do (but can't):
+uniform ScreenSpaceInfo {
+  vec2 viewport_size;
+  float line_width;
+} screen_info;
+
+// What we MUST do instead:
+in vec4 color;  // Repurpose color attribute to carry [viewport_width, viewport_height, line_width, opacity]
+```
+
+This is not a design choice - it's the **only way** to get screen-space parameters into vertex shaders within Flutter Scene's architecture.
+
+#### 2. Viewport Size in Vertex Shaders is Mandatory for Aspect Ratio Correctness
+
+**Without viewport dimensions in the vertex shader, aspect ratio calculations will be wrong:**
+
+```glsl
+// WRONG - assumes square viewport
+vec2 ndc_offset = pixel_offset * (2.0 / 800.0);  // Hardcoded, breaks on resize
+
+// CORRECT - maintains aspect ratio at any viewport size  
+vec2 viewport_size = color.xy;
+vec2 ndc_offset = (pixel_offset / viewport_size) * 2.0;
+```
+
+**Why viewport_size is essential:**
+- Screen-space effects must account for viewport aspect ratio
+- NDC space is always square (-1 to +1), but viewports are rarely square
+- Without viewport dimensions, circles become ellipses, squares become rectangles
+- Pixel-accurate sizing requires knowing the actual viewport dimensions
+
+**This is why `color.xy` always contains viewport dimensions in our convention.**
+
+### Viewport Size Convention
+
+**All custom renderers use `color.xy` for viewport dimensions:**
+
+```glsl
+// Standard convention across all renderers
+in vec4 color;           // [viewport_width, viewport_height, param1, param2]
+vec2 viewport_size = color.xy;  // Always viewport dimensions
+```
+
+**Examples:**
+- **Line Renderer**: `[viewport_width, viewport_height, lineWidth, opacity]`
+- **Billboard Renderer**: `[viewport_width, viewport_height, width_pixels, height_pixels]`
+
+This ensures consistency and makes it clear that the first two color components always represent the rendering viewport.
+
+### Screen-Space Sizing Formula
+
+For pixel-accurate rendering, we use the standard NDC (Normalized Device Coordinates) conversion:
+
+```glsl
+// Convert pixel dimensions to NDC space
+vec2 pixel_size = vec2(width_pixels, height_pixels);
+vec2 ndc_size = (pixel_size / viewport_size) * 2.0;
+```
+
+**Why this works:**
+- NDC range is -1 to +1 (total range of 2.0) maps to viewport dimensions
+- `pixel_size / viewport_size` gives us the fraction of viewport
+- Multiply by 2.0 to convert to NDC range
+
+### Clip-Space Billboard Approach
+
+For billboards that maintain pixel-accurate sizing regardless of distance:
+
+```glsl
+// Transform billboard center to clip space
+vec4 billboard_clip_pos = camera_transform * model_transform * vec4(world_pos, 1.0);
+
+// Apply corner offset with perspective correction
+vec2 corner_offset = quad_corner * ndc_size * billboard_clip_pos.w;
+billboard_clip_pos.xy += corner_offset;
+```
+
+**Key insight:** Multiply offset by `billboard_clip_pos.w` for proper perspective correction - closer objects get larger offsets, farther objects get smaller offsets, maintaining consistent pixel sizing.
+
+### Coordinate System Considerations
+
+When working with screen-space effects in the CNC → Impeller coordinate transform pipeline:
+
+1. **Apply screen-space calculations BEFORE coordinate transformation** when possible
+2. **Use viewport aspect ratio correction** for directional calculations:
+   ```glsl
+   float aspect = viewport_size.x / viewport_size.y;
+   screen_direction.x *= aspect;  // Apply correction
+   // ... do calculations ...
+   screen_offset.x /= aspect;     // Undo correction
+   ```
+
+### Attribute Packing Standards
+
+**Consistent layout for all screen-space renderers:**
+
+```dart
+// Dart side - vertex generation
+vertices.addAll([
+  worldPos.x, worldPos.y, worldPos.z,           // position (3) - world coordinates
+  customData1, customData2, customData3,        // normal (3) - renderer-specific
+  uv.x, uv.y,                                   // texture_coords (2) - UV or params  
+  viewportWidth, viewportHeight, param1, param2 // color (4) - viewport + renderer-specific
+]);
+```
+
+**Benefits:**
+- **Predictable**: `color.xy` always contains viewport dimensions
+- **Efficient**: No wasted attribute space
+- **Consistent**: Same pattern across all custom renderers
+- **Future-proof**: Easy to add new renderers following the same convention
+
+### Performance Considerations
+
+**Viewport updates trigger scene regeneration:**
+- Screen-space renderers bake viewport dimensions into vertex data
+- When viewport size changes, geometry must be regenerated
+- This is handled automatically by the `_updateViewportResolution()` system
+
+**Why vertex attributes over uniforms:**
+- **Flutter Scene's architecture makes uniforms impossible** - no way to pass material data to vertex shaders
+- **Only vertex attributes can carry custom data** to vertex shaders in Flutter Scene
+- **Attribute repurposing is the only viable solution** - not a performance optimization, but an architectural necessity
+- Modern GPUs handle redundant vertex data efficiently, making this approach practical
+
+### Real-World Examples
+
+**Line Renderer (Three.js Line2-style):**
+- Uses screen-space expansion for consistent pixel line widths
+- Applies aspect ratio correction for directional calculations
+- Implements anti-aliasing padding in screen space
+
+**Billboard Renderer (Clip-space sizing):**
+- Achieves pixel-perfect billboard sizing at any distance
+- Maintains aspect ratio through viewport-aware NDC conversion
+- Uses perspective correction for proper depth behavior
+
+### Key Takeaways for Custom Renderer Implementation
+
+**When implementing any screen-space renderer in Flutter Scene, remember:**
+
+1. **You CANNOT use uniforms for custom vertex shader data** - Flutter Scene's architecture prevents this
+2. **You MUST repurpose vertex attributes** - specifically the `color` attribute for screen-space parameters  
+3. **You MUST include viewport dimensions** (`color.xy`) for aspect ratio correctness
+4. **You MUST regenerate geometry on viewport changes** - screen-space data is baked into vertices
+
+**These are not recommendations - they are architectural requirements imposed by Flutter Scene's limitations.**
+
 ## References
 
 - Flutter GPU Documentation: https://github.com/flutter/flutter/blob/main/engine/src/flutter/docs/impeller/Flutter-GPU.md

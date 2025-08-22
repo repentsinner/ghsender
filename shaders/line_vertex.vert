@@ -24,7 +24,7 @@ frame_info;
 in vec3 position;      // Line start point (3 floats)
 in vec3 normal;        // Line end point (3 floats) 
 in vec2 texture_coords; // [side, u] where side = -1/+1, u = 0/1 (2 floats)
-in vec4 color;         // Line info: [resolution.x, resolution.y, lineWidth, opacity] (4 floats)
+in vec4 color;         // Line info: [viewport_width, viewport_height, lineWidth, opacity] (4 floats)
 
 // Standard outputs for fragment shader compatibility
 out vec3 v_position;      // Line start in world space
@@ -41,7 +41,7 @@ void main() {
   float u = texture_coords.y;      // U coordinate (0 = start, 1 = end)
   
   // Extract line info from repurposed color attribute
-  vec2 resolution = color.xy;      // Screen resolution (width, height)
+  vec2 viewport_size = color.xy;      // Viewport size (width, height)
   float line_width_pixels = color.z; // Line width in pixels
   // color.w is unused - sharpness now comes from material uniform
   
@@ -57,7 +57,7 @@ void main() {
   vec2 screen_dir = ndc_end - ndc_start;
   
   // Aspect ratio correction
-  float aspect = resolution.x / resolution.y;
+  float aspect = viewport_size.x / viewport_size.y;
   
   // Account for clip-space aspect ratio in direction calculation
   screen_dir.x *= aspect;
@@ -70,7 +70,7 @@ void main() {
   // Three.js Line2 approach: expand geometry wider than visual line width
   float aa_padding = 1.0; // Extra pixels on each side for anti-aliasing fade
   float expanded_line_width = line_width_pixels + (aa_padding * 2.0);
-  float ndc_line_width = expanded_line_width * (2.0 / resolution.y);
+  float ndc_line_width = expanded_line_width * (2.0 / viewport_size.y);
   
   // Create offset and apply aspect ratio correction
   vec2 screen_offset = screen_perp * side * ndc_line_width * 0.5;
