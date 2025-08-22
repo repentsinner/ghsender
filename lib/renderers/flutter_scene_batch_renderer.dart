@@ -692,7 +692,7 @@ class FlutterSceneBatchRenderer implements Renderer {
                   color: Colors.white,
                 ),
             backgroundColor: Colors.transparent,
-            renderScale: 4.0, // High resolution for crisp text
+            renderScale: _devicePixelRatio, // Match texture resolution to display resolution
           );
 
           final billboardSize = vm.Vector2(
@@ -701,7 +701,7 @@ class FlutterSceneBatchRenderer implements Renderer {
           );
           
           // Debug logging for device pixel ratio scaling
-          AppLogger.debug('Billboard text scaling: textWidth=${textTexture.textWidth}, textHeight=${textTexture.textHeight}, devicePixelRatio=$_devicePixelRatio, scaledSize=(${billboardSize.x}, ${billboardSize.y})');
+          AppLogger.debug('Billboard text scaling: textWidth=${textTexture.textWidth}, textHeight=${textTexture.textHeight}, devicePixelRatio=$_devicePixelRatio, renderScale=$_devicePixelRatio, scaledSize=(${billboardSize.x}, ${billboardSize.y})');
 
           // Get current viewport resolution for pixel-perfect billboard rendering
           final currentResolution = _lastViewportSize != null
