@@ -33,6 +33,9 @@ class FlutterSceneBatchRenderer implements Renderer {
   // Scene data received from SceneManager
   SceneData? _sceneData;
 
+  // Device pixel ratio for proper text scaling
+  double _devicePixelRatio = 1.0;
+
   // Root node for applying interactive rotation to all scenes
   final Node _rootNode = Node();
 
@@ -203,7 +206,10 @@ class FlutterSceneBatchRenderer implements Renderer {
   }
 
   @override
-  void render(Canvas canvas, Size size, double rotationX, double rotationY) {
+  void render(Canvas canvas, Size size, double rotationX, double rotationY, {double devicePixelRatio = 1.0}) {
+    // Store device pixel ratio for billboard text scaling
+    _devicePixelRatio = devicePixelRatio;
+    
     // Camera state is now managed by CameraDirector and set via setCameraState()
     // rotationX and rotationY parameters are ignored
 
@@ -690,9 +696,12 @@ class FlutterSceneBatchRenderer implements Renderer {
           );
 
           final billboardSize = vm.Vector2(
-            textTexture.textWidth,
-            textTexture.textHeight,
+            textTexture.textWidth * _devicePixelRatio,
+            textTexture.textHeight * _devicePixelRatio,
           );
+          
+          // Debug logging for device pixel ratio scaling
+          AppLogger.debug('Billboard text scaling: textWidth=${textTexture.textWidth}, textHeight=${textTexture.textHeight}, devicePixelRatio=$_devicePixelRatio, scaledSize=(${billboardSize.x}, ${billboardSize.y})');
 
           // Get current viewport resolution for pixel-perfect billboard rendering
           final currentResolution = _lastViewportSize != null

@@ -287,12 +287,18 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
     }
 
     // Canvas-based renderer uses CustomPaint
-    return CustomPaint(
-      painter: GrblHalVisualizerPainter(
-        renderer: _flutterSceneRenderer as FlutterSceneBatchRenderer,
-        rotationX: 0.0, // Not used - renderer manages rotation internally
-        rotationY: 0.0, // Not used - renderer manages rotation internally
-      ),
+    return Builder(
+      builder: (context) {
+        final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+        return CustomPaint(
+          painter: GrblHalVisualizerPainter(
+            renderer: _flutterSceneRenderer as FlutterSceneBatchRenderer,
+            rotationX: 0.0, // Not used - renderer manages rotation internally
+            rotationY: 0.0, // Not used - renderer manages rotation internally
+            devicePixelRatio: devicePixelRatio,
+          ),
+        );
+      },
     );
   }
 
@@ -447,11 +453,13 @@ class GrblHalVisualizerPainter extends CustomPainter {
   final FlutterSceneBatchRenderer? renderer;
   final double rotationX;
   final double rotationY;
+  final double devicePixelRatio;
 
   GrblHalVisualizerPainter({
     required this.renderer,
     this.rotationX = 0.0,
     this.rotationY = 0.0,
+    this.devicePixelRatio = 1.0,
   });
 
   @override
@@ -466,7 +474,7 @@ class GrblHalVisualizerPainter extends CustomPainter {
     }
 
     // Use flutter_scene rendering - rotation is already managed by ticker updates
-    renderer!.render(canvas, size, 0.0, 0.0);
+    renderer!.render(canvas, size, 0.0, 0.0, devicePixelRatio: devicePixelRatio);
   }
 
   @override
