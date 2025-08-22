@@ -2,10 +2,13 @@
 # Project Analysis Helper Tool
 # Analyzes project structure and generates reports
 
-PROJECT_ROOT="/Users/ritchie/development/ghsender"
+# Determine project root relative to this script's location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=== ghSender Project Analysis ==="
 echo "Generated: $(date)"
+echo "Project Root: $PROJECT_ROOT"
 echo
 
 echo "=== Project Structure ==="

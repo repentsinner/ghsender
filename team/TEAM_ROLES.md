@@ -271,7 +271,7 @@ Use these exact phrases to switch my persona:
 - Testing bottlenecks affecting release timeline
 - Cross-functional testing coordination needs
 
-### 10. Domain Expert (Ritchie)
+### 10. Domain Expert (Developer)
 **Primary Responsibilities:**
 - CNC machining workflow and process expertise
 - grblHAL and GRBL controller domain knowledge

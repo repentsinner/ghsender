@@ -27,14 +27,14 @@ Both tools use the configuration in `analysis_options.yaml` which includes:
 
 Two git pre-commit hooks have been set up to ensure code quality:
 
-### 1. Lenient Hook (Active) - `/Users/ritchie/development/ghsender/.git/hooks/pre-commit`
+### 1. Lenient Hook (Active) - `${project_home}/.git/hooks/pre-commit`
 
 - **Only blocks commits** for actual errors (not warnings)
 - Uses `dart analyze` without `--fatal-warnings`
 - Allows info/warning issues to pass through
 - Currently active - prevents commits only when errors are found
 
-### 2. Strict Hook (Alternative) - `/Users/ritchie/development/ghsender/.git/hooks/pre-commit-errors-only`
+### 2. Strict Hook (Alternative) - `${project_home}/.git/hooks/pre-commit-errors-only`
 
 - **Blocks commits** when any warnings or errors are found
 - Uses `dart analyze --fatal-warnings` 
@@ -63,14 +63,14 @@ git commit --no-verify -m "Emergency commit - analysis issues to be fixed"
 ### Switching Hook Modes
 To switch from lenient to strict mode:
 ```bash
-cd /Users/ritchie/development/ghsender/.git/hooks
+cd .git/hooks
 mv pre-commit pre-commit-lenient
 mv pre-commit-errors-only pre-commit
 ```
 
 To switch back to lenient mode:
 ```bash
-cd /Users/ritchie/development/ghsender/.git/hooks
+cd .git/hooks
 mv pre-commit pre-commit-errors-only  
 mv pre-commit-lenient pre-commit
 ```
@@ -196,4 +196,4 @@ When setting up CI/CD, ensure static analysis is run:
 
 *Last updated: 2025-08-13*
 *Project restructured to root level - all static analysis issues resolved*
-*Hook setup completed - see `/Users/ritchie/development/ghsender/.git/hooks/`*
+*Hook setup completed - see `${project_home}/.git/hooks/`*

@@ -76,55 +76,57 @@ class _VSCodeLayoutState extends State<VSCodeLayout> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: VSCodeTheme.editorBackground,
-      body: Column(
-        children: [
-          // Main content area
-          Expanded(
-            child: Row(
-              children: [
-                // Activity Bar
-                ActivityBar(
-                  activeSection: _activeSection,
-                  sidebarVisible: _sidebarVisible,
-                  onSectionSelected: _setActiveSection,
-                ),
-
-                // Primary Sidebar (collapsible)
-                if (_sidebarVisible) ...[
-                  PrimarySidebar(
-                    width: _sidebarWidth,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Main content area
+            Expanded(
+              child: Row(
+                children: [
+                  // Activity Bar
+                  ActivityBar(
                     activeSection: _activeSection,
+                    sidebarVisible: _sidebarVisible,
+                    onSectionSelected: _setActiveSection,
                   ),
 
-                  // Vertical resizer
-                  _buildVerticalResizer(),
-                ],
+                  // Primary Sidebar (collapsible)
+                  if (_sidebarVisible) ...[
+                    PrimarySidebar(
+                      width: _sidebarWidth,
+                      activeSection: _activeSection,
+                    ),
 
-                // Main View
-                Expanded(
-                  child: Column(
-                    children: [
-                      // Graphics renderer area
-                      Expanded(child: MainView(child: widget.graphicsRenderer)),
+                    // Vertical resizer
+                    _buildVerticalResizer(),
+                  ],
 
-                      // Bottom Panel (collapsible)
-                      if (_panelVisible) ...[
-                        _buildHorizontalResizer(),
-                        SizedBox(
-                          height: _panelHeight,
-                          child: BottomPanel(onTogglePanel: _togglePanel),
-                        ),
+                  // Main View
+                  Expanded(
+                    child: Column(
+                      children: [
+                        // Graphics renderer area
+                        Expanded(child: MainView(child: widget.graphicsRenderer)),
+
+                        // Bottom Panel (collapsible)
+                        if (_panelVisible) ...[
+                          _buildHorizontalResizer(),
+                          SizedBox(
+                            height: _panelHeight,
+                            child: BottomPanel(onTogglePanel: _togglePanel),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
-          // Status Bar
-          StatusBar(onTogglePanel: _togglePanel, panelVisible: _panelVisible),
-        ],
+            // Status Bar
+            StatusBar(onTogglePanel: _togglePanel, panelVisible: _panelVisible),
+          ],
+        ),
       ),
     );
   }
