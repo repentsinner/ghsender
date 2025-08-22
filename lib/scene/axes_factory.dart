@@ -8,7 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import '../ui/themes/visualizer_theme.dart';
-import '../renderers/billboard_text_renderer.dart';
+import '../renderers/billboard_shader_renderer.dart';
 import 'scene_manager.dart';
 
 /// Color mode for coordinate axes rendering (extends theme enum)

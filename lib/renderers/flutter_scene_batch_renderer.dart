@@ -9,7 +9,7 @@ import 'renderer_interface.dart';
 import 'line_mesh_factory.dart';
 import 'line_style.dart';
 import 'filled_rectangle_renderer.dart';
-import 'billboard_text_renderer.dart';
+import 'billboard_shader_renderer.dart';
 import 'screen_space_utils.dart';
 
 /// Custom UnlitMaterial that supports transparency
@@ -679,24 +679,26 @@ class FlutterSceneBatchRenderer implements Renderer {
               : BillboardSizeMode.worldSpace;
           final pixelSize = isAxisLabel ? 24.0 : 24.0; // Default to 24px for all billboards
           
-          // Create text billboard node
-          final billboardNode = await BillboardTextRenderer.createTextBillboard(
-            text: billboardObject.text!,
+          // For now, create solid color billboards (text rendering will be added later)
+          // Use different colors for different types for testing
+          final color = isAxisLabel 
+              ? billboardObject.color
+              : billboardObject.color;
+          
+          final billboardSize = vm.Vector2(
+            billboardObject.worldSize ?? 10.0,
+            billboardObject.worldSize ?? 10.0,
+          );
+          
+          // Create solid billboard node
+          final billboardNode = BillboardRenderer.createSolidBillboard(
             position: billboardObject.center!,
-            textStyle:
-                billboardObject.textStyle ??
-                const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-            worldSize: billboardObject.worldSize ?? 10.0,
-            backgroundColor:
-                billboardObject.textBackgroundColor ?? Colors.transparent,
-            opacity: billboardObject.opacity ?? 1.0,
-            id: billboardObject.id,
+            size: billboardSize,
+            color: color,
             sizeMode: sizeMode,
             pixelSize: pixelSize,
+            opacity: billboardObject.opacity ?? 1.0,
+            id: billboardObject.id,
           );
 
           // Add to scene

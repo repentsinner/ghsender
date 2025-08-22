@@ -4,7 +4,7 @@ import 'package:flutter_scene/scene.dart';
 import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:vector_math/vector_math.dart' as vm;
 import '../utils/logger.dart';
-import 'billboard_geometry.dart';
+import 'billboard_shader_renderer.dart';
 import 'transparent_material.dart';
 
 /// Factory for creating textures from Flutter text rendering
@@ -122,8 +122,13 @@ class TextTextureFactory {
   static BillboardGeometry createBillboardGeometry({
     required double width,
     required double height,
+    vm.Vector3? position,
   }) {
-    return BillboardGeometry(width: width, height: height);
+    return BillboardGeometry(
+      width: width, 
+      height: height,
+      position: position ?? vm.Vector3.zero(),
+    );
   }
 }
 
