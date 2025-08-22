@@ -11,6 +11,7 @@ import 'line_style.dart';
 import 'filled_rectangle_renderer.dart';
 import 'billboard_shader_renderer.dart';
 import 'screen_space_utils.dart';
+import 'text_texture_factory.dart';
 
 /// Custom UnlitMaterial that supports transparency
 class TransparentUnlitMaterial extends UnlitMaterial {
@@ -132,7 +133,9 @@ class FlutterSceneBatchRenderer implements Renderer {
 
     int actualRectangleTriangles = 0;
     if (filledRectangleObjects.isNotEmpty) {
-      actualRectangleTriangles = await _processFilledRectangles(filledRectangleObjects);
+      actualRectangleTriangles = await _processFilledRectangles(
+        filledRectangleObjects,
+      );
     }
 
     // Process machine position indicators separately for efficient updates
@@ -220,7 +223,7 @@ class FlutterSceneBatchRenderer implements Renderer {
       if (_machinePositionCubeNode == null) {
         _setupMachinePositionCubeFromPosition();
       }
-      
+
       // Update cube position via transform
       if (_machinePositionCubeNode != null) {
         final transform = vm.Matrix4.identity();
@@ -672,30 +675,38 @@ class FlutterSceneBatchRenderer implements Renderer {
             continue;
           }
 
-          // Determine pixel size based on billboard type
-          final isAxisLabel = billboardObject.id.contains('_label_');
-          final pixelSize = isAxisLabel ? 24.0 : 12.0; // Default sizes for different types
-          
-          // For now, create solid color billboards (text rendering will be added later)
-          final color = billboardObject.color;
-          
-          final billboardSize = vm.Vector2(
-            pixelSize, // Use pixel size directly
-            pixelSize, // Square billboards for now
+          // Create text texture from the billboard text
+          final textTexture = await TextTextureFactory.createTextTexture(
+            text: billboardObject.text ?? '?', // Use '?' as fallback if no text
+            textStyle:
+                billboardObject.textStyle ??
+                const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+            backgroundColor: Colors.transparent,
+            renderScale: 4.0, // High resolution for crisp text
           );
-          
+
+          final billboardSize = vm.Vector2(
+            textTexture.textWidth,
+            textTexture.textHeight,
+          );
+
           // Get current viewport resolution for pixel-perfect billboard rendering
           final currentResolution = _lastViewportSize != null
               ? vm.Vector2(_lastViewportSize!.width, _lastViewportSize!.height)
               : vm.Vector2(1024, 768); // Default resolution
-          
-          // Create solid billboard node
-          final billboardNode = BillboardRenderer.createSolidBillboard(
+
+          // Create textured billboard node with the text texture
+          final billboardNode = BillboardRenderer.createTexturedBillboard(
             position: billboardObject.center!,
             size: billboardSize,
-            color: color,
+            texture: textTexture.texture,
             viewportWidth: currentResolution.x,
             viewportHeight: currentResolution.y,
+            tintColor: billboardObject.color,
             opacity: billboardObject.opacity ?? 1.0,
             id: billboardObject.id,
           );
@@ -755,7 +766,7 @@ class FlutterSceneBatchRenderer implements Renderer {
   }
 
   /// Calculate and apply billboard transform
-  /// 
+  ///
   /// Transforms a billboard to face the camera while maintaining its world position.
   /// Applies transformations in the correct order: Position * CoordinateTransform * (Rotation * Scale)
   void _updateBillboardTransform(
@@ -789,7 +800,9 @@ class FlutterSceneBatchRenderer implements Renderer {
 
     // Step 3: Apply coordinate system transformation for CNC->Impeller conversion
     // This ensures the billboard orientation works correctly with the Y-negated root transform
-    final coordinateTransformedRotation = _applyCoordinateTransformToBillboard(scaledBillboardRotation);
+    final coordinateTransformedRotation = _applyCoordinateTransformToBillboard(
+      scaledBillboardRotation,
+    );
 
     // Step 4: Compose final transform with proper position
     final finalTransform = _composeBillboardTransform(
@@ -802,18 +815,22 @@ class FlutterSceneBatchRenderer implements Renderer {
   }
 
   /// Calculate billboard rotation matrix to face the camera
-  /// 
+  ///
   /// Returns a rotation matrix in billboard's local coordinate system
   vm.Matrix4 _calculateBillboardRotation(
     vm.Vector3 billboardPosition,
     vm.Vector3 cameraPosition,
     Size viewportSize,
   ) {
-    return _calculateBillboardLookAt(billboardPosition, cameraPosition, viewportSize);
+    return _calculateBillboardLookAt(
+      billboardPosition,
+      cameraPosition,
+      viewportSize,
+    );
   }
 
   /// Apply screen-space scaling to billboard rotation matrix
-  /// 
+  ///
   /// If billboard uses screen-space sizing, scales the rotation matrix to maintain constant pixel size.
   /// This must be applied BEFORE coordinate transformation to avoid Y-axis scaling issues.
   vm.Matrix4 _applyScreenSpaceScaling({
@@ -838,19 +855,22 @@ class FlutterSceneBatchRenderer implements Renderer {
 
     // Apply scale to rotation matrix by post-multiplying with scale matrix
     // This scales the billboard in its local coordinate system
-    final scaleMatrix = vm.Matrix4.identity()..scaleByDouble(scale, scale, 1.0, 1.0);
+    final scaleMatrix = vm.Matrix4.identity()
+      ..scaleByDouble(scale, scale, 1.0, 1.0);
     return rotation * scaleMatrix;
   }
 
   /// Apply coordinate system transformation to billboard rotation
-  /// 
+  ///
   /// Transforms the billboard rotation from CNC coordinates to Impeller coordinates
-  vm.Matrix4 _applyCoordinateTransformToBillboard(vm.Matrix4 billboardRotation) {
+  vm.Matrix4 _applyCoordinateTransformToBillboard(
+    vm.Matrix4 billboardRotation,
+  ) {
     return _cncToImpellerCoordinateTransform * billboardRotation;
   }
 
   /// Compose final billboard transform from components
-  /// 
+  ///
   /// Combines rotation, scale, and position into final transformation matrix
   vm.Matrix4 _composeBillboardTransform({
     required vm.Matrix4 rotation,
@@ -918,29 +938,27 @@ class FlutterSceneBatchRenderer implements Renderer {
   }
 
   /// Parse billboard metadata from node name
-  /// 
+  ///
   /// Node names are encoded as: 'billboard_{id}_{sizeMode}_{pixelSize}'
   /// Example: 'billboard_axis_label_x_screenSpace_24.0'
   /// Returns null if name doesn't contain metadata (preserves backward compatibility)
   _BillboardMetadata? _parseBillboardMetadata(String nodeName) {
     final parts = nodeName.split('_');
-    
+
     // Expected format: billboard_{id}_{sizeMode}_{pixelSize}
     // Minimum parts: ['billboard', id, sizeMode, pixelSize]
     if (parts.length < 4) {
       return null; // Old format or invalid name - use default behavior
     }
-    
+
     try {
       // Size mode is no longer used - all billboards use pixel sizing
-      
+
       // Extract pixel size (last part)
       final pixelSizeStr = parts[parts.length - 1];
       final pixelSize = double.tryParse(pixelSizeStr) ?? 24.0;
-      
-      return _BillboardMetadata(
-        pixelSize: pixelSize,
-      );
+
+      return _BillboardMetadata(pixelSize: pixelSize);
     } catch (e) {
       // Failed to parse - return null to use default behavior
       return null;
@@ -948,7 +966,7 @@ class FlutterSceneBatchRenderer implements Renderer {
   }
 
   /// Calculate screen-space scale factor for a billboard
-  /// 
+  ///
   /// This calculates the scale needed to maintain constant pixel size
   /// regardless of camera distance.
   double _calculateScreenSpaceScale(
@@ -963,10 +981,10 @@ class FlutterSceneBatchRenderer implements Renderer {
       cameraPosition,
       billboardPosition,
     );
-    
+
     // Get camera field of view
     final fovRadians = camera.fovRadiansY;
-    
+
     // Calculate required world size for target pixel size
     final requiredWorldSize = ScreenSpaceUtils.pixelSizeToWorldSize(
       targetPixelSize,
@@ -974,11 +992,11 @@ class FlutterSceneBatchRenderer implements Renderer {
       fovRadians,
       vm.Vector2(viewportSize.width, viewportSize.height),
     );
-    
+
     // The original billboard was created with worldSize = 10.0 (default in createTextBillboard)
     const double originalWorldSize = 10.0;
     final scale = requiredWorldSize / originalWorldSize;
-    
+
     return scale;
   }
 
@@ -995,8 +1013,6 @@ class FlutterSceneBatchRenderer implements Renderer {
 /// Helper class to store billboard metadata parsed from node names
 class _BillboardMetadata {
   final double pixelSize;
-  
-  const _BillboardMetadata({
-    required this.pixelSize,
-  });
+
+  const _BillboardMetadata({required this.pixelSize});
 }

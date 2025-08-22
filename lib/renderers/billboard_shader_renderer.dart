@@ -223,11 +223,11 @@ class BillboardMaterial extends UnlitMaterial {
       );
     }
 
-    final customFragmentShader = BillboardGeometry._shaderLibrary!['BillboardFragmentSolid'];
+    final customFragmentShader = BillboardGeometry._shaderLibrary!['BillboardFragment'];
     if (customFragmentShader == null) {
       throw Exception(
-        'BillboardFragmentSolid shader not found in shader bundle. '
-        'Check that ghsender.shaderbundle.json contains "BillboardFragmentSolid" entry.',
+        'BillboardFragment shader not found in shader bundle. '
+        'Check that ghsender.shaderbundle.json contains "BillboardFragment" entry.',
       );
     }
 
@@ -277,64 +277,6 @@ class BillboardMaterial extends UnlitMaterial {
 /// while using GPU shaders for efficient camera-facing orientation.
 class BillboardRenderer {
   
-  /// Create a solid color billboard node
-  /// 
-  /// REQUIRES custom shaders to be compiled and loaded successfully.
-  /// Will throw exceptions if shader requirements are not met.
-  static Node createSolidBillboard({
-    required vm.Vector3 position,
-    required vm.Vector2 size,
-    required Color color,
-    required double viewportWidth,
-    required double viewportHeight,
-    double opacity = 1.0,
-    String? id,
-  }) {
-    try {
-      // Create billboard geometry at origin (0,0,0) - Node's localTransform handles positioning
-      final geometry = BillboardGeometry(
-        width: size.x,
-        height: size.y,
-        position: vm.Vector3.zero(), // Position handled by Node's localTransform
-        viewportWidth: viewportWidth,
-        viewportHeight: viewportHeight,
-      );
-      
-      // Create billboard material
-      final material = BillboardMaterial(
-        billboardPosition: position,
-        billboardSize: size,
-        color: color,
-        opacity: opacity,
-      );
-      
-      // Create mesh
-      final mesh = Mesh.primitives(
-        primitives: [MeshPrimitive(geometry, material)],
-      );
-      
-      // Create node
-      final node = Node();
-      node.mesh = mesh;
-      node.localTransform = vm.Matrix4.translation(position);
-      
-      // Encode metadata in name for scene graph processing
-      final nodeId = id ?? 'billboard';
-      node.name = 'billboard_${nodeId}_${size.x.toStringAsFixed(0)}x${size.y.toStringAsFixed(0)}';
-      
-      return node;
-      
-    } catch (e) {
-      AppLogger.error('BILLBOARD CREATION FAILED - This is likely due to shader compilation issues: $e');
-      throw Exception(
-        'Failed to create solid billboard. This typically indicates:\n'
-        '1. Shader compilation failed (check shaders/ directory)\n'
-        '2. Build hook not working (check hook/build.dart)\n'
-        '3. Shader bundle not generated (check build/shaderbundles/)\n'
-        'Original error: $e'
-      );
-    }
-  }
   
   /// Create a textured billboard node
   /// 

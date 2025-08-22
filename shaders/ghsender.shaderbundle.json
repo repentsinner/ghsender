@@ -11,12 +11,8 @@
     "type": "vertex",
     "file": "shaders/billboard_vertex.vert"
   },
-  "BillboardFragmentSolid": {
+  "BillboardFragment": {
     "type": "fragment",
-    "file": "shaders/billboard_fragment_solid.frag"
-  },
-  "BillboardFragmentTextured": {
-    "type": "fragment",
-    "file": "shaders/billboard_fragment_textured.frag"
+    "file": "shaders/billboard_fragment.frag"
   }
 }
