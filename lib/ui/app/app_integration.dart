@@ -44,6 +44,7 @@ class _AppIntegrationLayerState extends State<AppIntegrationLayer> {
     // Set up communication bloc references
     machineBloc.add(MachineControllerSetCommunicationBloc(commBloc));
     machineBloc.add(MachineControllerSetAlarmErrorBloc(alarmErrorBloc));
+    machineBloc.add(MachineControllerSetProblemsBloc(problemsBloc));
     settingsBloc.add(SettingsSetCommunicationBloc(commBloc));
     alarmErrorBloc.add(AlarmErrorSetCommunicationBloc(commBloc));
     

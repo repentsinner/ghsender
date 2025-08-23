@@ -3,11 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../models/machine_controller.dart';
 import '../../models/machine_configuration.dart';
 import '../../models/alarm_error_metadata.dart';
+import '../../models/problem.dart';
 import '../../utils/logger.dart';
 import 'machine_controller_event.dart';
 import 'machine_controller_state.dart';
 import '../communication/cnc_communication_state.dart';
 import '../communication/cnc_communication_event.dart';
+import '../problems/problems_event.dart';
 
 /// BLoC for managing machine controller state from CNC communication responses
 class MachineControllerBloc
@@ -18,17 +20,27 @@ class MachineControllerBloc
   // Reference to alarm/error bloc for metadata lookup
   dynamic _alarmErrorBloc;
 
+  // Reference to problems bloc for creating problem entries
+  dynamic _problemsBloc;
+
   // Timer for grblHAL detection timeout
   Timer? _grblHalDetectionTimeout;
 
   // Timer for firmware unresponsive detection
   Timer? _firmwareUnresponsiveDetectionTimer;
+  
+  // Timer for initialization response timeout
+  Timer? _initializationTimeout;
 
   // Stream subscription for real-time message processing
   StreamSubscription? _messageStreamSubscription;
   
   // Debug: Track configuration messages received
   int _configMessagesReceived = 0;
+  
+  // Initialization state tracking
+  bool _initializationComplete = false;
+  bool _statusPollingStarted = false;
 
   // Throttling for jog command logging (to avoid spam during continuous jogging)
   DateTime? _lastJogLogTime;
@@ -58,6 +70,7 @@ class MachineControllerBloc
     on<MachineControllerGrblHalDetected>(_onGrblHalDetected);
     on<MachineControllerSetCommunicationBloc>(_onSetCommunicationBloc);
     on<MachineControllerSetAlarmErrorBloc>(_onSetAlarmErrorBloc);
+    on<MachineControllerSetProblemsBloc>(_onSetProblemsBloc);
     on<MachineControllerConfigurationReceived>(_onConfigurationReceived);
     on<MachineControllerBufferStatusUpdated>(_onBufferStatusUpdated);
     on<MachineControllerPluginsDetected>(_onPluginsDetected);
@@ -163,9 +176,14 @@ class MachineControllerBloc
     Emitter<MachineControllerState> emit,
     DateTime timestamp,
   ) {
-    // Cancel grblHAL detection timeout on disconnect
+    // Cancel all timeouts on disconnect
     _cancelGrblHalDetectionTimeout();
     _cancelFirmwareUnresponsiveDetectionTimer();
+    _cancelInitializationTimeout();
+    
+    // Reset initialization state
+    _initializationComplete = false;
+    _statusPollingStarted = false;
 
     if (state.controller != null) {
       final updatedController = state.controller!.copyWith(
@@ -541,34 +559,69 @@ class MachineControllerBloc
     Emitter<MachineControllerState> emit,
   ) {
     if (state.controller != null) {
-      final updatedController = state.controller!.copyWith(
-        isOnline: event.isOnline,
-        lastCommunication: event.timestamp,
-      );
+      if (event.isOnline) {
+        // Update controller for online status
+        final updatedController = state.controller!.copyWith(
+          isOnline: event.isOnline,
+          lastCommunication: event.timestamp,
+        );
 
-      // Clear machine position when going offline
-      final controllerWithClearedPosition = event.isOnline 
-          ? updatedController 
-          : updatedController.copyWith(machinePosition: null);
+        emit(
+          state.copyWith(
+            controller: updatedController,
+            lastUpdateTime: event.timestamp,
+          ),
+        );
+      } else {
+        // Comprehensive cleanup and state reset when going offline
+        _performDisconnectCleanup();
+        
+        // Reset all connection-related state
+        final clearedController = state.controller!.copyWith(
+          isOnline: false,
+          lastCommunication: event.timestamp,
+          machinePosition: null, // Clear position
+        );
 
-      emit(
-        state.copyWith(
-          controller: controllerWithClearedPosition,
-          lastUpdateTime: event.timestamp,
-        ),
-      );
-
-      AppLogger.machineInfo(
-        'Machine connection changed: ${event.isOnline ? 'online' : 'offline'}${event.isOnline ? '' : ' - machine position cleared'}',
-      );
-
-      // Stop polling when machine goes offline
-      if (!event.isOnline && _communicationBloc != null) {
-        AppLogger.machineInfo('Machine offline - stopping status polling');
-        _communicationBloc.add(
-          CncCommunicationPollingControlRequested(enable: false),
+        emit(
+          state.copyWith(
+            controller: clearedController,
+            lastUpdateTime: event.timestamp,
+            // Reset grblHAL detection state
+            grblHalDetected: false,
+            grblHalVersion: null,
+            grblHalDetectedAt: null,
+            // Clear configuration
+            configuration: null,
+            // Reset buffer status
+            plannerBlocksAvailable: null,
+            rxBytesAvailable: null,
+            maxObservedBufferBlocks: null,
+            // Clear plugins
+            plugins: const [],
+            // Clear alarm/error conditions
+            activeAlarmConditions: const [],
+            activeErrorConditions: const [],
+            // Reset firmware communication timestamps
+            firmwareWelcomeReceivedAt: null,
+            lastStatusReceivedAt: null,
+            // Clear performance data
+            performanceData: null,
+            // Reset jog test state
+            jogTestRunning: false,
+            jogTestStartTime: null,
+            jogTestDurationSeconds: 0,
+            jogCount: 0,
+            jogDistance: 0.0,
+            jogFeedRate: 0,
+            stateTransitions: const [],
+          ),
         );
       }
+
+      AppLogger.machineInfo(
+        'Machine connection changed: ${event.isOnline ? 'online' : 'offline'}${event.isOnline ? '' : ' - all connection state cleared'}',
+      );
     }
   }
 
@@ -577,8 +630,47 @@ class MachineControllerBloc
     MachineControllerReset event,
     Emitter<MachineControllerState> emit,
   ) {
+    // Perform comprehensive cleanup (resets timers and state tracking)
+    _performDisconnectCleanup();
+    
+    // Emit clean state
     emit(const MachineControllerState(isInitialized: true));
-    AppLogger.machineInfo('Machine controller reset');
+    AppLogger.machineInfo('Machine controller reset - all state cleared');
+  }
+
+  /// Perform comprehensive cleanup when disconnecting from machine
+  /// Resets all timeout timers, initialization state, and clears CNC-related problems
+  void _performDisconnectCleanup() {
+    AppLogger.machineInfo('Performing comprehensive disconnect cleanup...');
+    
+    // Stop polling
+    if (_communicationBloc != null) {
+      AppLogger.machineInfo('Machine offline - stopping status polling');
+      _communicationBloc.add(
+        CncCommunicationPollingControlRequested(enable: false),
+      );
+    }
+    
+    // Cancel all timeout timers
+    _cancelGrblHalDetectionTimeout();
+    _cancelInitializationTimeout();
+    _firmwareUnresponsiveDetectionTimer?.cancel();
+    _firmwareUnresponsiveDetectionTimer = null;
+    
+    // Reset initialization state tracking
+    _initializationComplete = false;
+    _statusPollingStarted = false;
+    _configMessagesReceived = 0;
+    
+    // Clear CNC-related problems from ProblemsBloc
+    if (_problemsBloc != null) {
+      AppLogger.machineInfo('Clearing CNC-related problems on disconnect');
+      _problemsBloc.add(const ProblemsClearedForSource('CNC Communication'));
+      _problemsBloc.add(const ProblemsClearedForSource('Machine State'));
+      _problemsBloc.add(const ProblemsClearedForSource('Performance'));
+    }
+    
+    AppLogger.machineInfo('Disconnect cleanup completed');
   }
 
   // Old _checkForGrblHalWelcomeMessage method removed - now using individual message events
@@ -622,6 +714,17 @@ class MachineControllerBloc
     );
   }
 
+  /// Handle problems bloc reference setup
+  void _onSetProblemsBloc(
+    MachineControllerSetProblemsBloc event,
+    Emitter<MachineControllerState> emit,
+  ) {
+    _problemsBloc = event.problemsBloc;
+    AppLogger.machineDebug(
+      'Problems bloc reference set in machine controller',
+    );
+  }
+
   /// Handle grblHAL detection
   void _onGrblHalDetected(
     MachineControllerGrblHalDetected event,
@@ -648,7 +751,8 @@ class MachineControllerBloc
     _configureGrblHalReporting();
   }
 
-  /// Configure grblHAL for optimal status reporting and start polling
+  /// Configure grblHAL for optimal status reporting
+  /// Status polling will only start after initialization responses are received
   void _configureGrblHalReporting() {
     if (_communicationBloc == null) {
       AppLogger.machineError(
@@ -657,7 +761,12 @@ class MachineControllerBloc
       return;
     }
 
-    AppLogger.machineInfo('Configuring grblHAL for optimal reporting and starting status polling');
+    AppLogger.machineInfo('Configuring grblHAL for optimal reporting - status polling will start after responses received');
+    
+    // Reset initialization state
+    _initializationComplete = false;
+    _configMessagesReceived = 0;
+    _statusPollingStarted = false;
 
     // Send grblHAL configuration commands directly
     AppLogger.machineInfo('Sending grblHAL initialization sequence with context info...');
@@ -709,18 +818,12 @@ class MachineControllerBloc
     AppLogger.machineInfo('11. Requesting initial status (0x80)');
     _communicationBloc.add(CncCommunicationSendRawBytes([0x80]));
 
-    // Start continuous status polling using CommunicationBloc
-    AppLogger.machineInfo('12. Starting continuous status polling');
-    _communicationBloc.add(
-      CncCommunicationPollingControlRequested(
-        enable: true,
-        rawCommand: [0x80], // grblHAL preferred status request
-      ),
-    );
+    // Start initialization timeout - status polling will only start after responses received
+    AppLogger.machineInfo('12. Starting initialization timeout - waiting for responses before status polling');
+    _startInitializationTimeout();
 
-    // Schedule backup queries for critical travel limit settings after a delay
-    // This ensures we get these settings even if the bulk $ query fails or is incomplete  
-    // NOTE: No backup individual queries - bulk query needs to be fixed
+    // NOTE: Status polling is now deferred until initialization responses are confirmed
+    // This prevents flooding an unresponsive controller with 8ms status requests
   }
 
 
@@ -847,6 +950,13 @@ class MachineControllerBloc
           'This may indicate an unresponsive controller, standard GRBL firmware, or communication issues',
         );
 
+        // Create problem entry for non-grblHAL system
+        if (_problemsBloc != null) {
+          final problem = ProblemFactory.cncNotGrblHalSystem();
+          _problemsBloc.add(ProblemAdded(problem));
+          AppLogger.machineInfo('Created grblHAL detection timeout problem: ${problem.id}');
+        }
+
         // Disconnect since we only support grblHAL
         if (_communicationBloc != null) {
           _communicationBloc.add(CncCommunicationDisconnectRequested());
@@ -875,6 +985,102 @@ class MachineControllerBloc
   void _cancelGrblHalDetectionTimeout() {
     _grblHalDetectionTimeout?.cancel();
     _grblHalDetectionTimeout = null;
+  }
+
+  /// Start initialization response timeout
+  /// Monitors for configuration and status responses after grblHAL detection
+  /// If no responses received within timeout, creates "grblHAL unresponsive" problem
+  void _startInitializationTimeout() {
+    _cancelInitializationTimeout();
+
+    AppLogger.machineInfo('Starting initialization response timeout (15 seconds)');
+    _initializationTimeout = Timer(const Duration(seconds: 15), () {
+      if (!_initializationComplete) {
+        AppLogger.machineError(
+          'grblHAL initialization timeout - received $_configMessagesReceived config messages, '
+          'status polling: $_statusPollingStarted',
+        );
+        AppLogger.machineError(
+          'grblHAL appears unresponsive to configuration commands after successful welcome message',
+        );
+
+        // Create problem entry for grblHAL unresponsive during initialization
+        if (_problemsBloc != null) {
+          final problem = ProblemFactory.cncInitializationTimeout(
+            configMessagesReceived: _configMessagesReceived,
+          );
+          _problemsBloc.add(ProblemAdded(problem));
+          AppLogger.machineInfo('Created initialization timeout problem: ${problem.id}');
+        }
+        if (_communicationBloc != null) {
+          _communicationBloc.add(CncCommunicationDisconnectRequested());
+        }
+
+        // Update machine controller state to reflect disconnection and error
+        add(
+          MachineControllerConnectionChanged(
+            isOnline: false,
+            timestamp: DateTime.now(),
+          ),
+        );
+      }
+    });
+  }
+
+  /// Cancel initialization timeout
+  void _cancelInitializationTimeout() {
+    _initializationTimeout?.cancel();
+    _initializationTimeout = null;
+  }
+
+  /// Check if initialization is complete and start status polling if ready
+  void _checkInitializationProgress() {
+    if (_initializationComplete || _statusPollingStarted) {
+      return; // Already complete or polling already started
+    }
+
+    // Check if we have received sufficient responses to consider initialization complete
+    // Minimum requirements:
+    // 1. At least some configuration messages (indicates controller is responding)
+    // 2. At least one status response OR enough config messages to indicate activity
+    bool hasConfigResponse = _configMessagesReceived > 0;
+    bool hasStatusResponse = state.lastStatusReceivedAt != null;
+    bool hasMinimalResponse = _configMessagesReceived >= 5; // Reasonable threshold
+
+    if (hasConfigResponse && (hasStatusResponse || hasMinimalResponse)) {
+      AppLogger.machineInfo(
+        'Initialization complete - received $_configMessagesReceived config messages, '
+        'status response: ${hasStatusResponse ? 'yes' : 'no'}',
+      );
+      
+      _initializationComplete = true;
+      _cancelInitializationTimeout();
+      
+      // Now safe to start status polling
+      _startStatusPolling();
+    } else {
+      AppLogger.machineDebug(
+        'Initialization progress - config: $_configMessagesReceived, '
+        'status: ${hasStatusResponse ? 'received' : 'pending'}',
+      );
+    }
+  }
+
+  /// Start continuous status polling after initialization is confirmed
+  void _startStatusPolling() {
+    if (_statusPollingStarted || _communicationBloc == null) {
+      return;
+    }
+
+    AppLogger.machineInfo('Starting continuous status polling - initialization confirmed');
+    _statusPollingStarted = true;
+    
+    _communicationBloc.add(
+      CncCommunicationPollingControlRequested(
+        enable: true,
+        rawCommand: [0x80], // grblHAL preferred status request
+      ),
+    );
   }
 
   /// Start firmware unresponsive detection timer
@@ -1099,12 +1305,18 @@ class MachineControllerBloc
 
     // Parse coordinates and other data from the full message
     _parseStatusDetailsForStream(cleanMessage, machineStatus, timestamp);
+    
+    // Check if we can now start status polling (if not already started)
+    _checkInitializationProgress();
   }
 
   /// Process individual configuration message (for stream processing)
   void _processConfigurationMessage(String message, DateTime timestamp) {
     _configMessagesReceived++;
     // Configuration messages processed silently to avoid log spam
+    
+    // Check if we can now start status polling
+    _checkInitializationProgress();
     
     // Remove "Received: " prefix if present
     final cleanMessage = message.startsWith('Received: ')
@@ -1600,6 +1812,7 @@ class MachineControllerBloc
   Future<void> close() {
     _cancelGrblHalDetectionTimeout();
     _cancelFirmwareUnresponsiveDetectionTimer();
+    _cancelInitializationTimeout();
     _messageStreamSubscription?.cancel();
     return super.close();
   }

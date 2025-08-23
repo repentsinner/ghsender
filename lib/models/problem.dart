@@ -203,6 +203,8 @@ class ProblemIds {
   static const String cncConnectionUnstable = 'cnc_connection_unstable';
   static const String cncMachineAlarm = 'cnc_machine_alarm';
   static const String cncConnectionTimeout = 'cnc_connection_timeout';
+  static const String cncInitializationTimeout = 'cnc_initialization_timeout';
+  static const String cncNotGrblHalSystem = 'cnc_not_grblhal_system';
   static const String cncDoorOpen = 'cnc_door_open';
   static const String cncFirmwareUnresponsive = 'cnc_firmware_unresponsive';
   
@@ -308,6 +310,55 @@ class ProblemFactory {
       description: 'WebSocket connection validation timed out. '
           'The controller may not support WebSocket protocol or may be unreachable.',
       timestamp: DateTime.now(),
+    );
+  }
+
+  /// Create an initialization timeout problem
+  static Problem cncInitializationTimeout({int? configMessagesReceived}) {
+    final messagePart = configMessagesReceived != null && configMessagesReceived > 0
+        ? ' Only received $configMessagesReceived configuration messages.'
+        : ' No configuration responses received.';
+    
+    return Problem(
+      id: ProblemIds.cncInitializationTimeout,
+      severity: ProblemSeverity.error,
+      source: 'CNC Communication',
+      title: 'grblHAL Unresponsive',
+      description: 'Controller responded to the initial connection but failed to respond '
+          'to configuration and status requests within 15 seconds.$messagePart '
+          'This indicates the controller firmware may be hung or unresponsive.',
+      timestamp: DateTime.now(),
+      metadata: {
+        'configMessagesReceived': configMessagesReceived ?? 0,
+        'timeoutSeconds': 15,
+      },
+      actions: [
+        ProblemAction(
+          id: 'reboot_controller',
+          label: 'Reboot Controller',
+          type: ProblemActionType.rawCommand,
+          command: '0x18', // grblHAL soft reset
+          icon: '🔄',
+        ),
+      ],
+    );
+  }
+
+  /// Create a problem for non-grblHAL systems
+  static Problem cncNotGrblHalSystem() {
+    return Problem(
+      id: ProblemIds.cncNotGrblHalSystem,
+      severity: ProblemSeverity.error,
+      source: 'CNC Communication',
+      title: 'Not a grblHAL System',
+      description: 'WebSocket connection established but no grblHAL welcome message received '
+          'within the timeout period. The controller may not be running grblHAL firmware '
+          'or may not support the expected communication protocol.',
+      timestamp: DateTime.now(),
+      metadata: {
+        'expectedWelcome': 'grblHAL',
+        'timeoutSeconds': 10,
+      },
     );
   }
   

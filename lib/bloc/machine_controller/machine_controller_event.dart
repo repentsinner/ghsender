@@ -313,6 +313,16 @@ class MachineControllerSetAlarmErrorBloc extends MachineControllerEvent {
   List<Object?> get props => [alarmErrorBloc];
 }
 
+/// Set problems bloc reference for creating problem entries
+class MachineControllerSetProblemsBloc extends MachineControllerEvent {
+  final dynamic problemsBloc;
+  
+  const MachineControllerSetProblemsBloc(this.problemsBloc);
+  
+  @override
+  List<Object?> get props => [problemsBloc];
+}
+
 /// Firmware welcome message received
 class MachineControllerFirmwareWelcomeReceived extends MachineControllerEvent {
   final DateTime timestamp;

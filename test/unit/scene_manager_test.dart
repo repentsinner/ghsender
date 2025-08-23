@@ -117,7 +117,7 @@ void main() {
         await sceneManager.initialize();
         
         // Create test G-code data
-        final testGCodePath = GCodePath(
+        final testGCodePath = GCodePath.fromBounds(
           commands: [
             GCodeCommand(
               type: GCodeCommandType.rapidMove,
@@ -223,7 +223,7 @@ void main() {
         final sceneUpdates = <SceneData?>[];
         sceneManager.sceneUpdates.listen((sceneData) => sceneUpdates.add(sceneData));
 
-        final testGCodePath = GCodePath(
+        final testGCodePath = GCodePath.fromBounds(
           commands: [
             GCodeCommand(
               type: GCodeCommandType.linearMove,
@@ -264,7 +264,7 @@ void main() {
         // This tests the private _createCameraConfiguration method indirectly
         await sceneManager.initialize();
         
-        final testGCodePath = GCodePath(
+        final testGCodePath = GCodePath.fromBounds(
           commands: [
             GCodeCommand(
               type: GCodeCommandType.linearMove,

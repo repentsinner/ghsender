@@ -12,7 +12,7 @@ void main() {
 
     setUp(() {
       // Standard work envelope: -100 to 0 in all axes
-      workEnvelope = WorkEnvelope(
+      workEnvelope = WorkEnvelope.fromBounds(
         minBounds: vm.Vector3(-100.0, -100.0, -100.0),
         maxBounds: vm.Vector3(0.0, 0.0, 0.0),
         units: 'mm',

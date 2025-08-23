@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'machine_configuration.dart';
+import 'bounding_box.dart';
 import '../utils/logger.dart';
 
 /// Machine controller status enumeration
@@ -266,20 +267,43 @@ class ActiveCodes extends Equatable {
 /// Example: If machine can travel X=-285 to X=0, the work envelope might be
 /// X=-284 to X=-1 after applying pulloff distance safety buffer.
 class WorkEnvelope extends Equatable {
-  final vm.Vector3 minBounds;
-  final vm.Vector3 maxBounds;
-  final String units;
+  /// The geometric bounding box representing machine soft limits
+  final BoundingBox bounds;
+  
+  /// When this envelope was last updated (for state change detection)
   final DateTime lastUpdated;
+  
+  // Note: Removed 'units' field as per BOUNDING_BOX.md - always mm internally
 
   const WorkEnvelope({
-    required this.minBounds,
-    required this.maxBounds,
-    this.units = 'mm',
+    required this.bounds,
     required this.lastUpdated,
   });
+  
+  /// Legacy constructor for backward compatibility during migration
+  /// Creates WorkEnvelope from individual minBounds/maxBounds
+  factory WorkEnvelope.fromBounds({
+    required vm.Vector3 minBounds,
+    required vm.Vector3 maxBounds,
+    String? units, // Ignored - always mm internally
+    required DateTime lastUpdated,
+  }) {
+    return WorkEnvelope(
+      bounds: BoundingBox(
+        minBounds: minBounds,
+        maxBounds: maxBounds,
+      ),
+      lastUpdated: lastUpdated,
+    );
+  }
+
+  /// Legacy getters for backward compatibility
+  vm.Vector3 get minBounds => bounds.minBounds;
+  vm.Vector3 get maxBounds => bounds.maxBounds;
+  String get units => 'mm'; // Always mm internally
 
   @override
-  List<Object?> get props => [minBounds, maxBounds, units, lastUpdated];
+  List<Object?> get props => [bounds, lastUpdated];
 
   /// Calculate work envelope from grblHAL machine configuration
   /// Based on grblHAL's limits_set_work_envelope() logic
@@ -317,7 +341,7 @@ class WorkEnvelope extends Equatable {
 
     // Only log WorkEnvelope creation once when it first succeeds, not on every call
 
-    return WorkEnvelope(
+    return WorkEnvelope.fromBounds(
       minBounds: minBounds,
       maxBounds: maxBounds,
       units: config.reportInches == true ? 'inch' : 'mm',
@@ -325,22 +349,39 @@ class WorkEnvelope extends Equatable {
     );
   }
 
-  /// Get work envelope dimensions
-  vm.Vector3 get dimensions => maxBounds - minBounds;
+  /// Get work envelope dimensions  
+  vm.Vector3 get dimensions => bounds.size;
 
   /// Get work envelope center point
-  vm.Vector3 get center => (minBounds + maxBounds) * 0.5;
+  vm.Vector3 get center => bounds.center;
 
   WorkEnvelope copyWith({
+    BoundingBox? bounds,
     vm.Vector3? minBounds,
     vm.Vector3? maxBounds,
-    String? units,
+    String? units, // Ignored - always mm internally
     DateTime? lastUpdated,
   }) {
+    // If new bounds provided directly, use them
+    if (bounds != null) {
+      return WorkEnvelope(
+        bounds: bounds,
+        lastUpdated: lastUpdated ?? this.lastUpdated,
+      );
+    }
+    
+    // Legacy support: if minBounds/maxBounds provided, create BoundingBox
+    if (minBounds != null || maxBounds != null) {
+      return WorkEnvelope.fromBounds(
+        minBounds: minBounds ?? this.minBounds,
+        maxBounds: maxBounds ?? this.maxBounds,
+        lastUpdated: lastUpdated ?? this.lastUpdated,
+      );
+    }
+    
+    // No bounds changes, just update lastUpdated if provided
     return WorkEnvelope(
-      minBounds: minBounds ?? this.minBounds,
-      maxBounds: maxBounds ?? this.maxBounds,
-      units: units ?? this.units,
+      bounds: this.bounds,
       lastUpdated: lastUpdated ?? this.lastUpdated,
     );
   }
