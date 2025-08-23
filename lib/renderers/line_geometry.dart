@@ -127,7 +127,7 @@ class LineGeometry extends UnskinnedGeometry {
         ]);
       }
 
-      // Add quad indices (2 triangles) with correct winding (clockwise)
+      // Add quad indices (2 triangles) with counter-clockwise winding for Impeller
       indices.addAll([
         vertexOffset + 0, vertexOffset + 2, vertexOffset + 1, // Triangle 1
         vertexOffset + 1, vertexOffset + 2, vertexOffset + 3, // Triangle 2

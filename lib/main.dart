@@ -16,7 +16,7 @@ void main() async {
 
   // Initialize shader service - MUST be done before any UI rendering
   try {
-    await ShaderService.instance.initialize();
+    ShaderService.instance.initialize();
     AppLogger.info('ShaderService initialized successfully');
   } catch (e) {
     AppLogger.error('Failed to initialize ShaderService - app may not render properly', e);

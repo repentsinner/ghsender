@@ -1,13 +1,25 @@
 # Line2/LineSegments2 Implementation Plan for Flutter Scene
 
 ## Overview
-Implement Three.js-compatible Line2/LineSegments2 for Flutter Scene using instanced quad tessellation, following the proven Three.js LineMaterial architecture for anti-aliased thick lines.
+Implement Three.js-compatible Line2/LineSegments2 for Flutter Scene following the proven Three.js LineMaterial architecture for anti-aliased thick lines, **adapted for Flutter Scene's architectural constraints**.
 
-## Architecture Decision: Three.js Compatibility
-- Follow Three.js LineSegment2 implementation as closely as possible (known good, well-tested)
-- Use instanced geometry for quad tessellation (efficient GPU rendering)
-- Vertex shader performs line-to-quad expansion (GPU tessellation)
-- Fragment shader handles anti-aliasing via distance calculations
+## Architecture Decision: Flutter Scene Adaptation (Not True Three.js Instancing)
+
+**⚠️ Critical Constraint: Flutter Scene Prevents True Instancing**
+
+Due to Flutter Scene's fixed vertex attribute format (see `docs/FLUTTER_SCENE_ARCHITECTURE.md`), we **cannot implement true Three.js-style instanced geometry**:
+
+- **What Three.js does**: Base quad (6 vertices) + instanced attributes per line segment
+- **What Flutter Scene forces**: 12 floats per vertex × 4 vertices per line segment × N segments
+- **Impact**: Higher memory usage but same visual fidelity
+
+**Current Implementation Strategy:**
+- ✅ **Visual fidelity**: Identical to Three.js Line2 (anti-aliasing, pixel-perfect widths)
+- ✅ **Algorithmic fidelity**: Same vertex/fragment shader logic as Three.js
+- ❌ **Memory efficiency**: Cannot use true instancing due to Flutter Scene constraints
+- 🔄 **Future migration**: Ready to adopt true instancing when Flutter Scene supports custom vertex formats
+
+**Migration Path**: When Flutter Scene adds support for custom vertex attributes or instanced rendering, we can refactor to use true Three.js-style instancing for better memory efficiency.
 
 ## Shader Strategy: Extract and Adapt Three.js LineMaterial
 - **Extract GLSL shaders** from Three.js LineMaterial source (proven, battle-tested algorithm)

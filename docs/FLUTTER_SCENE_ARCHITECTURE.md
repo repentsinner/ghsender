@@ -268,7 +268,8 @@ Flutter Scene uses the `flutter_gpu_shaders` package for shader compilation:
 1. **Shader Files**: Write GLSL shaders in `shaders/` directory
 2. **Bundle Configuration**: Define shaders in `shaders/[name].shaderbundle.json`
 3. **Build Hook**: Compile shaders via `hook/build.dart`
-4. **Runtime Loading**: Load via `gpu.ShaderLibrary.fromAsset()`
+4. **Runtime Loading**: Load via `gpu.ShaderLibrary.fromAsset()`.
+   - **Important Note**: This operation is **synchronous**. The build hook embeds the compiled shader bundle directly into the application binary, allowing for immediate memory mapping at runtime without asynchronous file I/O. This is a key optimization in the `flutter_gpu` pipeline.
 
 ### Creating Custom Geometry and Materials
 
