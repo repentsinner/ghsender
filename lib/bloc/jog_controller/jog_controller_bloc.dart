@@ -8,6 +8,7 @@ import '../../utils/logger.dart';
 import '../../models/machine_controller.dart';
 import '../machine_controller/machine_controller_bloc.dart';
 import '../machine_controller/machine_controller_event.dart';
+import '../machine_controller/machine_controller_state.dart';
 import '../communication/cnc_communication_bloc.dart';
 import '../communication/cnc_communication_event.dart';
 import 'jog_controller_event.dart';
@@ -25,6 +26,10 @@ class JogControllerBloc extends Bloc<JogControllerEvent, JogControllerState> {
   // Predicted position tracking for soft limit filtering
   vm.Vector3? _predictedPosition;
   DateTime? _lastPositionUpdate;
+  
+  // Machine state monitoring for prediction reset
+  StreamSubscription<MachineControllerState>? _machineStateSubscription;
+  MachineStatus? _lastMachineStatus;
 
   JogControllerBloc({
     required MachineControllerBloc machineControllerBloc,
@@ -45,6 +50,9 @@ class JogControllerBloc extends Bloc<JogControllerEvent, JogControllerState> {
     on<ProbeRequested>(_onProbe);
     on<ProbeSettingsUpdated>(_onProbeSettingsUpdated);
     on<HomingRequested>(_onHoming);
+    
+    // Monitor machine state changes to reset prediction state
+    _setupMachineStateMonitoring();
   }
 
   /// Handle initialization
@@ -320,6 +328,9 @@ class JogControllerBloc extends Bloc<JogControllerEvent, JogControllerState> {
 
   /// Handle jog stop request
   void _onJogStop(JogStopRequested event, Emitter<JogControllerState> emit) {
+    // Reset predicted position state immediately when jog is stopped
+    _resetPredictedPosition();
+    
     // Update joystick state to inactive
     emit(state.copyWith(joystickState: JoystickState.inactive));
 
@@ -563,6 +574,36 @@ class JogControllerBloc extends Bloc<JogControllerEvent, JogControllerState> {
       _lastPositionUpdate = DateTime.now();
     }
   }
+  
+  /// Reset predicted position state (called when jogging stops or machine status changes)
+  void _resetPredictedPosition() {
+    if (_predictedPosition != null || _lastPositionUpdate != null) {
+      _predictedPosition = null;
+      _lastPositionUpdate = null;
+      AppLogger.info('Reset jog controller predicted position state');
+    }
+  }
+  
+  /// Set up machine state monitoring to detect jog transitions
+  void _setupMachineStateMonitoring() {
+    _lastMachineStatus = _machineControllerBloc.state.status;
+    
+    _machineStateSubscription = _machineControllerBloc.stream.listen((machineState) {
+      final currentStatus = machineState.status;
+      
+      // Check for transition from jogging to any other state
+      if (_lastMachineStatus == MachineStatus.jogging && 
+          currentStatus != MachineStatus.jogging) {
+        AppLogger.info('Machine transitioned from jogging to ${currentStatus.name}, resetting prediction state');
+        _resetPredictedPosition();
+      }
+      
+      // Update last known status
+      _lastMachineStatus = currentStatus;
+    });
+    
+    AppLogger.info('Machine state monitoring initialized for jog controller prediction reset');
+  }
 
   /// Add input driver to the controller
   Future<void> addInputDriver(JogInputDriver driver) async {
@@ -622,6 +663,10 @@ class JogControllerBloc extends Bloc<JogControllerEvent, JogControllerState> {
 
   @override
   Future<void> close() async {
+    // Clean up machine state monitoring
+    await _machineStateSubscription?.cancel();
+    _machineStateSubscription = null;
+    
     // Clean up all input drivers
     for (int i = 0; i < _inputDrivers.length; i++) {
       await _driverSubscriptions[i].cancel();
