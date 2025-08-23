@@ -4,6 +4,8 @@ import 'package:ghsender/models/machine_configuration.dart';
 
 void main() {
   group('WorkEnvelope', () {
+    // WorkEnvelope represents machine soft limits (travel boundaries)
+    // This is distinct from JobEnvelope which represents G-code geometry bounds
     late MachineConfiguration testConfig;
     
     setUp(() {

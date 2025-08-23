@@ -161,14 +161,15 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
       }
       SceneManager.instance.updateWorkEnvelope(workEnvelope);
       
-      // Update camera target based on work envelope and machine position
-      _updateCameraTarget(workEnvelope, state.machinePosition);
+      // Update camera target based on job envelope and machine position
+      _updateCameraTarget(state.machinePosition);
     });
     AppLogger.info('Machine controller listener established for position updates');
   }
 
-  /// Update camera target based on work envelope and machine position
-  void _updateCameraTarget(WorkEnvelope? workEnvelope, MachineCoordinates? machinePosition) {
+  /// Update camera target based on job envelope (G-code bounds) and machine position
+  /// Note: Camera should focus on G-code geometry, not machine soft limits
+  void _updateCameraTarget(MachineCoordinates? machinePosition) {
     // Convert machine coordinates to Vector3 if available
     vm.Vector3? machinePositionVector;
     if (machinePosition != null) {
@@ -179,15 +180,16 @@ class _GrblHalVisualizerScreenState extends State<GrblHalVisualizerScreen> {
       );
     }
     
-    // Get work envelope centroid if available
-    vm.Vector3? workEnvelopeCentroid;
-    if (workEnvelope != null) {
-      workEnvelopeCentroid = workEnvelope.center;
+    // Get job envelope centroid if available (use G-code bounds for camera focus)
+    vm.Vector3? jobEnvelopeCentroid;
+    final currentJobEnvelope = SceneManager.instance.currentJobEnvelope;
+    if (currentJobEnvelope != null && !currentJobEnvelope.isEmpty) {
+      jobEnvelopeCentroid = currentJobEnvelope.center;
     }
     
-    // Update camera director with the new target
+    // Update camera director with the new target using job envelope
     _cameraDirector.updateDynamicTarget(
-      workEnvelopeCentroid: workEnvelopeCentroid,
+      jobEnvelopeCentroid: jobEnvelopeCentroid,
       machinePosition: machinePositionVector,
     );
   }

@@ -9,6 +9,8 @@ import '../gcode/gcode_processor.dart';
 import '../ui/themes/visualizer_theme.dart';
 import 'axes_factory.dart';
 import '../models/machine_controller.dart';
+import '../models/job_envelope.dart';
+import '../models/bounding_box.dart';
 
 /// Centralized scene manager that creates and manages the 3D scene
 /// All renderers receive the same scene data from this manager
@@ -33,6 +35,9 @@ class SceneManager {
 
   // Current work envelope for machine boundaries
   WorkEnvelope? _currentWorkEnvelope;
+  
+  // Current job envelope for G-code bounds
+  JobEnvelope? _currentJobEnvelope;
 
   // Stream controller for scene updates
   final StreamController<SceneData?> _sceneUpdateController =
@@ -90,8 +95,32 @@ class SceneManager {
     }
   }
 
-  /// Get current work envelope for renderer access
+  /// Get current work envelope for renderer access (machine soft limits)
   WorkEnvelope? get currentWorkEnvelope => _currentWorkEnvelope;
+  
+  /// Update the job envelope from G-code processing
+  void updateJobEnvelope(JobEnvelope? jobEnvelope) {
+    if (_currentJobEnvelope != jobEnvelope) {
+      _currentJobEnvelope = jobEnvelope;
+      AppLogger.info(
+        jobEnvelope != null
+            ? 'Job envelope updated: ${jobEnvelope.bounds}'
+            : 'Job envelope cleared',
+      );
+      
+      // Rebuild scene when job envelope changes (geometry rebuild needed)
+      if (_initialized) {
+        if (GCodeProcessor.instance.hasValidFile) {
+          _buildSceneFromProcessor();
+        } else {
+          _initializeEmptyScene();
+        }
+      }
+    }
+  }
+  
+  /// Get current job envelope for renderer access (G-code bounds)
+  JobEnvelope? get currentJobEnvelope => _currentJobEnvelope;
 
   /// Initialize the scene manager (sets up processor listening)
   Future<void> initialize() async {
@@ -117,10 +146,19 @@ class SceneManager {
     switch (event) {
       case GCodeProcessingCompleted completedEvent:
         AppLogger.info('G-code processing completed, updating scene');
+        // Create job envelope from G-code bounds
+        final jobEnvelope = JobEnvelope(
+          bounds: completedEvent.parsedData.bounds,
+          lastUpdated: DateTime.now(),
+          jobName: completedEvent.file.name,
+          totalOperations: completedEvent.parsedData.totalOperations,
+        );
+        updateJobEnvelope(jobEnvelope);
         _buildSceneFromParsedData(completedEvent.parsedData);
         break;
       case GCodeProcessingCleared _:
         AppLogger.info('G-code file cleared, resetting to empty scene');
+        updateJobEnvelope(null);
         _initializeEmptyScene();
         break;
       case GCodeProcessingFailed failedEvent:
@@ -159,6 +197,9 @@ class SceneManager {
 
       // Add work envelope if machine configuration is available
       final workEnvelopeSquares = _createWorkEnvelopeIfAvailable();
+      
+      // Add job envelope visualization if G-code is loaded
+      final jobEnvelopeSquares = _createJobEnvelopeIfAvailable();
 
       // Add machine position indicator (will be positioned via renderer transform updates)
       final machinePositionIndicator = _createMachinePositionIndicator();
@@ -168,6 +209,7 @@ class SceneManager {
         ...worldAxes,
         ...toolpathVisualization,
         ...workEnvelopeSquares,
+        ...jobEnvelopeSquares,
         machinePositionIndicator,
       ];
 
@@ -237,12 +279,15 @@ class SceneManager {
 
     // Add work envelope if machine configuration is available
     final workEnvelopeSquares = _createWorkEnvelopeIfAvailable();
+    
+    // Add job envelope visualization if available
+    final jobEnvelopeSquares = _createJobEnvelopeIfAvailable();
 
     // Add machine position indicator (will be positioned via renderer transform updates)
     final machinePositionIndicator = _createMachinePositionIndicator();
 
     _sceneData = SceneData(
-      objects: [...worldAxes, ...workEnvelopeSquares, machinePositionIndicator],
+      objects: [...worldAxes, ...workEnvelopeSquares, ...jobEnvelopeSquares, machinePositionIndicator],
       camera: cameraConfig,
       lighting: lightConfig,
     );
@@ -433,6 +478,113 @@ class SceneManager {
       'Created work envelope with ${cubeSquares.length} faces: $minBounds to $maxBounds ${workEnvelope.units}',
     );
     return cubeSquares;
+  }
+  
+  /// Create job envelope visualization if G-code is loaded
+  /// Returns empty list if no job envelope is available
+  List<SceneObject> _createJobEnvelopeIfAvailable() {
+    if (_currentJobEnvelope == null) {
+      return []; // No job envelope to render
+    }
+    return _createBoundingBoxVisualization(_currentJobEnvelope!.bounds, 'job envelope');
+  }
+  
+  /// Create bounding box visualization for any envelope type
+  /// Returns 6 rectangular faces forming a wireframe box
+  List<SceneObject> _createBoundingBoxVisualization(BoundingBox bounds, String debugLabel) {
+    final faces = <SceneObject>[];
+    
+    final minBounds = bounds.minBounds;
+    final maxBounds = bounds.maxBounds;
+    final center = bounds.center;
+    final size = bounds.size;
+
+    // Semi-transparent cube with distinct themed colors for each face pair
+    const double opacity = VisualizerTheme.cubeOpacity;
+
+    // XY plane faces (bottom and top)
+    faces.add(SceneObject(
+      type: SceneObjectType.filledRectangle,
+      center: vm.Vector3(center.x, center.y, minBounds.z),
+      width: size.x.abs(),
+      height: size.y.abs(),
+      plane: RectanglePlane.xy,
+      fillColor: VisualizerTheme.cubeXYFaceColor,
+      edgeColor: VisualizerTheme.cubeXYFaceColor.withValues(alpha: 0.8),
+      color: VisualizerTheme.cubeXYFaceColor,
+      opacity: opacity,
+      id: '${debugLabel}_xy_bottom',
+    ));
+    faces.add(SceneObject(
+      type: SceneObjectType.filledRectangle,
+      center: vm.Vector3(center.x, center.y, maxBounds.z),
+      width: size.x.abs(),
+      height: size.y.abs(),
+      plane: RectanglePlane.xy,
+      fillColor: VisualizerTheme.cubeXYFaceColor,
+      edgeColor: VisualizerTheme.cubeXYFaceColor.withValues(alpha: 0.8),
+      color: VisualizerTheme.cubeXYFaceColor,
+      opacity: opacity,
+      id: '${debugLabel}_xy_top',
+    ));
+
+    // XZ plane faces (front and back)
+    faces.add(SceneObject(
+      type: SceneObjectType.filledRectangle,
+      center: vm.Vector3(center.x, minBounds.y, center.z),
+      width: size.x.abs(),
+      height: size.z.abs(),
+      plane: RectanglePlane.xz,
+      fillColor: VisualizerTheme.cubeXZFaceColor,
+      edgeColor: VisualizerTheme.cubeXZFaceColor.withValues(alpha: 0.8),
+      color: VisualizerTheme.cubeXZFaceColor,
+      opacity: opacity,
+      id: '${debugLabel}_xz_front',
+    ));
+    faces.add(SceneObject(
+      type: SceneObjectType.filledRectangle,
+      center: vm.Vector3(center.x, maxBounds.y, center.z),
+      width: size.x.abs(),
+      height: size.z.abs(),
+      plane: RectanglePlane.xz,
+      fillColor: VisualizerTheme.cubeXZFaceColor,
+      edgeColor: VisualizerTheme.cubeXZFaceColor.withValues(alpha: 0.8),
+      color: VisualizerTheme.cubeXZFaceColor,
+      opacity: opacity,
+      id: '${debugLabel}_xz_back',
+    ));
+
+    // YZ plane faces (left and right)
+    faces.add(SceneObject(
+      type: SceneObjectType.filledRectangle,
+      center: vm.Vector3(minBounds.x, center.y, center.z),
+      width: size.y.abs(),
+      height: size.z.abs(),
+      plane: RectanglePlane.yz,
+      fillColor: VisualizerTheme.cubeYZFaceColor,
+      edgeColor: VisualizerTheme.cubeYZFaceColor.withValues(alpha: 0.8),
+      color: VisualizerTheme.cubeYZFaceColor,
+      opacity: opacity,
+      id: '${debugLabel}_yz_left',
+    ));
+    faces.add(SceneObject(
+      type: SceneObjectType.filledRectangle,
+      center: vm.Vector3(maxBounds.x, center.y, center.z),
+      width: size.y.abs(),
+      height: size.z.abs(),
+      plane: RectanglePlane.yz,
+      fillColor: VisualizerTheme.cubeYZFaceColor,
+      edgeColor: VisualizerTheme.cubeYZFaceColor.withValues(alpha: 0.8),
+      color: VisualizerTheme.cubeYZFaceColor,
+      opacity: opacity,
+      id: '${debugLabel}_yz_right',
+    ));
+
+    AppLogger.info(
+      'Created $debugLabel with ${faces.length} faces: $minBounds to $maxBounds',
+    );
+
+    return faces;
   }
 
   /// Create camera configuration optimized for the scene bounds

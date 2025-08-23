@@ -68,23 +68,23 @@ class CameraDirector {
     AppLogger.info('CameraDirector: Orbit target set to $_orbitTarget');
   }
 
-  /// Update camera target dynamically based on work envelope and machine position
+  /// Update camera target dynamically based on job envelope (G-code bounds) and machine position
   /// When both are available, sets the target to the midpoint between them
   /// 
   /// Note: This method accepts CNC coordinates and automatically converts them to
   /// display coordinates for the camera system.
   void updateDynamicTarget({
-    vm.Vector3? workEnvelopeCentroid,
+    vm.Vector3? jobEnvelopeCentroid,
     vm.Vector3? machinePosition,
   }) {
     vm.Vector3? newCncTarget;
     
-    if (workEnvelopeCentroid != null && machinePosition != null) {
-      // Calculate midpoint between work envelope centroid and machine position (in CNC space)
-      newCncTarget = (workEnvelopeCentroid + machinePosition) * 0.5;
-    } else if (workEnvelopeCentroid != null) {
-      // Only work envelope available - use its centroid
-      newCncTarget = workEnvelopeCentroid;
+    if (jobEnvelopeCentroid != null && machinePosition != null) {
+      // Calculate midpoint between job envelope centroid and machine position (in CNC space)
+      newCncTarget = (jobEnvelopeCentroid + machinePosition) * 0.5;
+    } else if (jobEnvelopeCentroid != null) {
+      // Only job envelope available - use its centroid
+      newCncTarget = jobEnvelopeCentroid;
     } else if (machinePosition != null) {
       // Only machine position available - use it as target
       newCncTarget = machinePosition;

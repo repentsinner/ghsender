@@ -5,6 +5,9 @@ import 'package:ghsender/models/machine_controller.dart';
 
 void main() {
   group('SoftLimitChecker', () {
+    // Note: SoftLimitChecker correctly uses WorkEnvelope (machine soft limits)
+    // This is semantically correct - soft limits are about machine travel boundaries,
+    // not G-code geometry bounds (which would be JobEnvelope).
     late WorkEnvelope workEnvelope;
     late vm.Vector3 centerPosition;
 
