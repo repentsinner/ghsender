@@ -10,6 +10,7 @@ enum ViolationType {
   toolCollision,
   programValidation,
   systemError,
+  invalidParameter,
 }
 
 /// Result of a domain validation operation
