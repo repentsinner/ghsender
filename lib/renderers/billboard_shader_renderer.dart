@@ -261,8 +261,6 @@ class BillboardMaterial extends UnlitMaterial {
         heightAddressMode: gpu.SamplerAddressMode.clampToEdge, // Prevent edge artifacts
       ),
     );
-    
-    AppLogger.debug('BillboardMaterial.bind() completed with pixel-perfect texture sampling');
   }
 }
 

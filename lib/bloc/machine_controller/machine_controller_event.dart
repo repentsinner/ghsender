@@ -375,16 +375,18 @@ class MachineControllerContinuousJogStopped extends MachineControllerEvent {
 class MachineControllerMultiAxisJogRequested extends MachineControllerEvent {
   final double xDistance; // X axis distance in mm (can be 0)
   final double yDistance; // Y axis distance in mm (can be 0)
+  final double? zDistance; // Optional Z axis distance in mm (can be 0)
   final int feedRate; // Feed rate for the combined movement in mm/min
   
   const MachineControllerMultiAxisJogRequested({
     required this.xDistance,
     required this.yDistance,
+    this.zDistance,
     required this.feedRate,
   });
   
   @override
-  List<Object?> get props => [xDistance, yDistance, feedRate];
+  List<Object?> get props => [xDistance, yDistance, zDistance, feedRate];
 }
 
 /// Machine configuration received and parsed from $ command response

@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'machine_configuration.dart';
+import '../utils/logger.dart';
 
 /// Machine controller status enumeration
 enum MachineStatus {
@@ -251,6 +252,19 @@ class ActiveCodes extends Equatable {
 }
 
 /// Work envelope representing machine soft limits and travel boundaries
+/// 
+/// Based on grblHAL's limits_set_work_envelope() logic:
+/// - Represents the safe operating boundaries within the machine's physical limits
+/// - Calculated as: hard limits minus homing pulloff distance  
+/// - This is the boundary that MACHINE POSITION (MPos) should stay within
+/// - Different from work position (WPos) which is workpiece coordinates
+/// 
+/// Usage in soft limits checking:
+/// - Check: Machine Position + Jog Vector vs Work Envelope
+/// - NOT: Work Position vs Work Envelope (that's for different use cases)
+///
+/// Example: If machine can travel X=-285 to X=0, the work envelope might be
+/// X=-284 to X=-1 after applying pulloff distance safety buffer.
 class WorkEnvelope extends Equatable {
   final vm.Vector3 minBounds;
   final vm.Vector3 maxBounds;
@@ -269,6 +283,10 @@ class WorkEnvelope extends Equatable {
 
   /// Calculate work envelope from grblHAL machine configuration
   /// Based on grblHAL's limits_set_work_envelope() logic
+  /// 
+  /// Creates the soft limits boundary by taking machine travel limits and applying
+  /// safety margins. This boundary should be checked against MACHINE POSITION (MPos),
+  /// not work position (WPos).
   static WorkEnvelope? fromConfiguration(MachineConfiguration config) {
     // Require all three axis travel limits to be available
     final xTravel = config.xMaxTravel;
@@ -276,6 +294,11 @@ class WorkEnvelope extends Equatable {
     final zTravel = config.zMaxTravel;
     
     if (xTravel == null || yTravel == null || zTravel == null) {
+      final missing = <String>[];
+      if (xTravel == null) missing.add('xMaxTravel');
+      if (yTravel == null) missing.add('yMaxTravel');
+      if (zTravel == null) missing.add('zMaxTravel');
+      AppLogger.jogInfo('WorkEnvelope creation FAILED: missing ${missing.join(', ')} from machine configuration');
       return null;
     }
 
@@ -291,6 +314,8 @@ class WorkEnvelope extends Equatable {
     // This follows the standard CNC convention where home is at max positive position
     final minBounds = vm.Vector3(-xMax, -yMax, -zMax);
     final maxBounds = vm.Vector3(0.0, 0.0, 0.0);
+
+    // Only log WorkEnvelope creation once when it first succeeds, not on every call
 
     return WorkEnvelope(
       minBounds: minBounds,

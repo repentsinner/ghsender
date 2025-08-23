@@ -85,8 +85,11 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   
   # Testing utilities
-  mocktail: ^1.0.4
-  bloc_test: ^10.0.0
+  test: ^1.24.0          # Core test framework (resolves analyzer warnings)
+  mocktail: ^1.0.4       # Mock object framework (alternative to mockito)
+  bloc_test: ^10.0.0     # BLoC testing utilities
+  mockito: ^5.4.4        # Traditional mock framework
+  build_runner: ^2.4.7   # Required for mockito code generation
   
   # Native assets CLI for build hooks
   native_assets_cli: ^0.13.0

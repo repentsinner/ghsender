@@ -52,6 +52,7 @@ class AppLogger {
   static final Logger _gcodeLogger = Logger('gcode  ');
   static final Logger _machineControllerLogger = Logger('machine');
   static final Logger _visualizerLogger = Logger('viz    ');
+  static final Logger _jogLogger = Logger('jog    ');
 
   /// Initialize logging system (call once at app startup)
   static void initialize() {
@@ -188,4 +189,21 @@ class AppLogger {
     dynamic error,
     StackTrace? stackTrace,
   ]) => _visualizerLogger.severe(message, error, stackTrace);
+
+  // Category-specific logging methods for jog controller subsystem
+  /// Jog controller info logging (movement commands, soft limits)
+  static void jogInfo(String message) => _jogLogger.info(message);
+
+  /// Jog controller debug logging (detailed movement filtering, boundaries)
+  static void jogDebug(String message) => _jogLogger.fine(message);
+
+  /// Jog controller warning logging
+  static void jogWarning(String message) => _jogLogger.warning(message);
+
+  /// Jog controller error logging
+  static void jogError(
+    String message, [
+    dynamic error,
+    StackTrace? stackTrace,
+  ]) => _jogLogger.severe(message, error, stackTrace);
 }

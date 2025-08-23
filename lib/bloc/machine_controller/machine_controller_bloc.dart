@@ -1032,7 +1032,7 @@ class MachineControllerBloc
     }
 
     // Build GRBL multi-axis jog command
-    // Format: $J=G91 G21 X[xDist] Y[yDist] F[feedRate]
+    // Format: $J=G91 G21 X[xDist] Y[yDist] Z[zDist] F[feedRate]
     List<String> axisParts = [];
     
     if (event.xDistance != 0.0) {
@@ -1041,6 +1041,10 @@ class MachineControllerBloc
     
     if (event.yDistance != 0.0) {
       axisParts.add('Y${event.yDistance}');
+    }
+    
+    if (event.zDistance != null && event.zDistance != 0.0) {
+      axisParts.add('Z${event.zDistance}');
     }
     
     // Only send command if at least one axis has movement

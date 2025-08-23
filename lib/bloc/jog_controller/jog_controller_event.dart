@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import 'jog_controller_state.dart';
+import '../../services/jog_input_driver.dart';
 
 /// Events for the Jog Controller BLoC
 abstract class JogControllerEvent extends Equatable {
@@ -30,18 +31,32 @@ class JogSettingsUpdated extends JogControllerEvent {
   List<Object?> get props => [selectedDistance, selectedFeedRate, mode];
 }
 
-/// Joystick input received from UI
+/// Proportional jog input received from any input driver
+class ProportionalJogInputReceived extends JogControllerEvent {
+  final JogInputEvent inputEvent;
+
+  const ProportionalJogInputReceived({
+    required this.inputEvent,
+  });
+
+  @override
+  List<Object?> get props => [inputEvent];
+}
+
+/// Legacy joystick input event (for backward compatibility during transition)
 class JoystickInputReceived extends JogControllerEvent {
   final double x;
   final double y;
+  final double? z; // Optional Z-axis for 3D joystick support
 
   const JoystickInputReceived({
     required this.x,
     required this.y,
+    this.z,
   });
 
   @override
-  List<Object?> get props => [x, y];
+  List<Object?> get props => [x, y, z];
 }
 
 /// Discrete jog requested (button press)
