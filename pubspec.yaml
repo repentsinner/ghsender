@@ -70,6 +70,8 @@ dependencies:
   url_launcher: ^6.3.2
   # Flutter joystick widget for continuous jogging
   flutter_joystick: ^0.2.2
+  # Service locator for dependency injection
+  get_it: ^7.7.0
 
 dev_dependencies:
   flutter_test:

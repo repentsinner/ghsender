@@ -1,0 +1,305 @@
+import 'dart:io';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:ghsender/gcode/gcode_processor.dart';
+import 'package:ghsender/gcode/gcode_parser.dart';
+import 'package:ghsender/models/gcode_file.dart';
+
+// Mock classes
+class MockGCodeParser extends Mock implements GCodeParser {}
+class MockFile extends Mock implements File {}
+
+void main() {
+  group('GCodeProcessor', () {
+    late GCodeProcessor processor;
+    
+    setUp(() {
+      processor = GCodeProcessor.instance;
+      // Ensure clean state
+      processor.clearCurrentFile();
+    });
+
+    tearDown(() {
+      processor.clearCurrentFile();
+    });
+
+    group('File Processing', () {
+      test('should emit started event when processing begins', () async {
+        // Arrange
+        final testFile = GCodeFile(
+          name: 'test.gcode',
+          path: '/nonexistent/path/test.gcode',
+          sizeBytes: 100,
+          uploadDate: DateTime.now(),
+          status: 'ready',
+        );
+
+        // Track events
+        GCodeProcessingEvent? startedEvent;
+        GCodeProcessingEvent? failedEvent;
+        
+        final subscription = processor.events.listen((event) {
+          if (event is GCodeProcessingStarted) startedEvent = event;
+          if (event is GCodeProcessingFailed) failedEvent = event;
+        });
+
+        // Act
+        try {
+          await processor.processFile(testFile);
+          fail('Expected GCodeProcessingException to be thrown');
+        } on GCodeProcessingException {
+          // Expected for non-existent file
+        }
+
+        // Give events time to propagate
+        await Future.delayed(const Duration(milliseconds: 10));
+
+        // Assert
+        expect(startedEvent, isNotNull);
+        expect(startedEvent!.file.name, equals('test.gcode'));
+        expect(failedEvent, isNotNull);
+        
+        await subscription.cancel();
+      });
+
+      test('should emit parsing event during processing', () async {
+        // Create a temporary valid G-code file
+        final tempDir = Directory.systemTemp.createTempSync('gcode_test_');
+        final tempFile = File('${tempDir.path}/test.gcode');
+        await tempFile.writeAsString('''
+G90 G21
+G0 X0.0 Y0.0 Z1.0
+G1 Z-1.0 F300
+''');
+
+        final testFile = GCodeFile(
+          name: 'test.gcode',
+          path: tempFile.path,
+          sizeBytes: 100,
+          uploadDate: DateTime.now(),
+          status: 'ready',
+        );
+
+        final events = <GCodeProcessingEvent>[];
+        final subscription = processor.events.listen((event) => events.add(event));
+
+        try {
+          // Act
+          await processor.processFile(testFile);
+
+          // Assert - should emit started, parsing, and completed events
+          expect(events.length, greaterThanOrEqualTo(2));
+          expect(events[0], isA<GCodeProcessingStarted>());
+          expect(events.any((e) => e is GCodeProcessingParsing), isTrue);
+          expect(events.any((e) => e is GCodeProcessingCompleted), isTrue);
+        } finally {
+          await subscription.cancel();
+          if (await tempFile.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        }
+      });
+
+      test('should emit failed event for non-existent file', () async {
+        // Arrange
+        final testFile = GCodeFile(
+          name: 'nonexistent.gcode',
+          path: '/nonexistent/path/file.gcode',
+          sizeBytes: 100,
+          uploadDate: DateTime.now(),
+          status: 'ready',
+        );
+
+        final events = <GCodeProcessingEvent>[];
+        final subscription = processor.events.listen((event) => events.add(event));
+
+        // Act
+        try {
+          await processor.processFile(testFile);
+          fail('Expected GCodeProcessingException to be thrown');
+        } on GCodeProcessingException {
+          // Expected
+        }
+
+        // Assert
+        expect(events, isNotEmpty);
+        expect(events.first, isA<GCodeProcessingStarted>());
+        expect(events.any((e) => e is GCodeProcessingFailed), isTrue);
+        final failedEvent = events.whereType<GCodeProcessingFailed>().first;
+        expect(failedEvent.error, contains('not found'));
+        
+        await subscription.cancel();
+      });
+
+      test('should process valid G-code file successfully', () async {
+        // Create a temporary valid G-code file
+        final tempDir = Directory.systemTemp.createTempSync('gcode_test_');
+        final tempFile = File('${tempDir.path}/simple_square.nc');
+        await tempFile.writeAsString('''
+; Simple square test fixture
+G90 G21
+G0 X0.0 Y0.0 Z1.0
+G1 Z-1.0 F300
+G1 X10.0 Y0.0 F1000
+G1 X10.0 Y10.0
+G1 X0.0 Y10.0
+G1 X0.0 Y0.0
+G0 Z1.0
+        ''');
+
+        final testFile = GCodeFile(
+          name: 'simple_square.nc',
+          path: tempFile.path,
+          sizeBytes: await tempFile.length(),
+          uploadDate: DateTime.now(),
+          status: 'ready',
+        );
+
+        final events = <GCodeProcessingEvent>[];
+        final subscription = processor.events.listen((event) => events.add(event));
+
+        try {
+          // Act
+          await processor.processFile(testFile);
+
+          // Assert
+          expect(events, isNotEmpty);
+          expect(events.first, isA<GCodeProcessingStarted>());
+          expect(events.any((e) => e is GCodeProcessingCompleted), isTrue);
+          
+          final completedEvent = events.whereType<GCodeProcessingCompleted>().first;
+          expect(completedEvent.parsedData.totalOperations, greaterThan(0));
+          expect(processor.hasValidFile, isTrue);
+          expect(processor.currentFile, equals(testFile));
+          expect(processor.currentParsedData, isNotNull);
+        } finally {
+          await subscription.cancel();
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        }
+      });
+
+      test('should clear current file and emit cleared event', () async {
+        // Create a temporary valid G-code file
+        final tempDir = Directory.systemTemp.createTempSync('gcode_test_');
+        final tempFile = File('${tempDir.path}/test.gcode');
+        await tempFile.writeAsString('G90 G21\nG0 X0.0 Y0.0 Z1.0\n');
+
+        final testFile = GCodeFile(
+          name: 'test.gcode',
+          path: tempFile.path,
+          sizeBytes: 100,
+          uploadDate: DateTime.now(),
+          status: 'ready',
+        );
+
+        final events = <GCodeProcessingEvent>[];
+        final subscription = processor.events.listen((event) {
+          events.add(event);
+        });
+
+        try {
+          // Process a file first so we have something to clear
+          await processor.processFile(testFile);
+          
+          // Verify we have a file before clearing
+          expect(processor.currentFile, equals(testFile));
+
+          // Act - Clear the current file
+          processor.clearCurrentFile();
+
+          // Assert
+          expect(processor.currentFile, isNull);
+          expect(processor.currentParsedData, isNull);
+          expect(processor.hasValidFile, isFalse);
+          
+          // Verify cleared event was emitted
+          expect(events.any((e) => e is GCodeProcessingCleared), isTrue);
+        } finally {
+          await subscription.cancel();
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        }
+      });
+    });
+
+    group('State Management', () {
+      test('should prevent processing when already processing', () async {
+        // Create a temporary file that takes time to process
+        final tempDir = Directory.systemTemp.createTempSync('gcode_test_');
+        final tempFile = File('${tempDir.path}/slow.gcode');
+        // Create a larger file to ensure processing takes some time
+        final content = List.generate(100, (i) => 'G1 X$i Y$i F1000').join('\n');
+        await tempFile.writeAsString('G90 G21\n$content\n');
+
+        final testFile = GCodeFile(
+          name: 'test.gcode',
+          path: tempFile.path,
+          sizeBytes: await tempFile.length(),
+          uploadDate: DateTime.now(),
+          status: 'ready',
+        );
+
+        try {
+          // Start first processing
+          final future1 = processor.processFile(testFile);
+          
+          // Immediately try to process another file while first is in progress
+          final future2 = processor.processFile(testFile);
+
+          // The second call should return immediately without doing anything
+          await future2;
+          
+          // Wait for first to complete
+          await future1;
+          
+          // Processor should no longer be processing
+          expect(processor.isProcessing, isFalse);
+        } finally {
+          if (await tempDir.exists()) {
+            await tempDir.delete(recursive: true);
+          }
+        }
+      });
+
+      test('should return estimated visualization time', () {
+        // This test would need a mock or real processed data
+        // For now, test the default behavior
+        expect(processor.getEstimatedVisualizationTime(), Duration.zero);
+      });
+    });
+
+    group('Error Handling', () {
+      test('should handle file system errors gracefully', () async {
+        // Arrange
+        final testFile = GCodeFile(
+          name: 'test.gcode',
+          path: '/nonexistent/directory/file.gcode',
+          sizeBytes: 100,
+          uploadDate: DateTime.now(),
+          status: 'ready',
+        );
+
+        final events = <GCodeProcessingEvent>[];
+        final subscription = processor.events.listen((event) => events.add(event));
+
+        try {
+          // Act & Assert
+          await expectLater(
+            processor.processFile(testFile), 
+            throwsA(isA<GCodeProcessingException>())
+          );
+          
+          // Should emit started and failed events
+          expect(events, isNotEmpty);
+          expect(events.first, isA<GCodeProcessingStarted>());
+          expect(events.any((e) => e is GCodeProcessingFailed), isTrue);
+        } finally {
+          await subscription.cancel();
+        }
+      });
+    });
+  });
+}
