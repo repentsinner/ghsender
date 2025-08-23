@@ -128,6 +128,12 @@ Every piece of knowledge must have a single, unambiguous, authoritative represen
 ❌ **Duplicate shader compilation logic across renderers**
 ❌ **Repeated coordinate transformation calculations**
 
+### DRY Exceptions (Documented Workarounds)
+✅ **Agent Memory Files**: `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` appear as duplicates but are actually symlinks to a single source file (`AGENTS.md`). This workaround addresses 2025-era AI agent limitations where different companies' agents look for hardcoded filenames to augment their system prompts. The symlinks ensure DRY compliance while working around vendor-specific requirements.
+
+### Agent Date/Time Handling
+⚠️ **Current Date/Time**: When updating planning documents or any files that require current timestamps, ALWAYS use system calls (`date` command via Bash tool) to get accurate wall clock time. Many AI agents substitute their build/compile time for "now" instead of using actual current time, leading to incorrect timestamps in documentation.
+
 ### DRY Enforcement
 - Before adding new functionality, check if similar logic already exists
 - Extract common patterns into reusable utilities
