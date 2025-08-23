@@ -10,7 +10,7 @@ import 'dart:typed_data';
 import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:flutter_scene/scene.dart';
-import '../utils/logger.dart';
+import '../services/shader_service.dart';
 
 enum LineGeometryMode {
   polyline, // Line2 equivalent - continuous polyline
@@ -22,21 +22,21 @@ class LineGeometry extends UnskinnedGeometry {
   final List<vm.Vector3> points;
   final vm.Vector2 resolution;
   final double lineWidth;
-
-  // Shader loading
-  static gpu.ShaderLibrary? _shaderLibrary;
-  static bool _shadersLoaded = false;
-  static bool _shaderLoadingAttempted = false;
+  final ShaderService _shaderService;
 
   // Private constructor
-  LineGeometry._(this.mode, this.points, this.resolution, this.lineWidth) {
+  LineGeometry._(this.mode, this.points, this.resolution, this.lineWidth, {ShaderService? shaderService}) 
+      : _shaderService = shaderService ?? ShaderService.instance {
+    // Verify shader service is initialized
+    if (!_shaderService.isInitialized) {
+      throw Exception(
+        'LineGeometry creation failed: ShaderService not initialized. '
+        'Call ShaderService.instance.initialize() at app startup before creating geometries.'
+      );
+    }
+    
     // Use modified flutter_scene vertex shader (not instanced)
     _generateParametricGeometry();
-
-    // Attempt to load custom shaders if not already attempted
-    if (!_shaderLoadingAttempted) {
-      _loadShaders();
-    }
   }
 
   // Factory constructors following Three.js Line2/LineSegments2 pattern
@@ -44,24 +44,38 @@ class LineGeometry extends UnskinnedGeometry {
     List<vm.Vector3> points, {
     vm.Vector2? resolution,
     double lineWidth = 1.0,
+    ShaderService? shaderService,
   }) {
     if (points.length < 2) {
       throw ArgumentError('Polyline requires at least 2 points');
     }
-    return LineGeometry._(LineGeometryMode.polyline, points, resolution ?? vm.Vector2(1024, 768), lineWidth);
+    return LineGeometry._(
+      LineGeometryMode.polyline, 
+      points, 
+      resolution ?? vm.Vector2(1024, 768), 
+      lineWidth,
+      shaderService: shaderService,
+    );
   }
 
   factory LineGeometry.segments(
     List<vm.Vector3> points, {
     vm.Vector2? resolution,
     double lineWidth = 1.0,
+    ShaderService? shaderService,
   }) {
     if (points.length < 2 || points.length % 2 != 0) {
       throw ArgumentError(
         'Segments mode requires even number of points (pairs)',
       );
     }
-    return LineGeometry._(LineGeometryMode.segments, points, resolution ?? vm.Vector2(1024, 768), lineWidth);
+    return LineGeometry._(
+      LineGeometryMode.segments, 
+      points, 
+      resolution ?? vm.Vector2(1024, 768), 
+      lineWidth,
+      shaderService: shaderService,
+    );
   }
 
   void _generateParametricGeometry() {
@@ -189,44 +203,11 @@ class LineGeometry extends UnskinnedGeometry {
     return segments;
   }
 
-  /// Load custom vertex shaders - REQUIRED for line rendering
-  static Future<void> _loadShaders() async {
-    _shaderLoadingAttempted = true;
-    try {
-      _shaderLibrary = gpu.ShaderLibrary.fromAsset(
-        'build/shaderbundles/ghsender.shaderbundle',
-      );
-      _shadersLoaded = true;
-      AppLogger.info('Custom line vertex shaders loaded successfully');
-    } catch (e) {
-      AppLogger.error('Failed to load custom line vertex shaders: $e');
-      throw Exception(
-        'LineGeometry requires custom vertex shaders. '
-        'Shader bundle not found or failed to load: $e',
-      );
-    }
-  }
-
   /// Provide vertex shader for SceneEncoder to use in RenderPipeline creation
   /// This follows flutter_scene's architecture where Geometry provides vertex shaders
   @override
   gpu.Shader get vertexShader {
-    if (!_shadersLoaded || _shaderLibrary == null) {
-      throw Exception(
-        'LineGeometry vertex shader not available. '
-        'Custom shaders must be loaded before using line rendering.',
-      );
-    }
-
-    final customVertexShader = _shaderLibrary!['LineVertex'];
-    if (customVertexShader == null) {
-      throw Exception(
-        'LineVertex shader not found in shader bundle. '
-        'Check that ghsender.shaderbundle.json contains "LineVertex" entry.',
-      );
-    }
-
-    return customVertexShader;
+    return _shaderService.getShader('LineVertex');
   }
 
   // Using standard UnskinnedGeometry binding - no custom binding needed

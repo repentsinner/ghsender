@@ -6,12 +6,22 @@ import 'bloc/bloc_exports.dart';
 import 'bloc/alarm_error/alarm_error_bloc.dart';
 import 'ui/app/app_integration.dart';
 import 'utils/logger.dart';
+import 'services/shader_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Initialize logging system
   AppLogger.initialize();
+
+  // Initialize shader service - MUST be done before any UI rendering
+  try {
+    await ShaderService.instance.initialize();
+    AppLogger.info('ShaderService initialized successfully');
+  } catch (e) {
+    AppLogger.error('Failed to initialize ShaderService - app may not render properly', e);
+    // Continue app startup - renderers will fail gracefully with clear error messages
+  }
 
   // Configure window manager for desktop platforms only
   if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {

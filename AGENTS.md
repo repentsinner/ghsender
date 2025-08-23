@@ -60,6 +60,13 @@ Flutter-based CNC machine controller application with high-performance graphics 
 
 ## File Structure
 ```
+context/                            # 3rd party reference material (READ-ONLY)
+├── candle/                         # Candle G-code sender reference
+├── cncjs/                          # CNCjs web-based CNC interface
+├── gsender/                        # gSender desktop CNC controller
+├── iosender/                       # Windows-based CNC sender
+├── ugs/                           # Universal G-code Sender
+└── grblhal/                       # grblHAL firmware reference
 lib/
 ├── main.dart                         # App entry and window configuration
 ├── bloc/                            # BLoC state management
@@ -76,7 +83,6 @@ lib/
     ├── layouts/                    # VSCode-inspired layout
     ├── screens/                    # Main application screens
     └── widgets/                    # Reusable UI components
-
 shaders/
 ├── line.vert                      # Line rendering vertex shader
 └── line.frag                      # Line rendering fragment shader
@@ -84,12 +90,8 @@ shaders/
 shaders/ghsender.shaderbundle.json             # Shader compilation config
 hook/build.dart                              # Native assets build hook
 ```
-
-## Performance Testing Instructions
-1. Run app with `./tools/build.sh build-single . macos`
-2. Use graphics controls to adjust line rendering parameters
-3. Observe FPS performance with large G-code files
-4. Test real-time machine communication at 60Hz
+NOTE: context/ contains valuable reference material from related open-source projects
+It should be used for research and understanding only - NOT analyzed or code reviewed
 
 ## Critical Test Management Rules
 - **NEVER DELETE UNIT TESTS**: Unit tests are sacred and must never be removed
@@ -102,12 +104,10 @@ hook/build.dart                              # Native assets build hook
 - flutter_gpu API is NOT incomplete - it's fully functional
 - flutter_scene proves flutter_gpu works (it's built on top of it)
 - Sample code exists in flutter_gpu showing proper usage patterns
-- Must use actual GPU shaders for meaningful performance comparison
-- All BLoC state management designed for 60Hz real-time machine control
+- All BLoC state management designed for 60Hz+ real-time machine control
 - state management is accomplished via BLoC in this project
 - reference https://github.com/grblHAL/core/wiki/For-sender-developers to understand how best to interact with grblHAL
-- "Don't convert a value to a different representation and immediately convert it back to the 
-  original representation - this only degrades precision and adds unnecessary computation."
+- "Don't convert a value to a different representation and immediately convert it back to the original representation - this only degrades precision and adds unnecessary computation."
 
 ## DRY (Don't Repeat Yourself) Guidelines
 
@@ -115,7 +115,7 @@ hook/build.dart                              # Native assets build hook
 Every piece of knowledge must have a single, unambiguous, authoritative representation within a system.
 
 ### Critical DRY Rules
-- **Configuration Files**: Never generate config files from scripts. Maintain them as source-controlled files.
+- **Configuration Files**: Never generate config files from scripts. Maintain them as independent source-controlled files.
 - **Version Management**: `tools/versions.sh` is the single source of truth for all version information
 - **Path Configuration**: Environment scripts should reference toolchain paths consistently
 - **Setup Logic**: Each setup script should have one clear responsibility
@@ -140,12 +140,6 @@ Every piece of knowledge must have a single, unambiguous, authoritative represen
 - **CNC Machines**: Use right-handed coordinate system with X=right, Y=away from operator, Z=up
 - **Flutter Scene/Impeller**: Uses Metal's left-handed coordinate system as standard across all backends
 - **Key Finding**: Impeller standardizes on Metal coordinates regardless of backend (Metal/Vulkan/OpenGL)
-
-### Platform Backend Behavior
-- **macOS/iOS**: Impeller uses Metal backend
-- **Android**: Impeller uses Vulkan (with OpenGL fallback)
-- **Windows/Linux**: Impeller uses Vulkan when enabled with --enable-impeller
-- **Important**: All platforms use Metal's coordinate system convention - no platform detection needed
 
 ### Coordinate Transformation Strategy
 - **Problem**: Right-handed CNC coordinates don't display correctly in left-handed Metal coordinate system

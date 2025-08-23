@@ -11,6 +11,7 @@ import 'package:vector_math/vector_math.dart' as vm;
 import 'package:flutter_scene/scene.dart';
 import 'package:flutter_gpu/gpu.dart' as gpu;
 import '../utils/logger.dart';
+import '../services/shader_service.dart';
 
 class LineMaterial extends UnlitMaterial {
   // Line properties (Three.js compatible)
@@ -20,11 +21,7 @@ class LineMaterial extends UnlitMaterial {
   double _sharpness = 0.5;
   vm.Vector2 _resolution = vm.Vector2(1024, 768); // Default resolution
   int _depthWriteLogCount = 0; // Debug counter for depth write logging
-
-  // Shader loading
-  static gpu.ShaderLibrary? _shaderLibrary;
-  static bool _shadersLoaded = false;
-  static bool _shaderLoadingAttempted = false;
+  final ShaderService _shaderService;
 
   LineMaterial({
     double lineWidth = 1.0,
@@ -32,22 +29,28 @@ class LineMaterial extends UnlitMaterial {
     double opacity = 1.0,
     double sharpness = 0.5,
     vm.Vector2? resolution,
+    ShaderService? shaderService,
   }) : _lineWidth = lineWidth,
        _color = color,
        _opacity = opacity,
        _sharpness = sharpness,
-       _resolution = resolution ?? vm.Vector2(1024, 768) {
+       _resolution = resolution ?? vm.Vector2(1024, 768),
+       _shaderService = shaderService ?? ShaderService.instance {
+    
+    // Verify shader service is initialized
+    if (!_shaderService.isInitialized) {
+      throw Exception(
+        'LineMaterial creation failed: ShaderService not initialized. '
+        'Call ShaderService.instance.initialize() at app startup before creating materials.'
+      );
+    }
+    
     // Set base color for UnlitMaterial 
     // Flutter Color properties are already normalized (0.0-1.0)
     baseColorFactor = vm.Vector4(color.r, color.g, color.b, opacity);
 
     // Repurpose vertex_color_weight to pass sharpness to fragment shader
     vertexColorWeight = _sharpness;
-
-    // Attempt to load custom shaders if not already attempted
-    if (!_shaderLoadingAttempted) {
-      _loadShaders();
-    }
   }
 
   // Three.js compatible getters/setters
@@ -109,44 +112,11 @@ class LineMaterial extends UnlitMaterial {
     if (resolution != null) this.resolution = resolution;
   }
 
-  /// Load custom fragment shaders - REQUIRED for line rendering
-  static Future<void> _loadShaders() async {
-    _shaderLoadingAttempted = true;
-    try {
-      _shaderLibrary = gpu.ShaderLibrary.fromAsset(
-        'build/shaderbundles/ghsender.shaderbundle',
-      );
-      _shadersLoaded = true;
-      AppLogger.info('Custom line fragment shaders loaded successfully');
-    } catch (e) {
-      AppLogger.error('Failed to load custom line fragment shaders: $e');
-      throw Exception(
-        'LineMaterial requires custom fragment shaders. '
-        'Shader bundle not found or failed to load: $e',
-      );
-    }
-  }
-
   /// Provide fragment shader for SceneEncoder to use in RenderPipeline creation
   /// This follows flutter_scene's architecture where Material provides fragment shaders
   @override
   gpu.Shader get fragmentShader {
-    if (!_shadersLoaded || _shaderLibrary == null) {
-      throw Exception(
-        'LineMaterial fragment shader not available. '
-        'Custom shaders must be loaded before using line rendering.',
-      );
-    }
-
-    final customFragmentShader = _shaderLibrary!['LineFragment'];
-    if (customFragmentShader == null) {
-      throw Exception(
-        'LineFragment shader not found in shader bundle. '
-        'Check that ghsender.shaderbundle.json contains "LineFragment" entry.',
-      );
-    }
-
-    return customFragmentShader;
+    return _shaderService.getShader('LineFragment');
   }
 
   // Enable alpha blending for anti-aliased lines

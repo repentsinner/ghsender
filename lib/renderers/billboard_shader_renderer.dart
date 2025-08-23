@@ -4,6 +4,7 @@ import 'package:flutter_gpu/gpu.dart' as gpu;
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:flutter_scene/scene.dart';
 import '../utils/logger.dart';
+import '../services/shader_service.dart';
 
 // Note: Billboard sizing is now always pixel-accurate using clip-space calculations
 // No need for separate size modes - viewport dimensions handle the conversion
@@ -11,7 +12,7 @@ import '../utils/logger.dart';
 /// Billboard geometry for flutter_scene integration
 /// 
 /// Creates a simple quad geometry that REQUIRES custom billboard shaders.
-/// Will throw exceptions if shaders fail to load or compile.
+/// Uses dependency injection to receive shaders from ShaderService.
 /// Uses UnskinnedGeometry for flutter_scene compatibility with repurposed attributes.
 class BillboardGeometry extends UnskinnedGeometry {
   final double width;
@@ -19,11 +20,7 @@ class BillboardGeometry extends UnskinnedGeometry {
   final vm.Vector3 position;
   final double viewportWidth;
   final double viewportHeight;
-  
-  // Shader loading state
-  static gpu.ShaderLibrary? _shaderLibrary;
-  static bool _shaderLoadingAttempted = false;
-  static bool _shadersSuccessfullyLoaded = false;
+  final ShaderService _shaderService;
 
   BillboardGeometry({
     required this.width,
@@ -31,61 +28,23 @@ class BillboardGeometry extends UnskinnedGeometry {
     required this.position,
     required this.viewportWidth,
     required this.viewportHeight,
-  }) {
-    // FAIL FAST: Require shaders to be loaded before creating geometry
-    if (!_shaderLoadingAttempted) {
-      _loadShaders();
-    }
-    
-    if (!_shadersSuccessfullyLoaded) {
+    ShaderService? shaderService,
+  }) : _shaderService = shaderService ?? ShaderService.instance {
+    // Verify shader service is initialized
+    if (!_shaderService.isInitialized) {
       throw Exception(
-        'BillboardGeometry creation failed: Custom shaders are REQUIRED but not loaded. '
-        'This indicates shader compilation or loading failed.'
+        'BillboardGeometry creation failed: ShaderService not initialized. '
+        'Call ShaderService.instance.initialize() at app startup before creating geometries.'
       );
     }
     
     _generateQuadGeometry();
   }
 
-  /// Load custom billboard shaders - REQUIRED for billboard rendering
-  static Future<void> _loadShaders() async {
-    _shaderLoadingAttempted = true;
-    try {
-      _shaderLibrary = gpu.ShaderLibrary.fromAsset(
-        'build/shaderbundles/ghsender.shaderbundle',
-      );
-      _shadersSuccessfullyLoaded = true;
-      AppLogger.info('Billboard shaders loaded successfully');
-    } catch (e) {
-      _shadersSuccessfullyLoaded = false;
-      AppLogger.error('SHADER LOADING FAILED - Billboard shaders are REQUIRED during development: $e');
-      throw Exception(
-        'Billboard shader compilation/loading failed. '
-        'Check shader files in shaders/ directory and ensure build hook is working. '
-        'Original error: $e'
-      );
-    }
-  }
-
   /// Provide vertex shader for billboard rendering
   @override
   gpu.Shader get vertexShader {
-    if (!_shadersSuccessfullyLoaded || _shaderLibrary == null) {
-      throw Exception(
-        'BillboardGeometry vertex shader not available. '
-        'Custom shaders must be loaded before using billboard rendering.',
-      );
-    }
-
-    final customVertexShader = _shaderLibrary!['BillboardVertex'];
-    if (customVertexShader == null) {
-      throw Exception(
-        'BillboardVertex shader not found in shader bundle. '
-        'Check that ghsender.shaderbundle.json contains "BillboardVertex" entry.',
-      );
-    }
-
-    return customVertexShader;
+    return _shaderService.getShader('BillboardVertex');
   }
 
   void _generateQuadGeometry() {
@@ -183,13 +142,14 @@ class BillboardGeometry extends UnskinnedGeometry {
 
 /// Billboard material for flutter_scene integration
 /// 
-/// REQUIRES custom billboard shaders - no fallback to default materials.
+/// REQUIRES custom billboard shaders via ShaderService dependency injection.
 /// Extends UnlitMaterial for proper uniform binding and blending support.
 class BillboardMaterial extends UnlitMaterial {
   final vm.Vector3 billboardPosition;
   final vm.Vector2 billboardSize;
   final Color color;
   final double opacity;
+  final ShaderService _shaderService;
   
   // Billboard-specific properties (inherited from UnlitMaterial)
   // Note: baseColorTexture is inherited from UnlitMaterial
@@ -200,12 +160,13 @@ class BillboardMaterial extends UnlitMaterial {
     this.color = Colors.white,
     this.opacity = 1.0,
     super.colorTexture,
-  }) {
-    // FAIL FAST: Require shaders to be loaded before creating material
-    if (!BillboardGeometry._shadersSuccessfullyLoaded) {
+    ShaderService? shaderService,
+  }) : _shaderService = shaderService ?? ShaderService.instance {
+    // Verify shader service is initialized
+    if (!_shaderService.isInitialized) {
       throw Exception(
-        'BillboardMaterial creation failed: Custom shaders are REQUIRED but not loaded. '
-        'Ensure BillboardGeometry shader loading succeeded before creating materials.'
+        'BillboardMaterial creation failed: ShaderService not initialized. '
+        'Call ShaderService.instance.initialize() at app startup before creating materials.'
       );
     }
     
@@ -216,22 +177,7 @@ class BillboardMaterial extends UnlitMaterial {
   /// Provide fragment shader for billboard rendering
   @override
   gpu.Shader get fragmentShader {
-    if (!BillboardGeometry._shadersSuccessfullyLoaded || BillboardGeometry._shaderLibrary == null) {
-      throw Exception(
-        'BillboardMaterial fragment shader not available. '
-        'Custom shaders must be loaded before using billboard rendering.',
-      );
-    }
-
-    final customFragmentShader = BillboardGeometry._shaderLibrary!['BillboardFragment'];
-    if (customFragmentShader == null) {
-      throw Exception(
-        'BillboardFragment shader not found in shader bundle. '
-        'Check that ghsender.shaderbundle.json contains "BillboardFragment" entry.',
-      );
-    }
-
-    return customFragmentShader;
+    return _shaderService.getShader('BillboardFragment');
   }
   
   @override
@@ -273,7 +219,7 @@ class BillboardRenderer {
   
   /// Create a textured billboard node
   /// 
-  /// REQUIRES custom shaders to be compiled and loaded successfully.
+  /// REQUIRES ShaderService to be initialized at app startup.
   /// Will throw exceptions if shader requirements are not met.
   static Node createTexturedBillboard({
     required vm.Vector3 position,
@@ -284,8 +230,11 @@ class BillboardRenderer {
     Color tintColor = Colors.white,
     double opacity = 1.0,
     String? id,
+    ShaderService? shaderService,
   }) {
     try {
+      final shaderSvc = shaderService ?? ShaderService.instance;
+      
       // Create billboard geometry at origin (0,0,0) - Node's localTransform handles positioning
       final geometry = BillboardGeometry(
         width: size.x,
@@ -293,6 +242,7 @@ class BillboardRenderer {
         position: vm.Vector3.zero(), // Position handled by Node's localTransform
         viewportWidth: viewportWidth,
         viewportHeight: viewportHeight,
+        shaderService: shaderSvc,
       );
       
       // Create billboard material with texture
@@ -301,6 +251,7 @@ class BillboardRenderer {
         billboardSize: size,
         color: tintColor,
         opacity: opacity,
+        shaderService: shaderSvc,
       );
       
       // Set the texture on the material
@@ -323,12 +274,13 @@ class BillboardRenderer {
       return node;
       
     } catch (e) {
-      AppLogger.error('TEXTURED BILLBOARD CREATION FAILED - This is likely due to shader compilation issues: $e');
+      AppLogger.error('TEXTURED BILLBOARD CREATION FAILED: $e');
       throw Exception(
         'Failed to create textured billboard. This typically indicates:\n'
-        '1. Shader compilation failed (check shaders/ directory)\n'
-        '2. Build hook not working (check hook/build.dart)\n'
-        '3. Shader bundle not generated (check build/shaderbundles/)\n'
+        '1. ShaderService not initialized (call ShaderService.instance.initialize() at app startup)\n'
+        '2. Shader compilation failed (check shaders/ directory)\n'
+        '3. Build hook not working (check hook/build.dart)\n'
+        '4. Shader bundle not generated (check build/shaderbundles/)\n'
         'Original error: $e'
       );
     }
