@@ -3,13 +3,13 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../utils/logger.dart';
 import 'package:vector_math/vector_math.dart' as vm;
-import '../gcode/gcode_parser.dart';
+import '../domain/value_objects/gcode_path.dart';
 import '../gcode/gcode_scene.dart';
 import '../gcode/gcode_processor.dart';
 import '../ui/themes/visualizer_theme.dart';
 import 'axes_factory.dart';
 import '../domain/value_objects/work_envelope.dart';
-import '../models/job_envelope.dart';
+import '../domain/value_objects/job_envelope.dart';
 import '../models/bounding_box.dart';
 import '../domain/value_objects/machine_coordinates.dart';
 

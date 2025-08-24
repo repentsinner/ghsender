@@ -3,7 +3,7 @@
 **Target**: Domain-Driven Design + Focused BLoC Architecture  
 **Timeline**: 8 tasks (flexible scheduling)  
 **Priority**: High - Foundation for safety features and extensibility  
-**Status**: 🟨 In Progress (2/8 tasks completed)  
+**Status**: 🟨 In Progress (3/8 tasks completed)  
 **Migration Approach**: Direct Integration (No Feature Flags)  
 **Last Updated**: August 24, 2025  
 **Latest Changes**: Clarified this is a REFACTOR maintaining feature parity, not feature development; corrected Task 2 to include only existing functionality
@@ -114,10 +114,10 @@ A task is only complete when the original code is **removed**, not just when the
 
 ### Phase 1: Domain Layer Foundation (Tasks 1-3) - 🟨 In Progress (Domain Complete, Production Integration Needed)
 
-#### Task 1: Core Entities and Value Objects - 🟥 Not Started
+#### Task 1: Core Entities and Value Objects - 🟩 Completed
 
-**Domain Implementation**: 🟥 Not Started
-**Production Integration**: 🟥 Not Started
+**Domain Implementation**: 🟩 Completed
+**Production Integration**: 🟩 Completed
 
 **Scope**: Foundation domain entity and value objects only
 
@@ -200,22 +200,22 @@ A task is only complete when the original code is **removed**, not just when the
     - [x] ✅ All related tests pass.
 
 **Task 1D: Complex Integration (Highest Risk - Days 9-10)**
-- [ ] **GCodePath Value Object** (DEPENDENCY: GCodeCommand, BoundingBox)
+- [x] **GCodePath Value Object** (DEPENDENCY: GCodeCommand, BoundingBox)
   - Current: `/lib/gcode/gcode_parser.dart` - Path analysis and visualization
   - **Prerequisites**: GCodeCommand must be complete
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/value_objects/gcode_path.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/gcode/gcode_parser.dart`.
-    - [ ] ✅ All related tests pass.
-- [ ] **JobEnvelope Value Object** (DEPENDENCY: WorkEnvelope, BoundingBox)
+    - [x] 🟩 `lib/domain/value_objects/gcode_path.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/gcode/gcode_parser.dart`.
+    - [x] ✅ All related tests pass.
+- [x] **JobEnvelope Value Object** (DEPENDENCY: WorkEnvelope, BoundingBox)
   - Current: `/lib/models/job_envelope.dart` - Job visualization and camera positioning
   - **Prerequisites**: WorkEnvelope must be complete
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/value_objects/job_envelope.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/models/job_envelope.dart`.
-    - [ ] ✅ All related tests pass.
+    - [x] 🟩 `lib/domain/value_objects/job_envelope.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/models/job_envelope.dart` (file deleted).
+    - [x] ✅ All related tests pass.
 
 ## Detailed Dependency Analysis
 

@@ -3,7 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:ghsender/scene/scene_manager.dart';
 import 'package:ghsender/gcode/gcode_processor.dart';
-import 'package:ghsender/gcode/gcode_parser.dart';
+import 'package:ghsender/domain/value_objects/gcode_path.dart';
 import 'package:ghsender/domain/value_objects/gcode_file.dart';
 import 'package:ghsender/domain/value_objects/gcode_command.dart';
 
