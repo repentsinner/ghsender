@@ -3,12 +3,12 @@ import 'package:mocktail/mocktail.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 
 import 'package:ghsender/domain/use_cases/jog_machine.dart';
+import 'package:ghsender/domain/enums/machine_status.dart';
 import 'package:ghsender/domain/repositories/machine_repository.dart';
 import 'package:ghsender/domain/entities/machine.dart';
 import 'package:ghsender/domain/value_objects/machine_position.dart';
 import 'package:ghsender/domain/value_objects/safety_envelope.dart';
 import 'package:ghsender/domain/value_objects/validation_result.dart';
-import 'package:ghsender/models/machine_controller.dart';
 import 'package:ghsender/domain/entities/machine_configuration.dart';
 
 // Mock classes

@@ -1,9 +1,12 @@
 import 'package:equatable/equatable.dart';
-import '../../models/machine_controller.dart';
+import '../../domain/enums/machine_status.dart';
 import '../../domain/entities/machine_configuration.dart';
 import '../communication/cnc_communication_state.dart';
 import '../communication/cnc_communication_event.dart';
 import '../../domain/value_objects/machine_coordinates.dart';
+import '../../domain/value_objects/spindle_state.dart';
+import '../../domain/value_objects/feed_state.dart';
+import '../../domain/value_objects/active_codes.dart';
 
 /// Events for the Machine Controller BLoC
 abstract class MachineControllerEvent extends Equatable {

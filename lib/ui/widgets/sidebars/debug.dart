@@ -6,7 +6,7 @@ import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
 import '../../../bloc/machine_controller/machine_controller_bloc.dart';
 import '../../../bloc/machine_controller/machine_controller_state.dart';
-import '../../../models/machine_controller.dart';
+import '../../../domain/enums/machine_status.dart';
 import '../../../bloc/communication/cnc_communication_bloc.dart';
 import '../../../bloc/communication/cnc_communication_state.dart';
 import '../../../renderers/text_texture_factory.dart';

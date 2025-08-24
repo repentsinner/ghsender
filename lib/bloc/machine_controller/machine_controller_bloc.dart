@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../models/machine_controller.dart';
+import '../../domain/enums/machine_status.dart';
 import '../../domain/entities/machine_configuration.dart';
 import '../../models/alarm_error_metadata.dart';
 import '../../domain/entities/problem.dart';
@@ -12,6 +13,8 @@ import '../communication/cnc_communication_event.dart';
 import '../problems/problems_event.dart';
 import '../../domain/value_objects/configuration_setting.dart';
 import '../../domain/value_objects/machine_coordinates.dart';
+import '../../domain/value_objects/spindle_state.dart';
+import '../../domain/value_objects/feed_state.dart';
 
 /// BLoC for managing machine controller state from CNC communication responses
 class MachineControllerBloc

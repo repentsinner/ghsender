@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 
 import 'package:ghsender/domain/use_cases/jog_machine.dart';
+import 'package:ghsender/domain/enums/machine_status.dart';
 import 'package:ghsender/domain/use_cases/execute_gcode_program.dart';
 import 'package:ghsender/domain/entities/machine.dart';
 import 'package:ghsender/domain/value_objects/machine_position.dart';
@@ -11,7 +12,6 @@ import 'package:ghsender/domain/value_objects/gcode_program_id.dart';
 import 'package:ghsender/domain/value_objects/validation_result.dart';
 import 'package:ghsender/domain/repositories/machine_repository.dart';
 import 'package:ghsender/domain/repositories/gcode_repository.dart';
-import 'package:ghsender/models/machine_controller.dart';
 import 'package:ghsender/domain/entities/machine_configuration.dart';
 
 /// Integration tests verifying domain use cases work with existing SoftLimitChecker

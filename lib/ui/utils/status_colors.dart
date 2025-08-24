@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/machine_controller.dart';
+import '../../domain/enums/machine_status.dart';
 
 /// Abstract interface for providing status colors
 abstract class StatusColorProvider {

@@ -2,7 +2,7 @@ import 'package:vector_math/vector_math.dart' as vm;
 import '../entities/machine.dart';
 import '../repositories/machine_repository.dart';
 import '../value_objects/validation_result.dart';
-import '../../models/machine_controller.dart'; // For MachineStatus
+import '../enums/machine_status.dart';
 
 /// Request object for jog operations
 class JogRequest {

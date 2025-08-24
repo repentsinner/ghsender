@@ -7,7 +7,7 @@ import 'problems_event.dart';
 import 'problems_state.dart';
 import '../communication/cnc_communication_state.dart';
 import '../profile/profile_state.dart';
-import '../../models/machine_controller.dart';
+import '../../domain/enums/machine_status.dart';
 import '../../domain/value_objects/problem_action.dart';
 
 /// BLoC for managing system-wide problems and issues

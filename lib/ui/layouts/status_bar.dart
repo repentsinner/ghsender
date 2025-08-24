@@ -7,7 +7,7 @@ import '../utils/status_colors.dart';
 import '../../bloc/bloc_exports.dart';
 import '../../bloc/performance/performance_bloc.dart';
 import '../../bloc/performance/performance_state.dart';
-import '../../models/machine_controller.dart';
+import '../../domain/enums/machine_status.dart';
 
 /// Status Bar widget - bottom status information
 class StatusBar extends StatelessWidget {

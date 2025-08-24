@@ -3,7 +3,7 @@ import '../themes/vscode_theme.dart';
 import '../widgets/problem_item.dart';
 import '../widgets/log_output_panel.dart';
 import '../../bloc/bloc_exports.dart';
-import '../../models/machine_controller.dart';
+import '../../domain/enums/machine_status.dart';
 import '../../domain/entities/machine_configuration.dart';
 import '../../models/settings_metadata.dart';
 import '../../utils/logger.dart';

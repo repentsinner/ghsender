@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:ghsender/bloc/problems/problems_bloc.dart';
+import 'package:ghsender/domain/enums/machine_status.dart';
 import 'package:ghsender/bloc/problems/problems_event.dart';
 import 'package:ghsender/bloc/problems/problems_state.dart';
 import 'package:ghsender/bloc/machine_controller/machine_controller_state.dart';
