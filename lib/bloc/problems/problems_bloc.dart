@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../../models/problem.dart';
+import '../../domain/entities/problem.dart';
 import '../../models/alarm_error_metadata.dart';
 import '../../utils/logger.dart';
 import 'problems_event.dart';

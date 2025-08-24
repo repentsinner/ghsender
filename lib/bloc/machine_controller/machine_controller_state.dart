@@ -1,6 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../../models/machine_controller.dart';
-import '../../models/machine_configuration.dart';
+import '../../domain/entities/machine_configuration.dart';
 import '../../models/alarm_error_metadata.dart';
 import '../communication/cnc_communication_state.dart';
 import '../../domain/value_objects/machine_coordinates.dart';

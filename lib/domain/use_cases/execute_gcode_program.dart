@@ -4,7 +4,7 @@ import '../repositories/gcode_repository.dart';
 import '../value_objects/gcode_program.dart';
 import '../value_objects/gcode_program_id.dart';
 import '../value_objects/validation_result.dart';
-import '../../models/machine_controller.dart'; // For MachineStatus extensions
+import '../../models/machine_controller.dart'; // For MachineStatus
 
 /// Request object for G-code program execution
 class ExecuteProgramRequest {

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghsender/models/machine_controller.dart';
-import 'package:ghsender/models/machine_configuration.dart';
+import 'package:ghsender/domain/value_objects/work_envelope.dart';
+import 'package:ghsender/domain/entities/machine_configuration.dart';
 import 'package:ghsender/domain/value_objects/configuration_setting.dart';
 
 void main() {

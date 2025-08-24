@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../domain/value_objects/problem_action.dart';
+import '../value_objects/problem_action.dart';
 
 /// Severity levels for problems in the system
 enum ProblemSeverity { 

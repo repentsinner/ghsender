@@ -12,7 +12,7 @@ import 'package:ghsender/domain/value_objects/validation_result.dart';
 import 'package:ghsender/domain/value_objects/gcode_program.dart';
 import 'package:ghsender/domain/value_objects/gcode_program_id.dart';
 import 'package:ghsender/models/machine_controller.dart';
-import 'package:ghsender/models/machine_configuration.dart';
+import 'package:ghsender/domain/entities/machine_configuration.dart';
 
 // Mock classes
 class MockMachineRepository extends Mock implements MachineRepository {}

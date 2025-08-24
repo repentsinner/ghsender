@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import '../../models/machine_controller.dart';
-import '../../models/machine_configuration.dart';
+import 'machine_configuration.dart';
 import '../value_objects/machine_position.dart';
 import '../value_objects/safety_envelope.dart';
 import '../value_objects/validation_result.dart';

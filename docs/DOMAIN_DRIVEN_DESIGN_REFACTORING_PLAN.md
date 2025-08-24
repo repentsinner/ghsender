@@ -67,7 +67,7 @@ This loop applies specifically to **Task 1: Core Entities and Value Objects**. I
 
 1.  **🔲 COPY**: Create the new domain object (Entity or Value Object) in the `lib/domain/` directory. It must have the **exact same public interface** (constructors, properties, methods) as the original model class it is replacing.
 2.  **🔲 REDIRECT**: Update all existing code that uses the original model class. Change the import statements to point to the new domain object. The code should compile and function identically, as the public interface is preserved.
-3.  **🔲 REMOVE**: Once all usages of the original model class have been successfully redirected to the new domain object, **delete the original model class** from its old location (e.g., `lib/models/`). This is a critical step to prevent a mixed architecture and ensure the new domain object is the single source of truth.
+3.  **🔲 REMOVE**: Once all usages of the original model class have been successfully redirected to the new domain object, **delete the original model class** from its old location (e.g., `lib/models/`). If this results in an empty file, delete the file as well. This is a critical step to prevent a mixed architecture and ensure the new domain object is the single source of truth.
 4.  **✅ VALIDATE**: Run all related tests (unit, widget, integration) to confirm that the behavior of the application is unchanged and no regressions have been introduced.
 
 ---
@@ -172,32 +172,32 @@ A task is only complete when the original code is **removed**, not just when the
     - [x] 🟩 Original model class removed from `lib/models/machine_controller.dart`.
     - [x] ✅ All related tests pass.
 
-**Task 1C: Dependent Objects (Medium Risk - Days 6-8)**
-- [ ] **MachineConfiguration Entity** (DEPENDENCY: ConfigurationSetting)
+**Task 1C: Dependent Objects (Medium Risk - Days 6-8)** 🟩 **Completed**
+- [x] **MachineConfiguration Entity** (DEPENDENCY: ConfigurationSetting)
   - Current: `/lib/models/machine_configuration.dart` - Machine settings management
   - **Prerequisites**: ConfigurationSetting must be complete
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/entities/machine_configuration.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/models/machine_configuration.dart`.
-    - [ ] ✅ All related tests pass.
-- [ ] **Problem Entity** (DEPENDENCY: ProblemAction)
+    - [x] 🟩 `lib/domain/entities/machine_configuration.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/models/machine_configuration.dart` (file deleted).
+    - [x] ✅ All related tests pass.
+- [x] **Problem Entity** (DEPENDENCY: ProblemAction)
   - Current: `/lib/models/problem.dart` - Issue tracking and lifecycle management
   - **Prerequisites**: ProblemAction must be complete
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/entities/problem.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/models/problem.dart`.
-    - [ ] ✅ All related tests pass.
-- [ ] **WorkEnvelope Value Object** (DEPENDENCY: MachineConfiguration, BoundingBox)
+    - [x] 🟩 `lib/domain/entities/problem.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/models/problem.dart` (file deleted).
+    - [x] ✅ All related tests pass.
+- [x] **WorkEnvelope Value Object** (DEPENDENCY: MachineConfiguration, BoundingBox)
   - Current: `/lib/models/machine_controller.dart` - Critical for safety validation
   - **Prerequisites**: MachineConfiguration must be complete
   - ⚠️ **HIGH RISK**: Critical for safety systems
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/value_objects/work_envelope.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/models/machine_controller.dart`.
-    - [ ] ✅ All related tests pass.
+    - [x] 🟩 `lib/domain/value_objects/work_envelope.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/models/machine_controller.dart`.
+    - [x] ✅ All related tests pass.
 
 **Task 1D: Complex Integration (Highest Risk - Days 9-10)**
 - [ ] **GCodePath Value Object** (DEPENDENCY: GCodeCommand, BoundingBox)

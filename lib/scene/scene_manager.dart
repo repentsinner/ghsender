@@ -8,7 +8,7 @@ import '../gcode/gcode_scene.dart';
 import '../gcode/gcode_processor.dart';
 import '../ui/themes/visualizer_theme.dart';
 import 'axes_factory.dart';
-import '../models/machine_controller.dart';
+import '../domain/value_objects/work_envelope.dart';
 import '../models/job_envelope.dart';
 import '../models/bounding_box.dart';
 import '../domain/value_objects/machine_coordinates.dart';

@@ -7,7 +7,7 @@
 import 'package:test/test.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:ghsender/services/jog_service.dart';
-import 'package:ghsender/models/machine_controller.dart';
+import 'package:ghsender/domain/value_objects/work_envelope.dart';
 
 void main() {
   group('JoystickProcessor with Soft Limits', () {

@@ -1,7 +1,7 @@
 import 'package:test/test.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:ghsender/utils/soft_limit_checker.dart';
-import 'package:ghsender/models/machine_controller.dart';
+import 'package:ghsender/domain/value_objects/work_envelope.dart';
 
 void main() {
   group('SoftLimitChecker', () {

@@ -5,6 +5,7 @@ import '../../services/jog_service.dart';
 import '../../services/proportional_jog_controller.dart';
 import '../../services/jog_input_driver.dart';
 import '../../utils/logger.dart';
+import '../../domain/value_objects/work_envelope.dart';
 import '../../models/machine_controller.dart';
 import '../machine_controller/machine_controller_bloc.dart';
 import '../machine_controller/machine_controller_event.dart';

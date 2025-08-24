@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:vector_math/vector_math.dart' as vm;
-import '../models/machine_controller.dart';
+import '../domain/value_objects/work_envelope.dart';
 import '../utils/soft_limit_checker.dart';
 
 /// Input data for proportional jog processing

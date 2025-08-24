@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../../models/problem.dart';
+import '../../domain/entities/problem.dart';
 
 /// State for the Problems BLoC
 class ProblemsState extends Equatable {

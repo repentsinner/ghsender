@@ -12,7 +12,7 @@ import 'package:ghsender/domain/value_objects/gcode_program_id.dart';
 import 'package:ghsender/domain/repositories/machine_repository.dart';
 import 'package:ghsender/domain/repositories/gcode_repository.dart';
 import 'package:ghsender/models/machine_controller.dart';
-import 'package:ghsender/models/machine_configuration.dart';
+import 'package:ghsender/domain/entities/machine_configuration.dart';
 
 /// Performance benchmarks for domain use cases to ensure no regression
 /// 

@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../domain/value_objects/configuration_setting.dart';
+import '../value_objects/configuration_setting.dart';
 
 /// Complete grblHAL machine configuration parsed from $ command responses
 class MachineConfiguration extends Equatable {

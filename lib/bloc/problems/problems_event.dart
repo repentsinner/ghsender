@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../../models/problem.dart';
+import '../../domain/entities/problem.dart';
 import '../../bloc/communication/cnc_communication_state.dart';
 import '../../bloc/file_manager/file_manager_state.dart';
 import '../../bloc/profile/profile_state.dart';

@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'bounding_box.dart';
-import '../models/machine_controller.dart'; // For WorkEnvelope
+import '../domain/value_objects/work_envelope.dart'; // For WorkEnvelope
 
 /// G-code job geometry envelope
 /// 

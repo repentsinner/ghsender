@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../models/machine_controller.dart';
-import '../../models/machine_configuration.dart';
+import '../../domain/entities/machine_configuration.dart';
 import '../../models/alarm_error_metadata.dart';
-import '../../models/problem.dart';
+import '../../domain/entities/problem.dart';
 import '../../utils/logger.dart';
 import 'machine_controller_event.dart';
 import 'machine_controller_state.dart';
