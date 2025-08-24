@@ -4,35 +4,7 @@ import 'dart:math';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:flutter/services.dart';
 import '../models/bounding_box.dart';
-
-enum GCodeCommandType { 
-  rapidMove,    // G0
-  linearMove,   // G1
-  clockwiseArc, // G2
-  counterClockwiseArc // G3
-}
-
-class GCodeCommand {
-  final GCodeCommandType type;
-  final vm.Vector3 position;
-  final vm.Vector3? center; // I,J,K values for arcs (relative to start point)
-  final double? radius;     // R value for arcs
-  final double feedRate;
-  final int lineNumber;
-  
-  const GCodeCommand({
-    required this.type,
-    required this.position,
-    this.center,
-    this.radius,
-    this.feedRate = 0,
-    required this.lineNumber,
-  });
-  
-  @override
-  String toString() => 
-    'GCodeCommand(${type.name}, pos: $position, line: $lineNumber)';
-}
+import '../domain/value_objects/gcode_command.dart';
 
 class GCodePath {
   final List<GCodeCommand> commands;

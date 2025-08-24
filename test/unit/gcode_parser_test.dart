@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_math/vector_math.dart' as vm;
 import 'package:ghsender/gcode/gcode_parser.dart';
+import 'package:ghsender/domain/value_objects/gcode_command.dart';
 
 void main() {
   group('GCodeParser', () {

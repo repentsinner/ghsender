@@ -4,6 +4,7 @@ import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
 import '../../../bloc/bloc_exports.dart';
 import '../../../models/machine_controller.dart';
+import '../../../domain/entities/machine_profile.dart';
 
 /// Session Initialization section - CNC machine setup and control interface
 class SessionInitializationSection extends StatefulWidget {

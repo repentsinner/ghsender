@@ -5,6 +5,7 @@ import 'package:vector_math/vector_math.dart' as vm;
 import '../scene/scene_manager.dart';
 import '../ui/themes/visualizer_theme.dart';
 import 'gcode_parser.dart';
+import '../domain/value_objects/gcode_command.dart';
 
 /// Types of G-code path segments for rendering
 enum GCodeSegmentType {

@@ -4,7 +4,7 @@ import '../sidebar_sections/sidebar_components.dart';
 import 'package:file_picker/file_picker.dart';
 import '../../../utils/logger.dart';
 import '../../../bloc/bloc_exports.dart';
-import '../../../models/gcode_file.dart';
+import '../../../domain/value_objects/gcode_file.dart';
 
 /// Files & Jobs section - G-code file management interface
 class FilesAndJobsSection extends StatelessWidget {

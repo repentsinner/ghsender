@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghsender/gcode/gcode_processor.dart';
-import 'package:ghsender/models/gcode_file.dart';
+import 'package:ghsender/domain/value_objects/gcode_file.dart';
 
 void main() {
   group('GCodeProcessor', () {

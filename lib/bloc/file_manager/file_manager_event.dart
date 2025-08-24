@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../../models/gcode_file.dart';
+import '../../domain/value_objects/gcode_file.dart';
 
 /// Base class for all file manager events
 abstract class FileManagerEvent extends Equatable {

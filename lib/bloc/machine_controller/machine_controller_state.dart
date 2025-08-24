@@ -3,6 +3,7 @@ import '../../models/machine_controller.dart';
 import '../../models/machine_configuration.dart';
 import '../../models/alarm_error_metadata.dart';
 import '../communication/cnc_communication_state.dart';
+import '../../domain/value_objects/machine_coordinates.dart';
 
 /// State for the Machine Controller BLoC
 class MachineControllerState extends Equatable {

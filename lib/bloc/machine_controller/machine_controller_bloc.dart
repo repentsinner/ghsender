@@ -11,6 +11,7 @@ import '../communication/cnc_communication_state.dart';
 import '../communication/cnc_communication_event.dart';
 import '../problems/problems_event.dart';
 import '../../domain/value_objects/configuration_setting.dart';
+import '../../domain/value_objects/machine_coordinates.dart';
 
 /// BLoC for managing machine controller state from CNC communication responses
 class MachineControllerBloc

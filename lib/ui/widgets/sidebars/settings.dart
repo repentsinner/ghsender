@@ -8,6 +8,7 @@ import '../../../bloc/profile/profile_event.dart';
 import '../../../bloc/profile/profile_state.dart';
 import '../../../bloc/graphics/graphics_bloc.dart';
 import '../../../bloc/graphics/graphics_state.dart';
+import '../../../domain/entities/machine_profile.dart';
 import '../../../utils/logger.dart';
 
 /// Settings section - Machine profiles, communication settings, and renderer settings

@@ -3,6 +3,7 @@ import 'package:vector_math/vector_math.dart' as vm;
 import 'machine_configuration.dart';
 import 'bounding_box.dart';
 import '../utils/logger.dart';
+import '../domain/value_objects/machine_coordinates.dart';
 
 /// Machine controller status enumeration
 enum MachineStatus {
@@ -117,44 +118,7 @@ extension MachineStatusExtension on MachineStatus {
   }
 }
 
-/// Machine coordinate system
-class MachineCoordinates extends Equatable {
-  final double x;
-  final double y;
-  final double z;
-  final String units; // "mm" or "inch"
-  final DateTime lastUpdated;
-
-  const MachineCoordinates({
-    required this.x,
-    required this.y,
-    required this.z,
-    this.units = 'mm',
-    required this.lastUpdated,
-  });
-
-  @override
-  List<Object?> get props => [x, y, z, units, lastUpdated];
-
-  @override
-  String toString() => '($x, $y, $z) $units';
-
-  MachineCoordinates copyWith({
-    double? x,
-    double? y,
-    double? z,
-    String? units,
-    DateTime? lastUpdated,
-  }) {
-    return MachineCoordinates(
-      x: x ?? this.x,
-      y: y ?? this.y,
-      z: z ?? this.z,
-      units: units ?? this.units,
-      lastUpdated: lastUpdated ?? this.lastUpdated,
-    );
-  }
-}
+// MachineCoordinates has been moved to lib/domain/value_objects/machine_coordinates.dart
 
 /// Spindle information
 class SpindleState extends Equatable {

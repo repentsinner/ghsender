@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import '../utils/logger.dart';
 import 'gcode_parser.dart';
-import '../models/gcode_file.dart';
+import '../domain/value_objects/gcode_file.dart';
 
 /// Central G-code processing engine that manages the pipeline between
 /// file selection and various consumers (scene manager, CNC connection, etc.)

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../utils/logger.dart';
 import '../../gcode/gcode_processor.dart';
-import '../../models/gcode_file.dart';
+import '../../domain/value_objects/gcode_file.dart';
 import 'file_manager_event.dart';
 import 'file_manager_state.dart';
 

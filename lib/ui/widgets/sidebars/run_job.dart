@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../themes/vscode_theme.dart';
 import '../sidebar_sections/sidebar_components.dart';
 import '../../../bloc/bloc_exports.dart';
-import '../../../models/gcode_file.dart';
+import '../../../domain/value_objects/gcode_file.dart';
 
 /// Run Job section - Job execution control interface
 class RunJobSection extends StatefulWidget {

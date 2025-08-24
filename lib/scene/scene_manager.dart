@@ -11,6 +11,7 @@ import 'axes_factory.dart';
 import '../models/machine_controller.dart';
 import '../models/job_envelope.dart';
 import '../models/bounding_box.dart';
+import '../domain/value_objects/machine_coordinates.dart';
 
 /// Centralized scene manager that creates and manages the 3D scene
 /// All renderers receive the same scene data from this manager

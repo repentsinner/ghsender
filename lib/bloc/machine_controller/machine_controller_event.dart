@@ -3,6 +3,7 @@ import '../../models/machine_controller.dart';
 import '../../models/machine_configuration.dart';
 import '../communication/cnc_communication_state.dart';
 import '../communication/cnc_communication_event.dart';
+import '../../domain/value_objects/machine_coordinates.dart';
 
 /// Events for the Machine Controller BLoC
 abstract class MachineControllerEvent extends Equatable {

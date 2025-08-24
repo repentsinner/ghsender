@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import '../../utils/logger.dart';
+import '../../domain/entities/machine_profile.dart';
 import 'profile_event.dart';
 import 'profile_state.dart';
 

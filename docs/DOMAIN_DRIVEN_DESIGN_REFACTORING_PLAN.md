@@ -141,36 +141,36 @@ A task is only complete when the original code is **removed**, not just when the
     - [x] 🟩 Original model class removed from `lib/models/problem.dart`.
     - [x] ✅ All related tests pass.
 
-**Task 1B: Independent Objects (Low Risk - Days 3-5)**
-- [ ] **MachineProfile Entity** (DEPENDENCY: None)
+**Task 1B: Independent Objects (Low Risk - Days 3-5)** 🟩 **Completed**
+- [x] **MachineProfile Entity** (DEPENDENCY: None)
   - Current: `/lib/bloc/profile/profile_state.dart` - Isolated to ProfileBloc
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/entities/machine_profile.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/bloc/profile/profile_state.dart`.
-    - [ ] ✅ All related tests pass.
-- [ ] **GCodeFile Value Object** (DEPENDENCY: None)
+    - [x] 🟩 `lib/domain/entities/machine_profile.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/bloc/profile/profile_state.dart`.
+    - [x] ✅ All related tests pass.
+- [x] **GCodeFile Value Object** (DEPENDENCY: None)
   - Current: `/lib/models/gcode_file.dart` - Standalone file metadata
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/value_objects/gcode_file.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/models/gcode_file.dart`.
-    - [ ] ✅ All related tests pass.
-- [ ] **GCodeCommand Value Object** (DEPENDENCY: vector_math only)
+    - [x] 🟩 `lib/domain/value_objects/gcode_file.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `/lib/models/gcode_file.dart` (file deleted).
+    - [x] ✅ All related tests pass.
+- [x] **GCodeCommand Value Object** (DEPENDENCY: vector_math only)
   - Current: `/lib/gcode/gcode_parser.dart` - Simple parsing object
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/value_objects/gcode_command.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/gcode/gcode_parser.dart`.
-    - [ ] ✅ All related tests pass.
-- [ ] **MachineCoordinates Value Object** (DEPENDENCY: None, HIGH USAGE)
+    - [x] 🟩 `lib/domain/value_objects/gcode_command.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/gcode/gcode_parser.dart`.
+    - [x] ✅ All related tests pass.
+- [x] **MachineCoordinates Value Object** (DEPENDENCY: None, HIGH USAGE)
   - Current: `/lib/models/machine_controller.dart` - Used in 15+ files for position tracking
   - ⚠️ **HIGH RISK**: Most widely used object - save for when confident with process
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/value_objects/machine_coordinates.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/models/machine_controller.dart`.
-    - [ ] ✅ All related tests pass.
+    - [x] 🟩 `lib/domain/value_objects/machine_coordinates.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/models/machine_controller.dart`.
+    - [x] ✅ All related tests pass.
 
 **Task 1C: Dependent Objects (Medium Risk - Days 6-8)**
 - [ ] **MachineConfiguration Entity** (DEPENDENCY: ConfigurationSetting)

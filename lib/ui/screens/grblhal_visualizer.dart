@@ -20,6 +20,7 @@ import '../layouts/vscode_layout.dart';
 import '../../bloc/machine_controller/machine_controller_bloc.dart';
 import '../../bloc/machine_controller/machine_controller_state.dart';
 import '../../models/machine_controller.dart';
+import '../../domain/value_objects/machine_coordinates.dart';
 
 enum RendererType { flutterSceneLines }
 

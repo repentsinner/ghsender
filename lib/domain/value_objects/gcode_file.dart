@@ -1,5 +1,7 @@
+import 'package:equatable/equatable.dart';
+
 /// G-code file management data model
-class GCodeFile {
+class GCodeFile extends Equatable {
   final String name;
   final String path;
   final int sizeBytes;
@@ -7,7 +9,7 @@ class GCodeFile {
   final String status; // 'ready', 'completed', 'processing'
   final Duration? estimatedTime;
 
-  GCodeFile({
+  const GCodeFile({
     required this.name,
     required this.path,
     required this.sizeBytes,
@@ -40,18 +42,7 @@ class GCodeFile {
   }
 
   @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    return other is GCodeFile &&
-        other.name == name &&
-        other.path == path &&
-        other.sizeBytes == sizeBytes;
-  }
-
-  @override
-  int get hashCode {
-    return name.hashCode ^ path.hashCode ^ sizeBytes.hashCode;
-  }
+  List<Object?> get props => [name, path, sizeBytes, uploadDate, status, estimatedTime];
 
   @override
   String toString() {
