@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../themes/vscode_theme.dart';
 import '../../models/problem.dart';
+import '../../domain/value_objects/problem_action.dart';
 
 /// Widget to display a single problem item in the Problems panel
 class ProblemItem extends StatelessWidget {

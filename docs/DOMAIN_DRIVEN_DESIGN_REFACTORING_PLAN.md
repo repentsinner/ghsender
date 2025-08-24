@@ -125,21 +125,21 @@ A task is only complete when the original code is **removed**, not just when the
 
 **Critical Finding**: Objects have technical dependencies that require specific sequencing to minimize integration risk. The sequence below follows dependency chains rather than functional grouping to enable atomic rollbacks at each step.
 
-**Task 1A: Foundation Objects (Lowest Risk - Days 1-2)**
-- [ ] **ConfigurationSetting Value Object** (DEPENDENCY: None)
+**Task 1A: Foundation Objects (Lowest Risk - Days 1-2)** 🟩 **Completed**
+- [x] **ConfigurationSetting Value Object** (DEPENDENCY: None)
   - Current: Part of `/lib/models/machine_configuration.dart` - Used only by MachineConfiguration
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/value_objects/configuration_setting.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/models/machine_configuration.dart`.
-    - [ ] ✅ All related tests pass.
-- [ ] **ProblemAction Value Object** (DEPENDENCY: None)
+    - [x] 🟩 `lib/domain/value_objects/configuration_setting.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/models/machine_configuration.dart`.
+    - [x] ✅ All related tests pass.
+- [x] **ProblemAction Value Object** (DEPENDENCY: None)
   - Current: `/lib/models/problem.dart` - Used only by Problem for resolution actions
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/value_objects/problem_action.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/models/problem.dart`.
-    - [ ] ✅ All related tests pass.
+    - [x] 🟩 `lib/domain/value_objects/problem_action.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/models/problem.dart`.
+    - [x] ✅ All related tests pass.
 
 **Task 1B: Independent Objects (Low Risk - Days 3-5)**
 - [ ] **MachineProfile Entity** (DEPENDENCY: None)

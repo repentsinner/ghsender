@@ -6,8 +6,9 @@ import '../../bloc/bloc_exports.dart';
 import '../../models/machine_configuration.dart';
 import '../../models/machine_controller.dart';
 import '../../models/settings_metadata.dart';
-import '../../models/problem.dart';
 import '../../utils/logger.dart';
+import '../../domain/value_objects/configuration_setting.dart';
+import '../../domain/value_objects/problem_action.dart';
 
 /// Bottom Panel widget - tabbed interface for console, problems, output
 class BottomPanel extends StatefulWidget {
