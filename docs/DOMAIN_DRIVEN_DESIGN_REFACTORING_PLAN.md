@@ -5,7 +5,8 @@
 **Priority**: High - Foundation for safety features and extensibility  
 **Status**: 🟨 In Progress (2/8 tasks completed)  
 **Migration Approach**: Direct Integration (No Feature Flags)  
-**Last Updated**: August 24, 2025
+**Last Updated**: August 24, 2025  
+**Latest Changes**: Clarified this is a REFACTOR maintaining feature parity, not feature development; corrected Task 2 to include only existing functionality
 
 ## Status Legend
 - 🟥 **Not Started** - Task not begun
@@ -15,7 +16,28 @@
 
 ## Overview
 
-This document provides detailed implementation guidance for refactoring the current monolithic BLoC architecture into a domain-driven design with focused, testable components.
+This document provides detailed implementation guidance for _refactoring_ the current monolithic BLoC architecture into a domain-driven design with focused, testable components. 
+
+**🚨 CRITICAL: This is a REFACTOR, not feature development.**
+
+We are reorganizing existing functionality into a cleaner architecture while maintaining **exact feature parity** with the current implementation. The refactored system must have identical capabilities to the current system - no more, no less. New features will be added AFTER the refactor is complete.
+
+**Quantifiable Success Criteria for this Refactor:**
+The refactor is considered complete only when all the following criteria are met:
+
+1.  **Feature Parity and Performance:**
+    - ✅ Every existing user action works identically.
+    - ✅ All performance benchmarks are met or exceeded.
+    - ✅ A full regression test against all existing features is completed successfully.
+
+2.  **Architectural Purity (The "Lift and Shift" - Task 1):**
+    - ✅ The `lib/models/` directory is empty or deleted.
+    - ✅ A global search for `package:ghsender/models/` yields zero results.
+
+3.  **Code Quality and Maintainability (The "Rewiring" - Tasks 2-8):**
+    - ✅ The line count of monolithic BLoCs (e.g., `MachineControllerBloc`) is reduced by at least 90%.
+    - ✅ The `lib/domain/` directory has >90% unit test coverage.
+    - ✅ Dependency rules are enforced: no file in `lib/domain/` imports from `lib/application/`, `lib/infrastructure/`, or `lib/ui/`.
 
 ## Migration Strategy: Incremental Direct Integration
 
@@ -38,6 +60,33 @@ This refactoring will be performed incrementally using a **Strangler Fig Pattern
 - **Integration Complexity**: A large, long-running feature branch is difficult and risky to merge.
 
 By following this incremental strategy, we can safely and confidently migrate to the new architecture while maintaining a stable and functional application at every stage. Each task in this plan is designed to be a small, manageable, and verifiable step in this larger migration.
+
+### The Refactoring Loop: Migrating Individual Objects (Task 1 Only)
+
+This loop applies specifically to **Task 1: Core Entities and Value Objects**. Its purpose is to safely "lift and shift" existing model classes into the new `lib/domain/` directory while preserving their public interface.
+
+1.  **🔲 COPY**: Create the new domain object (Entity or Value Object) in the `lib/domain/` directory. It must have the **exact same public interface** (constructors, properties, methods) as the original model class it is replacing.
+2.  **🔲 REDIRECT**: Update all existing code that uses the original model class. Change the import statements to point to the new domain object. The code should compile and function identically, as the public interface is preserved.
+3.  **🔲 REMOVE**: Once all usages of the original model class have been successfully redirected to the new domain object, **delete the original model class** from its old location (e.g., `lib/models/`). This is a critical step to prevent a mixed architecture and ensure the new domain object is the single source of truth.
+4.  **✅ VALIDATE**: Run all related tests (unit, widget, integration) to confirm that the behavior of the application is unchanged and no regressions have been introduced.
+
+---
+
+### The Integration Loop: Rewiring Functionality (Tasks 2-8)
+
+This loop applies to **Tasks 2 through 8**. Its purpose is to safely "rewire" existing business logic and infrastructure interactions to use the newly established domain and infrastructure layers. This involves replacing old, tightly coupled logic with calls to pure domain Use Cases, Services, and Repository implementations.
+
+1.  **🔲 IDENTIFY TARGET LOGIC**: Pinpoint the specific existing code (e.g., a method within a BLoC, a utility function) that contains business logic or infrastructure interaction that needs to be moved or replaced.
+2.  **🔲 CREATE NEW COMPONENT**: Implement the new domain component (Use Case, Domain Service, Repository Implementation) or application layer component (BLoC, Use Case Handler) that will encapsulate this logic. This new component should be pure, testable, and adhere to DDD principles.
+3.  **🔲 INTEGRATE**: Modify the existing application layer (e.g., the BLoC that previously held the logic) to delegate its responsibilities to the new domain or infrastructure component. This is the "rewiring" step, where the BLoC becomes a thin orchestrator.
+4.  **🔲 REMOVE OLD LOGIC**: Once the new component is integrated and proven to work correctly, **delete the original, now-redundant logic** from its old location. This ensures a clean cutover and prevents the accumulation of dead code.
+5.  **✅ VALIDATE**: Run all related tests (unit tests for the new component, integration tests for the refactored flow, and relevant UI tests) to confirm that the application's behavior remains identical and performance is maintained.
+
+---
+
+A task is only complete when the original code is **removed**, not just when the new code is added. This process guarantees that we fully cut over to the new architecture without leaving legacy code behind.
+
+---
 
 ---
 
@@ -65,27 +114,177 @@ By following this incremental strategy, we can safely and confidently migrate to
 
 ### Phase 1: Domain Layer Foundation (Tasks 1-3) - 🟨 In Progress (Domain Complete, Production Integration Needed)
 
-#### Task 1: Core Entities and Value Objects - 🟨 Partially Complete
+#### Task 1: Core Entities and Value Objects - 🟥 Not Started
 
-**Domain Implementation**: 🟦 Validated  
+**Domain Implementation**: 🟥 Not Started
 **Production Integration**: 🟥 Not Started
 
-**Domain Implementation (Completed):**
-- [x] `Machine` entity created with business validation methods
-- [x] `SafetyEnvelope` value object with containment logic  
-- [x] `MachinePosition` value object with coordinate system handling
-- [x] Unit tests achieving >90% coverage for domain entities
-- [x] All tests passing (15/15 domain tests pass)
-- [x] No breaking changes to existing functionality
+**Scope**: Foundation domain entity and value objects only
 
-**Production Integration (In Progress):**
-- [x] Create adapter to populate Machine entity from existing MachineController models
-- [x] Integrate Machine entity into MachineControllerBloc via domainMachine getter
-- [x] Add domain Machine entity usage in JogService with validation tests
-- [ ] **IN PROGRESS**: Remove feature flag system and directly integrate domain validation into JogControllerBloc
-- [ ] Replace SoftLimitChecker calls with direct domain Machine entity validation
-- [ ] Remove old parallel methods and feature flag references
-- [ ] Validate production integration maintains existing behavior exactly
+## Dependency Analysis & Optimal Refactoring Sequence
+
+**Critical Finding**: Objects have technical dependencies that require specific sequencing to minimize integration risk. The sequence below follows dependency chains rather than functional grouping to enable atomic rollbacks at each step.
+
+**Task 1A: Foundation Objects (Lowest Risk - Days 1-2)**
+- [ ] **ConfigurationSetting Value Object** (DEPENDENCY: None)
+  - Current: Part of `/lib/models/machine_configuration.dart` - Used only by MachineConfiguration
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/value_objects/configuration_setting.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/models/machine_configuration.dart`.
+    - [ ] ✅ All related tests pass.
+- [ ] **ProblemAction Value Object** (DEPENDENCY: None)
+  - Current: `/lib/models/problem.dart` - Used only by Problem for resolution actions
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/value_objects/problem_action.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/models/problem.dart`.
+    - [ ] ✅ All related tests pass.
+
+**Task 1B: Independent Objects (Low Risk - Days 3-5)**
+- [ ] **MachineProfile Entity** (DEPENDENCY: None)
+  - Current: `/lib/bloc/profile/profile_state.dart` - Isolated to ProfileBloc
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/entities/machine_profile.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/bloc/profile/profile_state.dart`.
+    - [ ] ✅ All related tests pass.
+- [ ] **GCodeFile Value Object** (DEPENDENCY: None)
+  - Current: `/lib/models/gcode_file.dart` - Standalone file metadata
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/value_objects/gcode_file.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/models/gcode_file.dart`.
+    - [ ] ✅ All related tests pass.
+- [ ] **GCodeCommand Value Object** (DEPENDENCY: vector_math only)
+  - Current: `/lib/gcode/gcode_parser.dart` - Simple parsing object
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/value_objects/gcode_command.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/gcode/gcode_parser.dart`.
+    - [ ] ✅ All related tests pass.
+- [ ] **MachineCoordinates Value Object** (DEPENDENCY: None, HIGH USAGE)
+  - Current: `/lib/models/machine_controller.dart` - Used in 15+ files for position tracking
+  - ⚠️ **HIGH RISK**: Most widely used object - save for when confident with process
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/value_objects/machine_coordinates.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/models/machine_controller.dart`.
+    - [ ] ✅ All related tests pass.
+
+**Task 1C: Dependent Objects (Medium Risk - Days 6-8)**
+- [ ] **MachineConfiguration Entity** (DEPENDENCY: ConfigurationSetting)
+  - Current: `/lib/models/machine_configuration.dart` - Machine settings management
+  - **Prerequisites**: ConfigurationSetting must be complete
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/entities/machine_configuration.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/models/machine_configuration.dart`.
+    - [ ] ✅ All related tests pass.
+- [ ] **Problem Entity** (DEPENDENCY: ProblemAction)
+  - Current: `/lib/models/problem.dart` - Issue tracking and lifecycle management
+  - **Prerequisites**: ProblemAction must be complete
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/entities/problem.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/models/problem.dart`.
+    - [ ] ✅ All related tests pass.
+- [ ] **WorkEnvelope Value Object** (DEPENDENCY: MachineConfiguration, BoundingBox)
+  - Current: `/lib/models/machine_controller.dart` - Critical for safety validation
+  - **Prerequisites**: MachineConfiguration must be complete
+  - ⚠️ **HIGH RISK**: Critical for safety systems
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/value_objects/work_envelope.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/models/machine_controller.dart`.
+    - [ ] ✅ All related tests pass.
+
+**Task 1D: Complex Integration (Highest Risk - Days 9-10)**
+- [ ] **GCodePath Value Object** (DEPENDENCY: GCodeCommand, BoundingBox)
+  - Current: `/lib/gcode/gcode_parser.dart` - Path analysis and visualization
+  - **Prerequisites**: GCodeCommand must be complete
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/value_objects/gcode_path.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/gcode/gcode_parser.dart`.
+    - [ ] ✅ All related tests pass.
+- [ ] **JobEnvelope Value Object** (DEPENDENCY: WorkEnvelope, BoundingBox)
+  - Current: `/lib/models/job_envelope.dart` - Job visualization and camera positioning
+  - **Prerequisites**: WorkEnvelope must be complete
+  - **Definition of Done**:
+    - [ ] 🔲 `lib/domain/value_objects/job_envelope.dart` created.
+    - [ ] 🔲 All usages redirected to the new domain object.
+    - [ ] 🔲 Original model class removed from `lib/models/job_envelope.dart`.
+    - [ ] ✅ All related tests pass.
+
+## Detailed Dependency Analysis
+
+### **Dependency Graph Discovered**
+Through analysis of the codebase, the following dependency relationships were identified:
+
+**Foundation Layer** (No dependencies):
+- ConfigurationSetting → Used internally by MachineConfiguration
+- ProblemAction → Used internally by Problem  
+- BoundingBox → Used by WorkEnvelope, JobEnvelope, GCodePath (excluded from refactor)
+
+**Independent Layer** (No business logic dependencies):
+- MachineProfile → Isolated to ProfileBloc, no cross-references
+- GCodeFile → Standalone file metadata, used only by FileManagerBloc
+- GCodeCommand → Depends only on external vector_math library
+- MachineCoordinates → Standalone but used in 15+ files (highest usage risk)
+
+**Dependent Layer** (Requires foundation objects):
+- MachineConfiguration → **Depends on ConfigurationSetting**
+- Problem → **Depends on ProblemAction**  
+- WorkEnvelope → **Depends on MachineConfiguration + BoundingBox**
+
+**Complex Integration Layer** (Requires multiple dependencies):
+- GCodePath → **Depends on GCodeCommand + BoundingBox**
+- JobEnvelope → **Depends on WorkEnvelope + BoundingBox**
+
+### **Risk Assessment by Object**
+
+**VERY LOW RISK** (Internal implementation details):
+- ConfigurationSetting, ProblemAction - Used only by their parent classes
+
+**LOW RISK** (Isolated functionality):  
+- MachineProfile - Contained within ProfileBloc
+- GCodeFile - Simple file metadata object
+
+**MEDIUM RISK** (Moderate integration complexity):
+- GCodeCommand - Simple parsing, limited usage
+- MachineConfiguration - Core settings but well-contained
+- Problem - Error handling throughout app
+- GCodePath - Visualization and parsing logic
+- JobEnvelope - Camera positioning and visualization
+
+**HIGH RISK** (Critical business logic):
+- MachineCoordinates - Used in 15+ files for position tracking, jog operations, status display
+- WorkEnvelope - Critical for safety validation in jog operations, soft limit checking
+
+### **Refactoring Strategy Justification**
+
+The dependency-ordered approach provides several critical advantages over functional grouping:
+
+1. **Atomic Operations**: Each phase can be completed and validated before proceeding
+2. **Rollback Safety**: Dependencies ensure no "orphaned" references if rollback needed
+3. **Risk Mitigation**: High-risk objects (MachineCoordinates, WorkEnvelope) tackled when process is proven
+4. **Clear Prerequisites**: No object is refactored until its dependencies are stable
+5. **Validation Points**: Natural testing boundaries at each dependency layer
+
+**Production Integration (Not Started - REFACTOR ONLY):**
+- [ ] **Phase 1A**: Integrate foundation objects (ConfigurationSetting, ProblemAction)
+- [ ] **Phase 1B**: Integrate independent objects (MachineProfile, GCodeFile, GCodeCommand, MachineCoordinates)
+- [ ] **Phase 1C**: Integrate dependent objects (MachineConfiguration, Problem, WorkEnvelope)
+- [ ] **Phase 1D**: Integrate complex objects (GCodePath, JobEnvelope)
+- [ ] **Validation**: Confirm identical functionality at each phase - every operation works exactly the same
+- [ ] **Cleanup**: Remove original model classes only after successful integration of each phase
+
+**Dependency-Based Integration Benefits:**
+- **Atomic Rollbacks**: Each phase can be reverted independently without breaking subsequent objects
+- **Reduced Risk**: Foundation objects establish base layer before complex dependencies
+- **Clear Prerequisites**: No object is refactored before its dependencies are complete
+- **Validation Points**: Testing can occur at logical dependency boundaries
 
 **Performance Benchmarks**:
 - [x] Domain entity creation: <1ms per instance (measured in tests)
@@ -101,6 +300,16 @@ By following this incremental strategy, we can safely and confidently migrate to
 - Must validate moves against safety envelope before execution
 - Handles alarm states and prevents operations during alarm conditions
 - Key behaviors: `validateMove()`, `executeMove()`, `updateStatus()`, `addAlarm()`, `clearAlarms()`
+
+**📋 SUMMARY FOR SOFTWARE DEVELOPER:**
+
+**Task 1 refactors 11 existing objects, broken into four phases based on dependencies:**
+- **Task 1A (Foundation)**: 2 objects with no dependencies.
+- **Task 1B (Independent)**: 4 objects that don't depend on other domain objects.
+- **Task 1C (Dependent)**: 3 objects that depend on objects from Task 1A.
+- **Task 1D (Complex)**: 2 objects that depend on objects from previous tasks.
+
+**Your job is to follow the "Copy, Redirect, Remove, Validate" loop for each object in order.** The domain version of each object must have the **exact same public interface** as the original. This is a pure refactor; do not add or change functionality.
 
 **Validation Requirements**:
 - Move validation must produce identical results to existing `SoftLimitChecker`
@@ -132,25 +341,60 @@ By following this incremental strategy, we can safely and confidently migrate to
 - If performance degrades: `git reset` to previous working state
 - If tests break: Restore from git and reassess approach
 
-#### Task 2: Repository Interfaces and Use Cases - 🟨 Partially Complete
+#### Task 2: Repository Interfaces and Existing Use Cases - 🟥 Not Started
 
-**Domain Implementation**: 🟦 Validated  
+**Domain Implementation**: 🟥 Not Started
 **Production Integration**: 🟥 Not Started  
 **Dependencies**: Task 1 domain implementation ✅
 
-**Domain Implementation (Completed):**
-- [x] Repository interfaces defined for `MachineRepository` and `GCodeRepository`
-- [x] Core use cases implemented (`JogMachine`, `ExecuteGCodeProgram`)
-- [x] Use case unit tests with mock repositories (22 tests total, all passing)
-- [x] Integration tests with existing `SoftLimitChecker` (9 tests, all passing)
-- [x] All existing safety validations preserved
+**🚨 REFACTOR SCOPE**: Only existing functionality - no new features
+
+**Existing Functionality to Refactor (Based on Current JogControllerBloc):**
+- [x] **DiscreteJog**: JogMachine use case integrated into MachineControllerBloc._onJogRequested()
+- [ ] **ProportionalJog** (existing functionality):
+  - [ ] 🔲 Creation: Create ProportionalJog use case (refactor from JogControllerBloc._onProportionalJogInput)
+  - [ ] 🔲 Integration: Replace proportional jog logic with use case
+  - [ ] 🔲 Removal: Remove original proportional jog implementation
+- [ ] **JoystickInput** (existing functionality):
+  - [ ] 🔲 Creation: Create JoystickJog use case (refactor from JogControllerBloc._onJoystickInput)
+  - [ ] 🔲 Integration: Replace joystick input processing with use case
+  - [ ] 🔲 Removal: Remove original joystick processing implementation  
+- [ ] **JogStop** (existing functionality):
+  - [ ] 🔲 Creation: Create StopJog use case (refactor from JogControllerBloc._onJogStop)
+  - [ ] 🔲 Integration: Replace jog stop logic with use case
+  - [ ] 🔲 Removal: Remove original jog stop implementation
+- [ ] **WorkZero** (existing functionality):
+  - [ ] 🔲 Creation: Create SetWorkZero use case (refactor from JogControllerBloc._onWorkZero)
+  - [ ] 🔲 Integration: Replace work zero logic with use case
+  - [ ] 🔲 Removal: Remove original work zero implementation
+- [ ] **Probe** (existing functionality):
+  - [ ] 🔲 Creation: Create ProbeWorkpiece use case (refactor from JogControllerBloc._onProbe)
+  - [ ] 🔲 Integration: Replace probe logic with use case
+  - [ ] 🔲 Removal: Remove original probe implementation
+- [ ] **Homing** (existing functionality):
+  - [ ] 🔲 Creation: Create HomeMachine use case (refactor from JogControllerBloc._onHoming)
+  - [ ] 🔲 Integration: Replace homing logic with use case
+  - [ ] 🔲 Removal: Remove original homing implementation
+
+**File Management Use Cases (Refactor from FileManagerBloc):**
+- [ ] **AddFile** (existing functionality):
+  - [ ] 🔲 Creation: Create AddGCodeFile use case (refactor from FileManagerBloc._onFileAdded)
+  - [ ] 🔲 Integration: Replace file add logic with use case
+  - [ ] 🔲 Removal: Remove original file add implementation
+- [ ] **SelectFile** (existing functionality):
+  - [ ] 🔲 Creation: Create SelectGCodeFile use case (refactor from FileManagerBloc._onFileSelected)
+  - [ ] 🔲 Integration: Replace file select logic with use case
+  - [ ] 🔲 Removal: Remove original file select implementation
+- [ ] **DeleteFile** (existing functionality):
+  - [ ] 🔲 Creation: Create DeleteGCodeFile use case (refactor from FileManagerBloc._onFileDeleted)
+  - [ ] 🔲 Integration: Replace file delete logic with use case
+  - [ ] 🔲 Removal: Remove original file delete implementation
 
 **Production Integration (Not Started):**
 - [ ] Implement concrete MachineRepository bridging existing communication BLoCs
-- [ ] Implement concrete GCodeRepository bridging existing file management
-- [ ] Replace SoftLimitChecker calls in jog_service.dart with JogMachine use case
-- [ ] Direct integration of use cases into production BLoCs (no feature flags)
-- [ ] Remove old jog logic that's been replaced by domain use cases
+- [ ] Implement concrete GCodeFileRepository bridging existing file management BLoCs
+- [ ] Direct integration of all use cases into production BLoCs (no feature flags)
+- [ ] Complete migration of existing operations to domain use cases
 - [ ] Validate production integration maintains 125Hz communication performance
 
 **Performance Benchmarks**: ✅ **EXCEEDED TARGETS**
@@ -174,33 +418,43 @@ abstract class MachineRepository {
 }
 ```
 
-**GCodeRepository Interface** (`lib/domain/repositories/gcode_repository.dart`):
-- Abstract file system operations for G-code program management
-- Handles program loading, saving, listing, and deletion
+**GCodeFileRepository Interface** (`lib/domain/repositories/gcode_file_repository.dart`):
+- Abstract file operations for G-code file management (EXISTING FileManagerBloc functionality)
+- Handles file addition, selection, deletion, and listing
 - Must integrate with existing file management without breaking workflows
 
-*Key Interface Contracts:*
+*Key Interface Contracts (refactored from FileManagerBloc):*
 ```dart
-abstract class GCodeRepository {
-  Future<GCodeProgram> load(GCodeProgramId id);
-  Future<void> save(GCodeProgram program);
-  Stream<GCodeProgram> watchProgram(GCodeProgramId id);
+abstract class GCodeFileRepository {
+  Future<void> addFile(GCodeFile file);
+  Future<void> selectFile(GCodeFile file);
+  Future<void> deleteFile(GCodeFile file);
+  Future<List<GCodeFile>> listFiles();
+  Stream<List<GCodeFile>> watchFiles();
 }
 ```
 
-**Use Case Concepts:**
+**Use Case Concepts (Refactoring Existing Functionality):**
 
 **JogMachine Use Case** (`lib/domain/use_cases/jog_machine.dart`):
-- Orchestrates machine jogging operations with comprehensive safety validation
+- Orchestrates discrete jog operations (EXISTING JogControllerBloc._onDiscreteJog functionality)
 - Coordinates between machine state, safety validation, and position calculation
 - Must replicate existing jog behavior while adding domain-level validation
-- Flow: Get machine state → Calculate target → Validate move → Additional safety checks → Execute → Update state
+- Flow: Get machine state → Calculate target → Validate move → Execute → Update state
 - Returns structured results (`JogResult`) with success/failure and violation types
 
-**ExecuteGCodeProgram Use Case** (planned):
-- Handles G-code program execution with pre-validation and progress tracking
-- Must integrate with existing G-code parser and execution pipeline
-- Provides program validation before execution begins
+**Additional Jog Use Cases** (refactoring existing JogControllerBloc methods):
+- **ProportionalJog**: Refactor _onProportionalJogInput for joystick-style continuous movement
+- **JoystickJog**: Refactor _onJoystickInput for legacy joystick support
+- **StopJog**: Refactor _onJogStop for halting jog operations
+- **SetWorkZero**: Refactor _onWorkZero for coordinate zero setting
+- **ProbeWorkpiece**: Refactor _onProbe for probing operations
+- **HomeMachine**: Refactor _onHoming for homing cycle
+
+**File Management Use Cases** (refactoring existing FileManagerBloc methods):
+- **AddGCodeFile**: Refactor _onFileAdded for adding files to the list
+- **SelectGCodeFile**: Refactor _onFileSelected for file selection
+- **DeleteGCodeFile**: Refactor _onFileDeleted for file removal
 
 **Use Case Responsibilities:**
 - Coordinate multiple domain services and entities
@@ -224,28 +478,18 @@ class SafetyValidator {
 - If integration breaks: `git reset` to working state, reassess integration approach
 - If performance degrades: Add caching layer or simplify use case logic
 
-#### Task 3: Safety Validation Service - 🟨 Partially Complete
+#### Task 3: Safety Validation Service - 🟥 Not Started
 
-**Domain Implementation**: 🟦 Validated  
+**Domain Implementation**: 🟥 Not Started
 **Production Integration**: 🟥 Not Started  
 **Dependencies**: Tasks 1-2 domain implementation ✅
 
-**Domain Implementation (Completed):**
-- [x] `SafetyValidator` service operational with work envelope validation
-- [x] Job execution validation for work envelope boundaries
-- [x] Results match existing `SoftLimitChecker` behavior 100% (validated in integration tests)
-- [x] Feed rate validation against machine configuration
-- [x] Basic validation mechanism scaffolded (details to be added later)
-- [x] 29 tests passing (15 unit + 7 integration + 7 performance)
-- [x] Performance exceeds requirements by 25x (4μs vs 100μs requirement)
-
 **Production Integration (Not Started):**
-- [ ] Replace SoftLimitChecker calls in JogControllerBloc with direct domain Machine validation
-- [ ] Replace SoftLimitChecker calls in proportional_jog_controller.dart with SafetyValidator
-- [ ] Remove old processWithSoftLimits methods and parallel validation paths
-- [ ] Remove replaced SoftLimitChecker usage in production code
+- [ ] Replace SoftLimitChecker calls in remaining non-jog code with SafetyValidator
+- [ ] Remove old validation methods and parallel validation paths outside of jog system
+- [ ] Remove replaced SoftLimitChecker usage in production code (non-jog operations)
 - [ ] Validate production integration maintains existing safety behavior exactly
-- [ ] Create deprecation plan for lib/utils/soft_limit_checker.dart
+- [ ] Create deprecation plan for lib/utils/soft_limit_checker.dart (after Task 2 jog integration)
 
 **Performance Benchmarks**:
 - [ ] Individual move validation: <0.1ms
@@ -580,10 +824,10 @@ class SafetyValidator {
 - [x] **Performance**: All benchmarks exceeded, existing functionality unchanged
 
 **Production Integration (Not Started):**
-- [ ] **Task 1**: 🟥 Machine entity integrated into production BLoCs
-- [ ] **Task 2**: 🟥 Use cases replace existing logic in production services
-- [ ] **Task 3**: 🟥 SafetyValidator replaces SoftLimitChecker in production
-- [ ] **Validation**: Production code uses domain layer, old code removed
+- [ ] **Task 1**: 🟥 All foundational domain entities integrated into production BLoCs  
+- [ ] **Task 2**: 🟥 Use cases replace existing BLoC methods - REFACTOR ONLY (no new functionality)
+- [ ] **Task 3**: 🟥 SafetyValidator replaces SoftLimitChecker in remaining non-jog production code
+- [ ] **Validation**: Production code uses domain layer, old code removed, IDENTICAL functionality
 - [ ] **Performance**: 125Hz communication and 120fps rendering maintained during migration
 
 ### Phase 2 Completion Criteria (BLoC Refactoring)  
