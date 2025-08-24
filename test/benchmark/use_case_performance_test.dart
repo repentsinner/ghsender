@@ -92,8 +92,9 @@ void main() {
         stopwatch.stop();
         final averageTimePerCall = stopwatch.elapsed ~/ iterationCount;
         
-        print('JogMachine.validateMove: ${averageTimePerCall.inMicroseconds}μs average');
-        print('Target: ${targetTime.inMicroseconds}μs (60Hz)');
+        // Performance metrics for analysis
+        // JogMachine.validateMove: ${averageTimePerCall.inMicroseconds}μs average
+        // Target: ${targetTime.inMicroseconds}μs (60Hz)
         
         // Should complete well within 60Hz timing requirements
         expect(averageTimePerCall < targetTime, isTrue,
@@ -102,7 +103,6 @@ void main() {
 
       test('maintains performance for rapid jog execution', () async {
         const iterationCount = 100; // Fewer iterations for full execution
-        const targetTime = Duration(milliseconds: 16);
         
         final stopwatch = Stopwatch()..start();
         
@@ -124,7 +124,7 @@ void main() {
         stopwatch.stop();
         final averageTimePerCall = stopwatch.elapsed ~/ iterationCount;
         
-        print('JogMachine.execute: ${averageTimePerCall.inMicroseconds}μs average');
+        // JogMachine.execute: ${averageTimePerCall.inMicroseconds}μs average
         
         // Should complete within reasonable time for interactive jogging
         expect(averageTimePerCall < const Duration(milliseconds: 5), isTrue,
@@ -159,8 +159,8 @@ void main() {
         complexStopwatch.stop();
         final complexTimePerCall = complexStopwatch.elapsed ~/ complexIterations;
         
-        print('Simple validation: ${simpleTimePerCall.inMicroseconds}μs');
-        print('Complex validation: ${complexTimePerCall.inMicroseconds}μs');
+        // Simple validation: ${simpleTimePerCall.inMicroseconds}μs
+        // Complex validation: ${complexTimePerCall.inMicroseconds}μs
         
         // Complex validation should not be more than 3x slower
         final performanceRatio = complexTimePerCall.inMicroseconds / simpleTimePerCall.inMicroseconds;
@@ -186,7 +186,7 @@ void main() {
         stopwatch.stop();
         final averageTimePerCall = stopwatch.elapsed ~/ iterationCount;
         
-        print('ExecuteGCodeProgram.validateProgram: ${averageTimePerCall.inMicroseconds}μs average');
+        // ExecuteGCodeProgram.validateProgram: ${averageTimePerCall.inMicroseconds}μs average
         
         expect(averageTimePerCall < targetTime, isTrue,
           reason: 'Program validation too slow for practical use');
@@ -208,7 +208,7 @@ void main() {
         stopwatch.stop();
         final averageTimePerCall = stopwatch.elapsed ~/ iterationCount;
         
-        print('ExecuteGCodeProgram.execute: ${averageTimePerCall.inMicroseconds}μs average');
+        // ExecuteGCodeProgram.execute: ${averageTimePerCall.inMicroseconds}μs average
         
         expect(averageTimePerCall < targetTime, isTrue,
           reason: 'Program execution pipeline too slow');
@@ -273,8 +273,8 @@ void main() {
         final totalRequests = concurrentRequests * requestsPerFuture;
         final averageTimePerRequest = stopwatch.elapsed ~/ totalRequests;
         
-        print('Concurrent validation: ${averageTimePerRequest.inMicroseconds}μs per request');
-        print('Total requests: $totalRequests in ${stopwatch.elapsedMilliseconds}ms');
+        // Concurrent validation: ${averageTimePerRequest.inMicroseconds}μs per request
+        // Total requests: $totalRequests in ${stopwatch.elapsedMilliseconds}ms
         
         // Should maintain good performance under concurrent load
         expect(averageTimePerRequest < const Duration(milliseconds: 5), isTrue,
