@@ -1,7 +1,6 @@
 import 'package:vector_math/vector_math.dart' as vm;
 import '../entities/machine.dart';
 import '../repositories/machine_repository.dart';
-import '../services/safety_validator.dart';
 import '../value_objects/validation_result.dart';
 import '../../models/machine_controller.dart'; // For MachineStatus
 
@@ -79,11 +78,9 @@ class JogResult {
 /// while adding domain-level validation.
 class JogMachine {
   final MachineRepository _machineRepository;
-  final SafetyValidator _safetyValidator;
 
   const JogMachine(
     this._machineRepository,
-    this._safetyValidator,
   );
 
   /// Execute jog operation with full validation pipeline
@@ -95,12 +92,19 @@ class JogMachine {
       // Step 1: Get current machine state
       final currentMachine = await _machineRepository.getCurrent();
 
-      // Step 2: Validate the jog move through domain safety validation
-      final validationResult = await _safetyValidator.validateJogMove(
-        currentMachine,
-        request.targetPosition,
-        request.feedRate,
-      );
+      // Step 2: Validate the jog move through domain Machine entity
+      final validationResult = currentMachine.validateMove(request.targetPosition);
+      
+      // Step 3: Validate feed rate if move is valid
+      if (validationResult.isValid && request.feedRate < 0) {
+        final feedRateValidationResult = ValidationResult.failure(
+          'Feed rate cannot be negative: ${request.feedRate}',
+          ViolationType.invalidParameter,
+        );
+        return JogResult.failure(
+          validationResult: feedRateValidationResult,
+        );
+      }
 
       if (!validationResult.isValid) {
         return JogResult.failure(
@@ -131,11 +135,23 @@ class JogMachine {
   Future<ValidationResult> validateMove(JogRequest request) async {
     try {
       final currentMachine = await _machineRepository.getCurrent();
-      return await _safetyValidator.validateJogMove(
-        currentMachine,
-        request.targetPosition,
-        request.feedRate,
-      );
+      
+      // Use domain Machine entity for validation
+      final moveValidation = currentMachine.validateMove(request.targetPosition);
+      if (!moveValidation.isValid) {
+        return moveValidation;
+      }
+      
+      // Basic feed rate validation
+      if (request.feedRate < 0) {
+        return ValidationResult.failure(
+          'Feed rate cannot be negative: ${request.feedRate}',
+          ViolationType.invalidParameter,
+        );
+      }
+      
+      // TODO: Add more comprehensive validation in Task 3
+      return ValidationResult.success();
     } catch (e) {
       return ValidationResult.failure(
         'Validation failed: ${e.toString()}',

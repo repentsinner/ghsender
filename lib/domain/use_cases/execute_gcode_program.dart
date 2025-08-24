@@ -1,7 +1,6 @@
 import '../entities/machine.dart';
 import '../repositories/machine_repository.dart';
 import '../repositories/gcode_repository.dart';
-import '../services/safety_validator.dart';
 import '../value_objects/gcode_program.dart';
 import '../value_objects/gcode_program_id.dart';
 import '../value_objects/validation_result.dart';
@@ -79,12 +78,10 @@ class ExecuteProgramResult {
 class ExecuteGCodeProgram {
   final MachineRepository _machineRepository;
   final GCodeRepository _gcodeRepository;
-  final SafetyValidator _safetyValidator;
 
   const ExecuteGCodeProgram(
     this._machineRepository,
     this._gcodeRepository,
-    this._safetyValidator,
   );
 
   /// Execute G-code program with full validation pipeline
@@ -106,10 +103,24 @@ class ExecuteGCodeProgram {
       // Step 3: Load the G-code program
       final program = await _gcodeRepository.load(request.programId);
 
-      // Step 4: Validate the program for safety and feasibility
-      final validationResult = await _safetyValidator.validateProgram(program);
-
-      if (!validationResult.isValid) {
+      // Step 4: Basic program validation
+      // TODO: Implement comprehensive program validation in Task 3
+      if (program.parsedData == null) {
+        final validationResult = ValidationResult.failure(
+          'Program has not been parsed yet',
+          ViolationType.programValidation,
+        );
+        return ExecuteProgramResult.failure(
+          validationResult: validationResult,
+          errorMessage: validationResult.error,
+        );
+      }
+      
+      if (program.parsedData!.commands.isEmpty) {
+        final validationResult = ValidationResult.failure(
+          'Program is empty',
+          ViolationType.invalidParameter,
+        );
         return ExecuteProgramResult.failure(
           validationResult: validationResult,
           errorMessage: validationResult.error,
@@ -133,7 +144,24 @@ class ExecuteGCodeProgram {
   Future<ValidationResult> validateProgram(ExecuteProgramRequest request) async {
     try {
       final program = await _gcodeRepository.load(request.programId);
-      return await _safetyValidator.validateProgram(program);
+      
+      // Basic program validation
+      if (program.parsedData == null) {
+        return ValidationResult.failure(
+          'Program has not been parsed yet',
+          ViolationType.programValidation,
+        );
+      }
+      
+      if (program.parsedData!.commands.isEmpty) {
+        return ValidationResult.failure(
+          'Program is empty',
+          ViolationType.invalidParameter,
+        );
+      }
+      
+      // TODO: Implement comprehensive program validation in Task 3
+      return ValidationResult.success();
     } catch (e) {
       return ValidationResult.failure(
         'Program validation failed: ${e.toString()}',

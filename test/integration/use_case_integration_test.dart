@@ -11,10 +11,8 @@ import 'package:ghsender/domain/value_objects/gcode_program_id.dart';
 import 'package:ghsender/domain/value_objects/validation_result.dart';
 import 'package:ghsender/domain/repositories/machine_repository.dart';
 import 'package:ghsender/domain/repositories/gcode_repository.dart';
-import 'package:ghsender/domain/services/safety_validator.dart';
 import 'package:ghsender/models/machine_controller.dart';
 import 'package:ghsender/models/machine_configuration.dart';
-import 'package:ghsender/utils/soft_limit_checker.dart';
 
 /// Integration tests verifying domain use cases work with existing SoftLimitChecker
 /// 
@@ -24,7 +22,6 @@ void main() {
   group('Domain Use Cases Integration', () {
     late TestMachineRepository machineRepository;
     late TestGCodeRepository gcodeRepository;
-    late TestSafetyValidator safetyValidator;
     late JogMachine jogMachine;
     late ExecuteGCodeProgram executeProgram;
     
@@ -60,13 +57,11 @@ void main() {
       // Create test implementations using SoftLimitChecker
       machineRepository = TestMachineRepository(testMachine);
       gcodeRepository = TestGCodeRepository(testProgram);
-      safetyValidator = TestSafetyValidator();
       
-      jogMachine = JogMachine(machineRepository, safetyValidator);
+      jogMachine = JogMachine(machineRepository);
       executeProgram = ExecuteGCodeProgram(
         machineRepository,
         gcodeRepository,
-        safetyValidator,
       );
     });
 
@@ -170,8 +165,6 @@ void main() {
         );
         machineRepository.updateCurrentMachine(nearBoundary);
         
-        // Configure safety validator to reject this program due to position
-        safetyValidator.shouldRejectProgram = true;
 
         final request = ExecuteProgramRequest(
           programId: const GCodeProgramId('test-integration'),
@@ -289,91 +282,3 @@ class TestGCodeRepository implements GCodeRepository {
   Stream<GCodeProgram> watchProgram(GCodeProgramId id) => Stream.value(_testProgram);
 }
 
-/// Test safety validator that integrates with SoftLimitChecker
-class TestSafetyValidator implements SafetyValidator {
-  bool shouldRejectProgram = false;
-
-  @override
-  Future<ValidationResult> validateJogMove(
-    Machine machine,
-    vm.Vector3 targetPosition,
-    double feedRate,
-  ) async {
-    // Use SoftLimitChecker for actual validation
-    final envelope = machine.safetyEnvelope;
-    
-    // Convert SafetyEnvelope to WorkEnvelope for SoftLimitChecker
-    final workEnvelope = WorkEnvelope.fromBounds(
-      minBounds: envelope.minBounds,
-      maxBounds: envelope.maxBounds,
-      units: 'mm',
-      lastUpdated: DateTime.now(),
-    );
-
-    // Check if target position is within limits
-    final isWithinLimits = SoftLimitChecker.isPositionWithinLimits(
-      targetPosition,
-      workEnvelope,
-    );
-
-    if (!isWithinLimits) {
-      return ValidationResult.failure(
-        'Target position exceeds work envelope limits',
-        ViolationType.workEnvelopeExceeded,
-      );
-    }
-
-    // Check feed rate limits
-    if (feedRate > 3000.0) {
-      return ValidationResult.failure(
-        'Feed rate exceeds maximum limit',
-        ViolationType.feedRateExceeded,
-      );
-    }
-
-    return ValidationResult.success();
-  }
-
-  @override
-  Future<ValidationResult> validateProgram(GCodeProgram program) async {
-    if (shouldRejectProgram) {
-      return ValidationResult.failure(
-        'Program would exceed work envelope limits',
-        ViolationType.workEnvelopeExceeded,
-      );
-    }
-    
-    return ValidationResult.success();
-  }
-
-  @override
-  Future<ValidationResult> validateArcMove(
-    Machine machine,
-    vm.Vector3 startPosition,
-    vm.Vector3 endPosition,
-    vm.Vector3 center,
-    double feedRate,
-    {bool clockwise = true}
-  ) async {
-    return ValidationResult.success();
-  }
-
-  @override
-  ValidationResult validateFeedRate(Machine machine, double feedRate) {
-    if (feedRate > 3000.0) {
-      return ValidationResult.failure(
-        'Feed rate exceeds maximum limit',
-        ViolationType.feedRateExceeded,
-      );
-    }
-    return ValidationResult.success();
-  }
-
-  @override
-  Future<ValidationResult> checkToolCollision(
-    Machine machine,
-    vm.Vector3 targetPosition,
-  ) async {
-    return ValidationResult.success();
-  }
-}

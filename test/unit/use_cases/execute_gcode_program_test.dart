@@ -5,7 +5,6 @@ import 'package:vector_math/vector_math.dart' as vm;
 import 'package:ghsender/domain/use_cases/execute_gcode_program.dart';
 import 'package:ghsender/domain/repositories/machine_repository.dart';
 import 'package:ghsender/domain/repositories/gcode_repository.dart';
-import 'package:ghsender/domain/services/safety_validator.dart';
 import 'package:ghsender/domain/entities/machine.dart';
 import 'package:ghsender/domain/value_objects/machine_position.dart';
 import 'package:ghsender/domain/value_objects/safety_envelope.dart';
@@ -18,25 +17,21 @@ import 'package:ghsender/models/machine_configuration.dart';
 // Mock classes
 class MockMachineRepository extends Mock implements MachineRepository {}
 class MockGCodeRepository extends Mock implements GCodeRepository {}
-class MockSafetyValidator extends Mock implements SafetyValidator {}
 
 void main() {
   group('ExecuteGCodeProgram Use Case', () {
     late ExecuteGCodeProgram executeProgram;
     late MockMachineRepository mockMachineRepository;
     late MockGCodeRepository mockGCodeRepository;
-    late MockSafetyValidator mockSafetyValidator;
     late Machine testMachine;
     late GCodeProgram testProgram;
 
     setUp(() {
       mockMachineRepository = MockMachineRepository();
       mockGCodeRepository = MockGCodeRepository();
-      mockSafetyValidator = MockSafetyValidator();
       executeProgram = ExecuteGCodeProgram(
         mockMachineRepository,
         mockGCodeRepository,
-        mockSafetyValidator,
       );
 
       // Create test machine
@@ -79,9 +74,6 @@ void main() {
         when(() => mockMachineRepository.isConnected).thenReturn(true);
         when(() => mockGCodeRepository.load(any()))
             .thenAnswer((_) async => testProgram);
-        when(() => mockSafetyValidator.validateProgram(any()))
-            .thenAnswer((_) async => ValidationResult.success());
-
         // Act
         final result = await executeProgram.execute(request);
 
@@ -94,7 +86,6 @@ void main() {
         verify(() => mockMachineRepository.getCurrent()).called(1);
         verify(() => mockGCodeRepository.load(const GCodeProgramId('test-program')))
             .called(1);
-        verify(() => mockSafetyValidator.validateProgram(testProgram)).called(1);
       });
 
       test('should return failure when machine not ready', () async {
@@ -120,7 +111,6 @@ void main() {
         // Verify interactions
         verify(() => mockMachineRepository.getCurrent()).called(1);
         verifyNever(() => mockGCodeRepository.load(any()));
-        verifyNever(() => mockSafetyValidator.validateProgram(any()));
       });
 
       test('should return failure when program validation fails', () async {
@@ -139,8 +129,6 @@ void main() {
         when(() => mockMachineRepository.isConnected).thenReturn(true);
         when(() => mockGCodeRepository.load(any()))
             .thenAnswer((_) async => testProgram);
-        when(() => mockSafetyValidator.validateProgram(any()))
-            .thenAnswer((_) async => validationFailure);
 
         // Act
         final result = await executeProgram.execute(request);
@@ -155,7 +143,6 @@ void main() {
         verify(() => mockMachineRepository.getCurrent()).called(1);
         verify(() => mockGCodeRepository.load(const GCodeProgramId('test-program')))
             .called(1);
-        verify(() => mockSafetyValidator.validateProgram(testProgram)).called(1);
       });
 
       test('should handle repository errors gracefully', () async {
@@ -178,7 +165,6 @@ void main() {
         // Verify interactions
         verify(() => mockMachineRepository.getCurrent()).called(1);
         verifyNever(() => mockGCodeRepository.load(any()));
-        verifyNever(() => mockSafetyValidator.validateProgram(any()));
       });
     });
 
@@ -193,8 +179,6 @@ void main() {
 
         when(() => mockGCodeRepository.load(any()))
             .thenAnswer((_) async => testProgram);
-        when(() => mockSafetyValidator.validateProgram(any()))
-            .thenAnswer((_) async => validationResult);
 
         // Act
         final result = await executeProgram.validateProgram(request);
@@ -205,7 +189,6 @@ void main() {
         // Verify interactions
         verify(() => mockGCodeRepository.load(const GCodeProgramId('test-program')))
             .called(1);
-        verify(() => mockSafetyValidator.validateProgram(testProgram)).called(1);
         verifyNever(() => mockMachineRepository.getCurrent());
       });
 

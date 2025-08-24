@@ -9,13 +9,10 @@ import 'package:ghsender/domain/value_objects/machine_position.dart';
 import 'package:ghsender/domain/value_objects/safety_envelope.dart';
 import 'package:ghsender/domain/value_objects/gcode_program.dart';
 import 'package:ghsender/domain/value_objects/gcode_program_id.dart';
-import 'package:ghsender/domain/value_objects/validation_result.dart';
 import 'package:ghsender/domain/repositories/machine_repository.dart';
 import 'package:ghsender/domain/repositories/gcode_repository.dart';
-import 'package:ghsender/domain/services/safety_validator.dart';
 import 'package:ghsender/models/machine_controller.dart';
 import 'package:ghsender/models/machine_configuration.dart';
-import 'package:ghsender/utils/soft_limit_checker.dart';
 
 /// Performance benchmarks for domain use cases to ensure no regression
 /// 
@@ -25,7 +22,6 @@ void main() {
   group('Use Case Performance Benchmarks', () {
     late BenchmarkMachineRepository machineRepository;
     late BenchmarkGCodeRepository gcodeRepository;
-    late BenchmarkSafetyValidator safetyValidator;
     late JogMachine jogMachine;
     late ExecuteGCodeProgram executeProgram;
     
@@ -56,13 +52,11 @@ void main() {
 
       machineRepository = BenchmarkMachineRepository(testMachine);
       gcodeRepository = BenchmarkGCodeRepository(testProgram);
-      safetyValidator = BenchmarkSafetyValidator();
       
-      jogMachine = JogMachine(machineRepository, safetyValidator);
+      jogMachine = JogMachine(machineRepository);
       executeProgram = ExecuteGCodeProgram(
         machineRepository,
         gcodeRepository,
-        safetyValidator,
       );
     });
 
@@ -338,80 +332,3 @@ class BenchmarkGCodeRepository implements GCodeRepository {
   Stream<GCodeProgram> watchProgram(GCodeProgramId id) => Stream.value(_testProgram);
 }
 
-/// High-performance safety validator for benchmarking
-class BenchmarkSafetyValidator implements SafetyValidator {
-  @override
-  Future<ValidationResult> validateJogMove(
-    Machine machine,
-    vm.Vector3 targetPosition,
-    double feedRate,
-  ) async {
-    // Optimized validation using SoftLimitChecker directly
-    final envelope = machine.safetyEnvelope;
-    
-    final workEnvelope = WorkEnvelope.fromBounds(
-      minBounds: envelope.minBounds,
-      maxBounds: envelope.maxBounds,
-      units: 'mm',
-      lastUpdated: DateTime.now(),
-    );
-
-    final isWithinLimits = SoftLimitChecker.isPositionWithinLimits(
-      targetPosition,
-      workEnvelope,
-    );
-
-    if (!isWithinLimits) {
-      return ValidationResult.failure(
-        'Position exceeds work envelope',
-        ViolationType.workEnvelopeExceeded,
-      );
-    }
-
-    if (feedRate > 3000.0) {
-      return ValidationResult.failure(
-        'Feed rate too high',
-        ViolationType.feedRateExceeded,
-      );
-    }
-
-    return ValidationResult.success();
-  }
-
-  @override
-  Future<ValidationResult> validateProgram(GCodeProgram program) async {
-    // Fast program validation for benchmarking
-    return ValidationResult.success();
-  }
-
-  @override
-  Future<ValidationResult> validateArcMove(
-    Machine machine,
-    vm.Vector3 startPosition,
-    vm.Vector3 endPosition,
-    vm.Vector3 center,
-    double feedRate,
-    {bool clockwise = true}
-  ) async {
-    return ValidationResult.success();
-  }
-
-  @override
-  ValidationResult validateFeedRate(Machine machine, double feedRate) {
-    if (feedRate > 3000.0) {
-      return ValidationResult.failure(
-        'Feed rate exceeds limit',
-        ViolationType.feedRateExceeded,
-      );
-    }
-    return ValidationResult.success();
-  }
-
-  @override
-  Future<ValidationResult> checkToolCollision(
-    Machine machine,
-    vm.Vector3 position,
-  ) async {
-    return ValidationResult.success();
-  }
-}

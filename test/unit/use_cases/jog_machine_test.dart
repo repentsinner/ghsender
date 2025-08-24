@@ -4,7 +4,6 @@ import 'package:vector_math/vector_math.dart' as vm;
 
 import 'package:ghsender/domain/use_cases/jog_machine.dart';
 import 'package:ghsender/domain/repositories/machine_repository.dart';
-import 'package:ghsender/domain/services/safety_validator.dart';
 import 'package:ghsender/domain/entities/machine.dart';
 import 'package:ghsender/domain/value_objects/machine_position.dart';
 import 'package:ghsender/domain/value_objects/safety_envelope.dart';
@@ -14,19 +13,16 @@ import 'package:ghsender/models/machine_configuration.dart';
 
 // Mock classes
 class MockMachineRepository extends Mock implements MachineRepository {}
-class MockSafetyValidator extends Mock implements SafetyValidator {}
 
 void main() {
   group('JogMachine Use Case', () {
     late JogMachine jogMachine;
     late MockMachineRepository mockMachineRepository;
-    late MockSafetyValidator mockSafetyValidator;
     late Machine testMachine;
 
     setUp(() {
       mockMachineRepository = MockMachineRepository();
-      mockSafetyValidator = MockSafetyValidator();
-      jogMachine = JogMachine(mockMachineRepository, mockSafetyValidator);
+      jogMachine = JogMachine(mockMachineRepository);
 
       // Create test machine
       testMachine = Machine(
@@ -58,11 +54,6 @@ void main() {
         when(() => mockMachineRepository.getCurrent())
             .thenAnswer((_) async => testMachine);
         
-        when(() => mockSafetyValidator.validateJogMove(
-              any(),
-              any(),
-              any(),
-            )).thenAnswer((_) async => ValidationResult.success());
 
         when(() => mockMachineRepository.updatePosition(any()))
             .thenAnswer((_) async {});
@@ -78,11 +69,6 @@ void main() {
 
         // Verify interactions
         verify(() => mockMachineRepository.getCurrent()).called(1);
-        verify(() => mockSafetyValidator.validateJogMove(
-              testMachine,
-              targetPosition,
-              feedRate,
-            )).called(1);
         verify(() => mockMachineRepository.updatePosition(any())).called(1);
       });
 
@@ -103,11 +89,6 @@ void main() {
         when(() => mockMachineRepository.getCurrent())
             .thenAnswer((_) async => testMachine);
         
-        when(() => mockSafetyValidator.validateJogMove(
-              any(),
-              any(),
-              any(),
-            )).thenAnswer((_) async => validationFailure);
 
         // Act
         final result = await jogMachine.execute(request);
@@ -120,11 +101,6 @@ void main() {
 
         // Verify interactions
         verify(() => mockMachineRepository.getCurrent()).called(1);
-        verify(() => mockSafetyValidator.validateJogMove(
-              testMachine,
-              targetPosition,
-              feedRate,
-            )).called(1);
         verifyNever(() => mockMachineRepository.updatePosition(any()));
       });
 
@@ -150,7 +126,6 @@ void main() {
         
         // Verify interactions
         verify(() => mockMachineRepository.getCurrent()).called(1);
-        verifyNever(() => mockSafetyValidator.validateJogMove(any(), any(), any()));
         verifyNever(() => mockMachineRepository.updatePosition(any()));
       });
     });
@@ -170,11 +145,6 @@ void main() {
         when(() => mockMachineRepository.getCurrent())
             .thenAnswer((_) async => testMachine);
         
-        when(() => mockSafetyValidator.validateJogMove(
-              any(),
-              any(),
-              any(),
-            )).thenAnswer((_) async => validationResult);
 
         // Act
         final result = await jogMachine.validateMove(request);
@@ -184,11 +154,6 @@ void main() {
         
         // Verify interactions
         verify(() => mockMachineRepository.getCurrent()).called(1);
-        verify(() => mockSafetyValidator.validateJogMove(
-              testMachine,
-              targetPosition,
-              feedRate,
-            )).called(1);
         verifyNever(() => mockMachineRepository.updatePosition(any()));
       });
 
