@@ -200,22 +200,22 @@ A task is only complete when the original code is **removed**, not just when the
     - [x] ✅ All related tests pass.
 
 **Task 1D: Complex Integration (Highest Risk - Days 9-10)**
-- [ ] **GCodePath Value Object** (DEPENDENCY: GCodeCommand, BoundingBox)
+- [x] **GCodePath Value Object** (DEPENDENCY: GCodeCommand, BoundingBox)
   - Current: `/lib/gcode/gcode_parser.dart` - Path analysis and visualization
   - **Prerequisites**: GCodeCommand must be complete
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/value_objects/gcode_path.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/gcode/gcode_parser.dart`.
-    - [ ] ✅ All related tests pass.
-- [ ] **JobEnvelope Value Object** (DEPENDENCY: WorkEnvelope, BoundingBox)
+    - [x] 🟩 `lib/domain/value_objects/gcode_path.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/gcode/gcode_parser.dart`.
+    - [x] ✅ All related tests pass.
+- [x] **JobEnvelope Value Object** (DEPENDENCY: WorkEnvelope, BoundingBox)
   - Current: `/lib/models/job_envelope.dart` - Job visualization and camera positioning
   - **Prerequisites**: WorkEnvelope must be complete
   - **Definition of Done**:
-    - [ ] 🔲 `lib/domain/value_objects/job_envelope.dart` created.
-    - [ ] 🔲 All usages redirected to the new domain object.
-    - [ ] 🔲 Original model class removed from `lib/models/job_envelope.dart`.
-    - [ ] ✅ All related tests pass.
+    - [x] 🟩 `lib/domain/value_objects/job_envelope.dart` created.
+    - [x] 🟩 All usages redirected to the new domain object.
+    - [x] 🟩 Original model class removed from `lib/models/job_envelope.dart` (file deleted).
+    - [x] ✅ All related tests pass.
 
 ## Detailed Dependency Analysis
 

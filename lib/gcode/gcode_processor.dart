@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 import '../utils/logger.dart';
-import 'gcode_parser.dart';
+import '../domain/value_objects/gcode_path.dart';
+import 'gcode_parser.dart' as parser; // Need GCodeParser and old GCodePath
 import '../domain/value_objects/gcode_file.dart';
 
 /// Central G-code processing engine that manages the pipeline between
@@ -51,8 +52,8 @@ class GCodeProcessor {
       _eventController.add(GCodeProcessingEvent.parsing(file));
       AppLogger.gcodeInfo('Parsing G-code file: ${file.path}');
 
-      final parser = GCodeParser();
-      _currentParsedData = await parser.parseFile(file.path);
+      final gcodeParser = parser.GCodeParser();
+      _currentParsedData = await gcodeParser.parseFile(file.path);
 
       AppLogger.gcodeInfo('G-code parsing completed:');
       AppLogger.gcodeInfo('- Total operations: ${_currentParsedData!.totalOperations}');

@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../../gcode/gcode_parser.dart';  // For GCodePath
+import 'gcode_path.dart';
 import 'gcode_program_id.dart';
 import 'validation_result.dart';
 

@@ -1,7 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:vector_math/vector_math.dart' as vm;
-import 'bounding_box.dart';
-import '../domain/value_objects/work_envelope.dart'; // For WorkEnvelope
+import '../../models/bounding_box.dart';
+import 'work_envelope.dart';
 
 /// G-code job geometry envelope
 /// 
@@ -142,4 +142,3 @@ class JobEnvelope extends Equatable {
     return 'JobEnvelope($summary)';
   }
 }
-
